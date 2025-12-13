@@ -16,7 +16,7 @@ import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 
 const { width } = Dimensions.get('window');
 
-// Animated game-related icons from CDN (similar to FAQ example)
+
 const GAME_ICONS = [
   "https://cdn-icons-png.flaticon.com/512/2331/2331966.png", // Game controller
   "https://cdn-icons-png.flaticon.com/512/808/808439.png",   // Dice
@@ -60,7 +60,7 @@ const Game = ({ navigation }) => {
         const gamesData = res.data.games.data;
         setGames(gamesData);
         
-        // Calculate stats
+     
         const freeGames = gamesData.filter(g => g.ticket_type === "free").length;
         const premiumGames = gamesData.filter(g => g.ticket_type === "paid").length;
         const totalPlayers = gamesData.reduce((acc, game) => acc + game.max_players, 0);
@@ -94,7 +94,7 @@ const Game = ({ navigation }) => {
         activeOpacity={0.9}
         onPress={() => navigation.navigate("GameDetails", { game })}
       >
-        {/* Game Icon and Type */}
+  
         <View style={styles.cardHeader}>
           <View style={styles.gameIconContainer}>
             <Image source={{ uri: gameIcon }} style={styles.gameIcon} />
@@ -122,7 +122,7 @@ const Game = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Game Details */}
+   
         <View style={styles.gameDetails}>
           <View style={styles.detailRow}>
             <View style={styles.detailItem}>
@@ -154,7 +154,7 @@ const Game = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Prize Pool */}
+       
         <View style={styles.prizeContainer}>
           <MaterialIcons name="account-balance-wallet" size={18} color="#7209B7" />
           <Text style={styles.prizeText}>
@@ -164,7 +164,7 @@ const Game = ({ navigation }) => {
           </Text>
         </View>
 
-        {/* Join Button */}
+
         <TouchableOpacity 
           style={[
             styles.joinButton,
@@ -228,7 +228,7 @@ const Game = ({ navigation }) => {
         />
       }
     >
-      {/* Header with Animated Icon */}
+ 
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>🎯 Tambola Live</Text>
@@ -244,7 +244,7 @@ const Game = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Quick Stats */}
+  
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <View style={[styles.statIcon, { backgroundColor: '#FFE6E6' }]}>
@@ -271,7 +271,7 @@ const Game = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Improved Categories Section */}
+
       <View style={styles.categoriesSection}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Browse Categories</Text>
@@ -340,7 +340,7 @@ const Game = ({ navigation }) => {
         </ScrollView>
       </View>
 
-      {/* Games List */}
+
       <View style={styles.gamesSection}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Available Games</Text>
@@ -411,8 +411,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#FF7675",
-    paddingTop: 50,
-    paddingBottom: 25,
+    paddingTop: 40,
+    paddingBottom: 40,
     paddingHorizontal: 20,
     flexDirection: "row",
     justifyContent: "space-between",

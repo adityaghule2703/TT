@@ -28,6 +28,7 @@ import Game from "./pages/Game";
 import Profile from "./pages/Profile";
 import Faqs from "./pages/Faqs";
 import GameDetails from "./pages/GameDetails";
+import TicketsScreen from "./pages/TicketsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -108,6 +109,7 @@ export default function App() {
 
     {/* GAME DETAILS PAGE */}
     <Stack.Screen name="GameDetails" component={GameDetails} />
+    <Stack.Screen name="TicketsScreen" component={TicketsScreen} />
   </>
 ) : (
   <>
