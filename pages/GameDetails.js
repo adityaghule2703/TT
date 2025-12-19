@@ -29,6 +29,7 @@ const GameDetails = ({ route, navigation }) => {
   const [ticketMessage, setTicketMessage] = useState("");
   const [requestLoading, setRequestLoading] = useState(false);
   const [myTicketCount, setMyTicketCount] = useState(0);
+  const [myRequestCount, setMyRequestCount] = useState(0);
 
   const GAME_IMAGES = {
     header: "https://cdn-icons-png.flaticon.com/512/2331/2331966.png",
@@ -42,15 +43,19 @@ const GameDetails = ({ route, navigation }) => {
     diamond: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
     wallet: "https://cdn-icons-png.flaticon.com/512/1061/1061140.png",
     request: "https://cdn-icons-png.flaticon.com/512/159/159832.png",
+    requests: "https://cdn-icons-png.flaticon.com/512/159/159832.png",
   };
 
   useEffect(() => {
     fetchMyTicketCount();
+    fetchMyRequestCount();
   }, []);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    fetchMyTicketCount().finally(() => setRefreshing(false));
+    Promise.all([fetchMyTicketCount(), fetchMyRequestCount()]).finally(() =>
+      setRefreshing(false)
+    );
   }, []);
 
   const fetchMyTicketCount = async () => {
@@ -68,6 +73,24 @@ const GameDetails = ({ route, navigation }) => {
       }
     } catch (error) {
       console.log("Error fetching ticket count:", error);
+    }
+  };
+
+  const fetchMyRequestCount = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const res = await axios.get(
+        "https://exilance.com/tambolatimez/public/api/user/my-ticket-requests",
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.success) {
+        const gameRequests = res.data.ticket_requests.data.filter(
+          (request) => request.game_id === game.id
+        );
+        setMyRequestCount(gameRequests.length);
+      }
+    } catch (error) {
+      console.log("Error fetching request count:", error);
     }
   };
 
@@ -104,6 +127,9 @@ const GameDetails = ({ route, navigation }) => {
         setTicketModalVisible(false);
         setTicketQuantity(1);
         setTicketMessage("");
+        // Refresh counts after submitting request
+        fetchMyRequestCount();
+        fetchMyTicketCount();
       } else {
         Alert.alert("Error", response.data.message || "Failed to submit request");
       }
@@ -120,6 +146,13 @@ const GameDetails = ({ route, navigation }) => {
 
   const navigateToTickets = () => {
     navigation.navigate("TicketsScreen", { game });
+  };
+
+  const navigateToMyRequests = () => {
+    navigation.navigate("TicketRequestsScreen", { 
+      gameId: game.id,
+      gameName: game.game_name 
+    });
   };
 
   return (
@@ -308,6 +341,42 @@ const GameDetails = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
 
+            {/* My Requests Count */}
+            <View style={styles.detailRowFixed}>
+              <View style={styles.detailLabelContainer}>
+                <Image
+                  source={{ uri: GAME_IMAGES.requests }}
+                  style={styles.detailRowIcon}
+                />
+                <Text style={styles.detailLabel}>My Requests</Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.myRequestsBadge,
+                  myRequestCount > 0
+                    ? styles.hasRequestsBadge
+                    : styles.noRequestsBadge,
+                ]}
+                onPress={navigateToMyRequests}
+              >
+                <Text
+                  style={[
+                    styles.myRequestsText,
+                    myRequestCount > 0
+                      ? styles.hasRequestsText
+                      : styles.noRequestsText,
+                  ]}
+                >
+                  {myRequestCount > 0
+                    ? `${myRequestCount} Request${myRequestCount > 1 ? "s" : ""}`
+                    : "No Requests"}
+                </Text>
+                {myRequestCount > 0 && (
+                  <Ionicons name="arrow-forward" size={14} color="#2196F3" />
+                )}
+              </TouchableOpacity>
+            </View>
+
             {game.message && (
               <View style={styles.messageCard}>
                 <View style={styles.messageHeader}>
@@ -354,6 +423,27 @@ const GameDetails = ({ route, navigation }) => {
                   {myTicketCount > 0
                     ? `Show My Tickets (${myTicketCount})`
                     : "No Tickets"}
+                </Text>
+              </TouchableOpacity>
+
+              {/* My Requests Button */}
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  styles.myRequestsButton,
+                  myRequestCount === 0 && styles.disabledButton,
+                ]}
+                onPress={navigateToMyRequests}
+                disabled={myRequestCount === 0}
+              >
+                <Image
+                  source={{ uri: GAME_IMAGES.requests }}
+                  style={styles.myRequestsButtonIcon}
+                />
+                <Text style={styles.myRequestsButtonText}>
+                  {myRequestCount > 0
+                    ? `My Requests (${myRequestCount})`
+                    : "No Requests"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -740,6 +830,35 @@ const styles = StyleSheet.create({
   noTicketsText: {
     color: "#666",
   },
+  myRequestsBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+    minWidth: 100,
+  },
+  hasRequestsBadge: {
+    backgroundColor: "#E3F2FD",
+    borderWidth: 1,
+    borderColor: "#2196F3",
+  },
+  noRequestsBadge: {
+    backgroundColor: "#F5F5F5",
+    borderWidth: 1,
+    borderColor: "#9E9E9E",
+  },
+  myRequestsText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  hasRequestsText: {
+    color: "#2196F3",
+  },
+  noRequestsText: {
+    color: "#666",
+  },
   messageCard: {
     backgroundColor: "#F8F9FF",
     borderRadius: 12,
@@ -804,9 +923,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
+  myRequestsButton: {
+    backgroundColor: "#FFF",
+    borderWidth: 2,
+    borderColor: "#2196F3",
+  },
+  myRequestsButtonIcon: {
+    width: 24,
+    height: 24,
+  },
+  myRequestsButtonText: {
+    color: "#2196F3",
+    fontSize: 16,
+    fontWeight: "700",
+  },
   disabledButton: {
     opacity: 0.5,
-    borderColor: "#9E9E9E",
   },
   rewardsCard: {
     backgroundColor: "#FFF",

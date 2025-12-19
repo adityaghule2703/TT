@@ -3,16 +3,38 @@ import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, Image } fro
 import axios from "axios";
 
 const ResetPassword = ({ navigation, route }) => {
-  const { mobile, otp_code } = route.params;
+  const { mobile, otp_code, role = "user" } = route.params;
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const resetPassword = async () => {
-    if (password !== confirm) return Alert.alert("Error", "Passwords do not match");
+    if (!password || !confirm) {
+      return Alert.alert("Error", "Please enter both passwords");
+    }
+
+    if (password !== confirm) {
+      return Alert.alert("Error", "Passwords do not match");
+    }
+
+    if (password.length < 6) {
+      return Alert.alert("Error", "Password must be at least 6 characters");
+    }
+
+    setIsLoading(true);
 
     try {
-      await axios.post("https://exilance.com/tambolatimez/public/api/user/reset-password", {
+      let url = "";
+      
+      if (role === "user") {
+        url = "https://exilance.com/tambolatimez/public/api/user/reset-password";
+      } else {
+        // Assuming similar API for host reset password
+        url = "https://exilance.com/tambolatimez/public/api/host/reset-password";
+      }
+
+      await axios.post(url, {
         mobile,
         otp_code,
         password,
@@ -23,7 +45,9 @@ const ResetPassword = ({ navigation, route }) => {
       navigation.replace("Login");
     } catch (err) {
       console.log(err);
-      Alert.alert("Error", "Failed to reset password");
+      Alert.alert("Error", err.response?.data?.message || "Failed to reset password");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -36,10 +60,12 @@ const ResetPassword = ({ navigation, route }) => {
 
       <View style={styles.card}>
         <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>Enter new password</Text>
+        <Text style={styles.subtitle}>
+          {role === "user" ? "User" : "Host"} Account
+        </Text>
 
         <TextInput
-          placeholder="New Password"
+          placeholder="New Password (min 6 characters)"
           secureTextEntry
           style={styles.input}
           value={password}
@@ -56,8 +82,18 @@ const ResetPassword = ({ navigation, route }) => {
           placeholderTextColor="#999"
         />
 
-        <TouchableOpacity style={styles.btn} onPress={resetPassword}>
-          <Text style={styles.btnText}>Reset Password</Text>
+        <TouchableOpacity
+          style={[styles.btn, isLoading && styles.btnDisabled]}
+          onPress={resetPassword}
+          disabled={isLoading}
+        >
+          <Text style={styles.btnText}>
+            {isLoading ? "Resetting..." : "Reset Password"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+          <Text style={styles.backText}>← Back to Login</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -101,5 +137,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginTop: 10,
   },
+  btnDisabled: {
+    opacity: 0.7,
+  },
   btnText: { color: "#fff", textAlign: "center", fontSize: 17, fontWeight: "700" },
+  backText: {
+    textAlign: "center",
+    marginTop: 15,
+    color: "#666",
+    fontSize: 14,
+    fontWeight: "500",
+  },
 });
