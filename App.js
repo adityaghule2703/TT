@@ -44,6 +44,9 @@ import HostGameEdit from "./pages/HostGameEdit";
 import HostTicketRequests from "./pages/HostTicketRequests";
 import HostGameUsers from "./pages/HostGameUsers";
 import TicketRequestsScreen from "./pages/TicketRequestsScreen";
+import HostGameRoom from "./pages/HostGameRoom";
+import HostCalledNumbers from "./pages/HostCalledNumbers";
+import UserGameRoom from "./pages/UserGameRoom";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -268,6 +271,7 @@ export default function App() {
                     <Stack.Screen name="GameDetails" component={GameDetails} />
                     <Stack.Screen name="TicketsScreen" component={TicketsScreen} />
                     <Stack.Screen name="TicketRequestsScreen" component={TicketRequestsScreen}/>
+                    <Stack.Screen name="UserGameRoom" component={UserGameRoom} />
                   </>
                 )}
 
@@ -278,6 +282,8 @@ export default function App() {
                     <Stack.Screen name="HostGameEdit" component={HostGameEdit} />
                     <Stack.Screen name="HostTicketRequests" component={HostTicketRequests} />
                     <Stack.Screen name="HostGameUsers" component={HostGameUsers} />
+                    <Stack.Screen name="HostGameRoom" component={HostGameRoom} />
+                    <Stack.Screen name="HostCalledNumbers" component={HostCalledNumbers} />
                   </>
                 )}
 

@@ -30,6 +30,10 @@ const GameDetails = ({ route, navigation }) => {
   const [requestLoading, setRequestLoading] = useState(false);
   const [myTicketCount, setMyTicketCount] = useState(0);
   const [myRequestCount, setMyRequestCount] = useState(0);
+  const [gameStatus, setGameStatus] = useState(null);
+  const [callingStatus, setCallingStatus] = useState(null);
+  const [calledNumbers, setCalledNumbers] = useState([]);
+  const [timer, setTimer] = useState(0);
 
   const GAME_IMAGES = {
     header: "https://cdn-icons-png.flaticon.com/512/2331/2331966.png",
@@ -44,19 +48,50 @@ const GameDetails = ({ route, navigation }) => {
     wallet: "https://cdn-icons-png.flaticon.com/512/1061/1061140.png",
     request: "https://cdn-icons-png.flaticon.com/512/159/159832.png",
     requests: "https://cdn-icons-png.flaticon.com/512/159/159832.png",
+    live: "https://cdn-icons-png.flaticon.com/512/2809/2809645.png",
+    scheduled: "https://cdn-icons-png.flaticon.com/512/747/747310.png",
   };
 
   useEffect(() => {
+    fetchGameStatus();
     fetchMyTicketCount();
     fetchMyRequestCount();
   }, []);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    Promise.all([fetchMyTicketCount(), fetchMyRequestCount()]).finally(() =>
+    Promise.all([fetchGameStatus(), fetchMyTicketCount(), fetchMyRequestCount()]).finally(() =>
       setRefreshing(false)
     );
   }, []);
+
+  const fetchGameStatus = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const response = await axios.get(
+        `https://exilance.com/tambolatimez/public/api/user/games/${game.id}/calling-status`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        const data = response.data.data;
+        setGameStatus(data.game);
+        setCallingStatus(data.calling);
+        setCalledNumbers(data.numbers.called_numbers || []);
+        
+        if (data.calling?.is_running && !data.calling?.is_paused) {
+          setTimer(data.calling?.interval_seconds || 60);
+        }
+      }
+    } catch (error) {
+      console.log("Error fetching game status:", error);
+    }
+  };
 
   const fetchMyTicketCount = async () => {
     try {
@@ -155,6 +190,13 @@ const GameDetails = ({ route, navigation }) => {
     });
   };
 
+  const navigateToGameRoom = () => {
+    navigation.navigate("UserGameRoom", { 
+      gameId: game.id,
+      gameName: game.game_name 
+    });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -197,6 +239,104 @@ const GameDetails = ({ route, navigation }) => {
 
         {/* Content */}
         <View style={styles.content}>
+          {/* Game Status Card */}
+          <View style={styles.gameStatusCard}>
+            <View style={styles.gameStatusHeader}>
+              <Image
+                source={{ 
+                  uri: gameStatus?.status === 'live' 
+                    ? GAME_IMAGES.live 
+                    : GAME_IMAGES.scheduled 
+                }}
+                style={styles.gameStatusImage}
+              />
+              <Text style={styles.gameStatusTitle}>
+                {gameStatus?.status === 'live' ? 'Game Status' : 'Game Schedule'}
+              </Text>
+              <View style={[
+                styles.statusBadge,
+                { 
+                  backgroundColor: gameStatus?.status === 'live' 
+                    ? '#FF525220' 
+                    : '#4CAF5020' 
+                }
+              ]}>
+                <Text style={[
+                  styles.statusBadgeText,
+                  { 
+                    color: gameStatus?.status === 'live' 
+                      ? '#FF5252' 
+                      : '#4CAF50' 
+                  }
+                ]}>
+                  {gameStatus?.status?.toUpperCase() || 'LOADING'}
+                </Text>
+              </View>
+            </View>
+            
+            {gameStatus?.status === 'live' ? (
+              <View>
+                <Text style={styles.liveGameDescription}>
+                  The game is now live! Number calling has started.
+                </Text>
+                {callingStatus?.is_running ? (
+                  <View style={styles.liveStats}>
+                    <View style={styles.liveStatItem}>
+                      <Ionicons name="megaphone" size={20} color="#4CAF50" />
+                      <Text style={styles.liveStatValue}>
+                        {calledNumbers.length} Called
+                      </Text>
+                      <Text style={styles.liveStatLabel}>Numbers</Text>
+                    </View>
+                    <View style={styles.liveStatItem}>
+                      <Ionicons name="time" size={20} color="#FF9800" />
+                      <Text style={styles.liveStatValue}>
+                        {timer}s
+                      </Text>
+                      <Text style={styles.liveStatLabel}>Next Call</Text>
+                    </View>
+                    <View style={styles.liveStatItem}>
+                      <Ionicons name="grid" size={20} color="#2196F3" />
+                      <Text style={styles.liveStatValue}>
+                        {90 - calledNumbers.length}
+                      </Text>
+                      <Text style={styles.liveStatLabel}>Remaining</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={styles.waitingText}>
+                    Number calling will start soon...
+                  </Text>
+                )}
+                
+                <TouchableOpacity
+                  style={styles.joinRoomButton}
+                  onPress={navigateToGameRoom}
+                >
+                  <Ionicons name="enter" size={20} color="#FFF" />
+                  <Text style={styles.joinRoomButtonText}>Join Game Room</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View>
+                <Text style={styles.scheduledGameDescription}>
+                  Game is scheduled to start on {new Date(game.game_date).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric"
+                  })} at {game.game_start_time}
+                </Text>
+                <View style={styles.scheduledButton}>
+                  <Ionicons name="calendar" size={20} color="#4CAF50" />
+                  <Text style={styles.scheduledButtonText}>
+                    Game is Scheduled
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
           {/* Stats Card */}
           <View style={styles.statsCard}>
             <View style={styles.statItem}>
@@ -227,6 +367,7 @@ const GameDetails = ({ route, navigation }) => {
             </View>
           </View>
 
+          {/* Rest of the existing code remains the same... */}
           {/* Details Card */}
           <View style={styles.detailsCard}>
             <View style={styles.sectionHeader}>
@@ -506,7 +647,7 @@ const GameDetails = ({ route, navigation }) => {
         <View style={styles.bottomSpace} />
       </ScrollView>
 
-      {/* Ticket Request Modal */}
+      {/* Ticket Request Modal - Same as before */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -682,6 +823,110 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  gameStatusCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#EEE",
+  },
+  gameStatusHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 12,
+  },
+  gameStatusImage: {
+    width: 24,
+    height: 24,
+  },
+  gameStatusTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#333",
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  liveGameDescription: {
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  liveStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  liveStatItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  liveStatValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#333",
+    marginTop: 8,
+  },
+  liveStatLabel: {
+    fontSize: 12,
+    color: "#666",
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  waitingText: {
+    fontSize: 14,
+    color: "#FF9800",
+    fontStyle: "italic",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  joinRoomButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FF7675",
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  joinRoomButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  scheduledGameDescription: {
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  scheduledButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F0F9FF",
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: "#4CAF50",
+  },
+  scheduledButtonText: {
+    color: "#4CAF50",
+    fontSize: 16,
+    fontWeight: "600",
   },
   statsCard: {
     flexDirection: "row",

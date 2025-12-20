@@ -11,6 +11,7 @@ import {
   StatusBar,
   Modal,
   Dimensions,
+  Alert,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -26,6 +27,7 @@ const HostGame = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
   const [loadingGameDetails, setLoadingGameDetails] = useState(false);
+  const [startingGame, setStartingGame] = useState(false);
 
   useEffect(() => {
     fetchGames();
@@ -114,6 +116,82 @@ const HostGame = ({ navigation }) => {
     }
   };
 
+  const handleStartGame = async () => {
+    if (!selectedGame) return;
+
+    Alert.alert(
+      "Start Game",
+      `Are you sure you want to start "${selectedGame.game_name}"?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Start Game",
+          onPress: async () => {
+            try {
+              setStartingGame(true);
+              const token = await AsyncStorage.getItem("hostToken");
+
+              const response = await axios.post(
+                `https://exilance.com/tambolatimez/public/api/host/games/${selectedGame.id}/start`,
+                {},
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                  },
+                }
+              );
+
+              if (response.data.success) {
+                Alert.alert(
+                  "Success",
+                  "Game started successfully!",
+                  [
+                    {
+                      text: "OK",
+                      onPress: () => {
+                        setModalVisible(false);
+                        navigation.navigate("HostGameRoom", {
+                          gameId: selectedGame.id,
+                          gameName: selectedGame.game_name,
+                        });
+                      }
+                    }
+                  ]
+                );
+                // Refresh games list
+                fetchGames();
+              } else {
+                throw new Error("Failed to start game");
+              }
+            } catch (error) {
+              console.log("Error starting game:", error);
+              Alert.alert(
+                "Error",
+                error.response?.data?.message || error.message || "Failed to start game"
+              );
+            } finally {
+              setStartingGame(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleEnterGameRoom = () => {
+    if (!selectedGame) return;
+    
+    setModalVisible(false);
+    navigation.navigate("HostGameRoom", {
+      gameId: selectedGame.id,
+      gameName: selectedGame.game_name,
+    });
+  };
+
   const getStatusIcon = (status) => {
     switch (status) {
       case "scheduled":
@@ -124,6 +202,8 @@ const HostGame = ({ navigation }) => {
         return "check-circle";
       case "cancelled":
         return "cancel";
+      case "live":
+        return "broadcast";
       default:
         return "help-circle";
     }
@@ -139,6 +219,8 @@ const HostGame = ({ navigation }) => {
         return "#9C27B0";
       case "cancelled":
         return "#F44336";
+      case "live":
+        return "#2196F3";
       default:
         return "#607D8B";
     }
@@ -241,7 +323,9 @@ const HostGame = ({ navigation }) => {
             )}
           </View>
           <View style={styles.viewDetails}>
-            <Text style={styles.viewDetailsText}>View Details</Text>
+            <Text style={styles.viewDetailsText}>
+              {game.status === "live" ? "Enter Game" : "View Details"}
+            </Text>
             <Ionicons name="chevron-forward" size={16} color="#3498db" />
           </View>
         </View>
@@ -496,6 +580,39 @@ const HostGame = ({ navigation }) => {
                 )}
 
                 <View style={styles.modalActions}>
+                  {/* Conditional Buttons */}
+                  {selectedGame.status === "live" ? (
+                    <TouchableOpacity
+                      style={styles.enterGameButton}
+                      onPress={handleEnterGameRoom}
+                    >
+                      <Ionicons name="game-controller" size={18} color="#FFF" />
+                      <Text style={styles.enterGameButtonText}>
+                        Enter Game Room
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (selectedGame.status === "scheduled" || selectedGame.status === "active") ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.startGameButton,
+                        startingGame && styles.startGameButtonDisabled
+                      ]}
+                      onPress={handleStartGame}
+                      disabled={startingGame}
+                    >
+                      {startingGame ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="play-circle" size={18} color="#FFF" />
+                          <Text style={styles.startGameButtonText}>
+                            Start Game
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  ) : null}
+
                   <TouchableOpacity
                     style={styles.ticketRequestsButton}
                     onPress={() => {
@@ -512,7 +629,6 @@ const HostGame = ({ navigation }) => {
                     </Text>
                   </TouchableOpacity>
 
-                  {/* NEW: Players List Button */}
                   <TouchableOpacity
                     style={styles.playersListButton}
                     onPress={() => {
@@ -536,18 +652,21 @@ const HostGame = ({ navigation }) => {
                     >
                       <Text style={styles.secondaryActionText}>Close</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.primaryAction}
-                      onPress={() => {
-                        setModalVisible(false);
-                        navigation.navigate("HostGameEdit", {
-                          game: selectedGame,
-                        });
-                      }}
-                    >
-                      <Ionicons name="create-outline" size={18} color="#FFF" />
-                      <Text style={styles.primaryActionText}>Edit Game</Text>
-                    </TouchableOpacity>
+                    
+                    {selectedGame.status !== "live" && (
+                      <TouchableOpacity
+                        style={styles.primaryAction}
+                        onPress={() => {
+                          setModalVisible(false);
+                          navigation.navigate("HostGameEdit", {
+                            game: selectedGame,
+                          });
+                        }}
+                      >
+                        <Ionicons name="create-outline" size={18} color="#FFF" />
+                        <Text style={styles.primaryActionText}>Edit Game</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               </>
@@ -637,9 +756,9 @@ const HostGame = ({ navigation }) => {
             <View style={styles.statsCard}>
               <Ionicons name="play-circle-outline" size={24} color="#4CAF50" />
               <Text style={styles.statsCount}>
-                {games.filter((g) => g.status === "active").length}
+                {games.filter((g) => g.status === "active" || g.status === "live").length}
               </Text>
-              <Text style={styles.statsLabel}>Active</Text>
+              <Text style={styles.statsLabel}>Active/Live</Text>
             </View>
 
             <View style={styles.statsCard}>
@@ -1332,6 +1451,47 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#F0F0F0",
     gap: 12,
+  },
+  startGameButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4CAF50",
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#4CAF50",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  startGameButtonDisabled: {
+    backgroundColor: "#A5D6A7",
+  },
+  startGameButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  enterGameButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2196F3",
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#2196F3",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  enterGameButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   ticketRequestsButton: {
     flexDirection: "row",
