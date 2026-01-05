@@ -60,6 +60,9 @@ const HostGameCreation = ({ navigation, route }) => {
   const [currentPatternForReward, setCurrentPatternForReward] = useState(null);
   const [editingReward, setEditingReward] = useState(null);
 
+  // Toast Notification State
+  const [toast, setToast] = useState({ visible: false, message: '', type: '' });
+
   useEffect(() => {
     fetchPatterns();
   }, []);
@@ -90,7 +93,7 @@ const HostGameCreation = ({ navigation, route }) => {
       }
     } catch (error) {
       console.log('Error fetching patterns:', error);
-      Alert.alert('Error', 'Failed to load patterns');
+      showToast('Failed to load patterns', 'error');
     } finally {
       setLoadingPatterns(false);
     }
@@ -113,51 +116,51 @@ const HostGameCreation = ({ navigation, route }) => {
 
   const validateForm = () => {
     if (!gameName.trim()) {
-      Alert.alert('Error', 'Please enter a game name');
+      showToast('Please enter a game name', 'error');
       return false;
     }
     
     if (selectedPatterns.length === 0) {
-      Alert.alert('Error', 'Please select at least one pattern');
+      showToast('Please select at least one pattern', 'error');
       return false;
     }
     
     if (ticketType === 'paid' && (!ticketCost || parseFloat(ticketCost) <= 0)) {
-      Alert.alert('Error', 'Please enter a valid ticket cost');
+      showToast('Please enter a valid ticket cost', 'error');
       return false;
     }
     
     if (!maxPlayers || parseInt(maxPlayers) <= 0) {
-      Alert.alert('Error', 'Please enter a valid max players count');
+      showToast('Please enter a valid max players count', 'error');
       return false;
     }
     
     if (!maxTickets || parseInt(maxTickets) <= 0) {
-      Alert.alert('Error', 'Please enter a valid max tickets count');
+      showToast('Please enter a valid max tickets count', 'error');
       return false;
     }
     
     if (!maxWinners || parseInt(maxWinners) <= 0) {
-      Alert.alert('Error', 'Please enter a valid max winners count');
+      showToast('Please enter a valid max winners count', 'error');
       return false;
     }
     
     // Validate pattern rewards
     for (const reward of patternRewards) {
       if (!reward.amount || parseFloat(reward.amount) <= 0) {
-        Alert.alert('Error', `Please enter a valid reward amount for ${reward.pattern_name}`);
+        showToast(`Please enter a valid reward amount for ${reward.pattern_name}`, 'error');
         return false;
       }
       if (!reward.reward_count || parseInt(reward.reward_count) <= 0) {
-        Alert.alert('Error', `Please enter a valid reward count for ${reward.pattern_name}`);
+        showToast(`Please enter a valid reward count for ${reward.pattern_name}`, 'error');
         return false;
       }
       if (!reward.min_tickets_required || parseInt(reward.min_tickets_required) <= 0) {
-        Alert.alert('Error', `Please enter valid minimum tickets for ${reward.pattern_name}`);
+        showToast(`Please enter valid minimum tickets for ${reward.pattern_name}`, 'error');
         return false;
       }
       if (!reward.reward_name || !reward.reward_name.trim()) {
-        Alert.alert('Error', `Please enter a reward name for ${reward.pattern_name}`);
+        showToast(`Please enter a reward name for ${reward.pattern_name}`, 'error');
         return false;
       }
     }
@@ -215,28 +218,46 @@ const HostGameCreation = ({ navigation, route }) => {
             Accept: 'application/json',
             'Content-Type': 'application/json',
           },
+          timeout: 30000,
         }
       );
 
-      if (response.data.success) {
-        Alert.alert(
-          '🎉 Success', 
-          'Game created successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                navigation.goBack();
-              }
-            }
-          ]
-        );
+      // Check for success - handle different possible response structures
+      const isSuccess = 
+        response.data.success === true || 
+        response.data.status === true || 
+        response.data.message?.toLowerCase().includes('success') ||
+        response.data.data?.id;
+
+      if (isSuccess) {
+        // Show success toast
+        showToast(response.data.message || 'Game created successfully!', 'success');
+        
+        // Navigate to HostGames screen after a short delay
+       setTimeout(() => {
+  navigation.goBack();
+}, 1500);
       } else {
-        throw new Error(response.data.message || 'Failed to create game');
+        // Handle API error response
+        const errorMessage = response.data.message || 
+                            response.data.error || 
+                            'Failed to create game. Please try again.';
+        throw new Error(errorMessage);
       }
     } catch (error) {
-      console.log('Error creating game:', error.response?.data || error);
-      Alert.alert('❌ Error', error.response?.data?.message || error.message || 'Failed to create game');
+      console.log('Error creating game:', error);
+      
+      let errorMessage = error.message || 'Failed to create game. Please try again.';
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message || 
+                      error.response.data?.error || 
+                      `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        errorMessage = 'No response from server. Please check your connection.';
+      }
+      
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }
@@ -269,7 +290,6 @@ const HostGameCreation = ({ navigation, route }) => {
         return [...prev, pattern];
       }
     });
-    // Don't close modal when selecting patterns
   };
 
   const updatePatternReward = (patternId, field, value) => {
@@ -294,6 +314,40 @@ const HostGameCreation = ({ navigation, route }) => {
 
   const saveInlineReward = () => {
     setEditingReward(null);
+  };
+
+  // Toast Functions
+  const showToast = (message, type = 'success') => {
+    setToast({ visible: true, message, type });
+  };
+
+  const hideToast = () => {
+    setToast({ ...toast, visible: false });
+  };
+
+  // Toast Component
+  const Toast = () => {
+    if (!toast.visible) return null;
+    
+    const backgroundColor = toast.type === 'success' ? '#4CAF50' : '#FF6B6B';
+    
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        hideToast();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }, []);
+
+    return (
+      <View style={[styles.toast, { backgroundColor }]}>
+        <Ionicons 
+          name={toast.type === 'success' ? 'checkmark-circle' : 'alert-circle'} 
+          size={20} 
+          color="#FFF" 
+        />
+        <Text style={styles.toastText}>{toast.message}</Text>
+      </View>
+    );
   };
 
   const renderPatternItem = ({ item }) => {
@@ -564,6 +618,9 @@ const HostGameCreation = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor="#3498db" barStyle="light-content" />
+      
+      {/* Toast Notification */}
+      <Toast />
       
       {/* Header */}
       <View style={styles.header}>
@@ -1566,6 +1623,30 @@ const styles = StyleSheet.create({
   },
   bottomSpace: {
     height: 20,
+  },
+  // Toast Styles
+  toast: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 999,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 10,
+    flex: 1,
   },
   // Modal Styles
   modalOverlay: {

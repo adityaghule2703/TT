@@ -16,6 +16,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -30,31 +31,46 @@ const HostGameRoom = ({ navigation, route }) => {
   const [gameStatus, setGameStatus] = useState(null);
   const [calledNumbers, setCalledNumbers] = useState([]);
   const [numberCallingStatus, setNumberCallingStatus] = useState(null);
-  const [timer, setTimer] = useState(60); // Always starts at 60
+  const [timer, setTimer] = useState(60);
   const [nextCallTime, setNextCallTime] = useState(null);
   const [initializing, setInitializing] = useState(false);
   const [startingAutoMode, setStartingAutoMode] = useState(false);
   const [pausing, setPausing] = useState(false);
   const [resuming, setResuming] = useState(false);
+  const [callingManual, setCallingManual] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalNumber, setModalNumber] = useState(null);
   const [intervalModalVisible, setIntervalModalVisible] = useState(false);
   const [intervalSeconds, setIntervalSeconds] = useState("60");
   
+  // Live Chat States
+  const [participantCount, setParticipantCount] = useState(0);
+  const [isChatJoined, setIsChatJoined] = useState(false);
+  
   const timerInterval = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const numberAnim = useRef(new Animated.Value(0)).current;
+  const manualButtonAnim = useRef(new Animated.Value(1)).current;
   const lastFetchTime = useRef(null);
+
+  // Chat Icons
+  const CHAT_ICONS = {
+    chat: "https://cdn-icons-png.flaticon.com/512/1041/1041916.png",
+    users: "https://cdn-icons-png.flaticon.com/512/1077/1077114.png",
+    message: "https://cdn-icons-png.flaticon.com/512/134/134914.png",
+  };
 
   useEffect(() => {
     fetchGameStatus();
+    checkChatStatus();
     startPulseAnimation();
 
-    // Set up interval to fetch status every 10 seconds
     const statusInterval = setInterval(fetchGameStatus, 10000);
+    const chatStatusInterval = setInterval(checkChatStatus, 15000);
 
     return () => {
       clearInterval(statusInterval);
+      clearInterval(chatStatusInterval);
       if (timerInterval.current) {
         clearInterval(timerInterval.current);
       }
@@ -65,7 +81,6 @@ const HostGameRoom = ({ navigation, route }) => {
     if (numberCallingStatus?.is_running && !numberCallingStatus?.is_paused) {
       startTimer();
     } else {
-      // Clear timer when paused or not running
       if (timerInterval.current) {
         clearInterval(timerInterval.current);
         timerInterval.current = null;
@@ -73,9 +88,66 @@ const HostGameRoom = ({ navigation, route }) => {
     }
   }, [numberCallingStatus]);
 
+  const checkChatStatus = async () => {
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      const response = await axios.get(
+        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/participants`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setParticipantCount(response.data.total_participants || 0);
+        const tokenData = await AsyncStorage.getItem("host");
+        if (tokenData) {
+          const host = JSON.parse(tokenData);
+          const isParticipant = response.data.data.some(p => p.id === host.id);
+          setIsChatJoined(isParticipant);
+        }
+      }
+    } catch (error) {
+      console.log("Error checking chat status:", error);
+    }
+  };
+
+  const joinChat = async () => {
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      const response = await axios.post(
+        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/join`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setIsChatJoined(true);
+        setParticipantCount(response.data.participant_count || 1);
+        navigation.navigate('HostLiveChat', {
+          gameId,
+          gameName,
+          participantCount: response.data.participant_count || 1
+        });
+      }
+    } catch (error) {
+      console.log("Error joining chat:", error);
+      alert("Failed to join chat");
+    }
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchGameStatus();
+    await checkChatStatus();
     setRefreshing(false);
   };
 
@@ -96,20 +168,39 @@ const HostGameRoom = ({ navigation, route }) => {
     ).start();
   };
 
+  const startManualButtonAnimation = () => {
+    Animated.sequence([
+      Animated.timing(manualButtonAnim, {
+        toValue: 0.9,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(manualButtonAnim, {
+        toValue: 1.1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(manualButtonAnim, {
+        toValue: 1,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   const startTimer = () => {
     if (timerInterval.current) {
       clearInterval(timerInterval.current);
     }
 
-    // Start from 60 and count down
     setTimer(60);
 
     timerInterval.current = setInterval(() => {
       setTimer((prevTimer) => {
         if (prevTimer <= 1) {
-          // When timer reaches 0, fetch new status
           fetchGameStatus();
-          return 60; // Reset to 60
+          return 60;
         }
         return prevTimer - 1;
       });
@@ -136,15 +227,12 @@ const HostGameRoom = ({ navigation, route }) => {
         setNumberCallingStatus(data.calling);
         setCalledNumbers(data.numbers.called_numbers || []);
         
-        // If game is running and not paused, start/reset timer
         if (data.calling?.is_running && !data.calling?.is_paused) {
           lastFetchTime.current = Date.now();
           
-          // Start the timer if not already running
           if (!timerInterval.current) {
             startTimer();
           } else {
-            // If timer is already running, reset it to 60
             setTimer(60);
           }
         }
@@ -154,6 +242,63 @@ const HostGameRoom = ({ navigation, route }) => {
     } catch (error) {
       console.log("Error fetching game status:", error);
       setLoading(false);
+    }
+  };
+
+  // MANUAL NUMBER CALLING FUNCTION
+  const callNextNumberManually = async () => {
+    try {
+      setCallingManual(true);
+      startManualButtonAnimation();
+      
+      const token = await AsyncStorage.getItem("hostToken");
+      
+      const response = await axios.post(
+        `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/number-calling/call-next`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        const calledNumber = response.data.data.number;
+        
+        // Update called numbers list
+        setCalledNumbers(prev => [...prev, calledNumber]);
+        
+        // Show success message with the called number
+        Alert.alert(
+          "Number Called!",
+          `Number ${calledNumber} has been called successfully.`,
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                // Show the called number in modal
+                showNumberModal(calledNumber);
+              }
+            }
+          ]
+        );
+        
+        // Refresh game status to get updated data
+        fetchGameStatus();
+        
+      } else {
+        throw new Error("Failed to call next number");
+      }
+    } catch (error) {
+      console.log("Error calling next number:", error);
+      Alert.alert(
+        "Error",
+        error.response?.data?.message || error.message || "Failed to call next number"
+      );
+    } finally {
+      setCallingManual(false);
     }
   };
 
@@ -253,7 +398,6 @@ const HostGameRoom = ({ navigation, route }) => {
       if (response.data.success) {
         Alert.alert("Success", "Number calling paused!");
         
-        // Clear timer when paused
         if (timerInterval.current) {
           clearInterval(timerInterval.current);
           timerInterval.current = null;
@@ -293,7 +437,6 @@ const HostGameRoom = ({ navigation, route }) => {
       if (response.data.success) {
         Alert.alert("Success", "Number calling resumed!");
         
-        // Start timer when resumed
         if (numberCallingStatus?.is_initialized && !timerInterval.current) {
           startTimer();
         }
@@ -535,7 +678,10 @@ const HostGameRoom = ({ navigation, route }) => {
         
         <TouchableOpacity
           style={styles.refreshButton}
-          onPress={fetchGameStatus}
+          onPress={() => {
+            fetchGameStatus();
+            checkChatStatus();
+          }}
         >
           <Ionicons name="refresh" size={20} color="#FFF" />
         </TouchableOpacity>
@@ -591,8 +737,87 @@ const HostGameRoom = ({ navigation, route }) => {
               <Text style={styles.statValue}>{timer}s</Text>
               <Text style={styles.statLabel}>Next Call</Text>
             </View>
+            
+            <View style={styles.statItem}>
+              <Ionicons name="chatbubble-outline" size={20} color="#25D366" />
+              <Text style={styles.statValue}>{participantCount}</Text>
+              <Text style={styles.statLabel}>In Chat</Text>
+            </View>
           </View>
         </View>
+
+        {/* Show Winners Button */}
+        <View style={styles.winnersButtonContainer}>
+          <TouchableOpacity
+            style={styles.winnersButton}
+            onPress={() => navigation.navigate("HostGameWinners", {
+              gameId: gameId,
+              gameName: gameName,
+            })}
+          >
+            <Ionicons name="trophy-outline" size={24} color="#FFF" />
+            <Text style={styles.winnersButtonText}>Show Winners</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Manual Number Calling Card - Always visible if initialized */}
+        {isInitialized && (
+          <Animated.View style={[
+            styles.manualCallCard,
+            { transform: [{ scale: manualButtonAnim }] }
+          ]}>
+            <View style={styles.manualCallHeader}>
+              <Ionicons name="hand-right" size={24} color="#FF4081" />
+              <Text style={styles.manualCallTitle}>Manual Number Calling</Text>
+            </View>
+            
+            <Text style={styles.manualCallDescription}>
+              Call the next number manually. This will call a random uncalled number.
+            </Text>
+            
+            <View style={styles.manualCallInfo}>
+              <View style={styles.manualCallInfoItem}>
+                <Ionicons name="information-circle" size={16} color="#2196F3" />
+                <Text style={styles.manualCallInfoText}>
+                  Available: {90 - calledNumbers.length} numbers
+                </Text>
+              </View>
+              <View style={styles.manualCallInfoItem}>
+                <Ionicons name="time-outline" size={16} color="#FF9800" />
+                <Text style={styles.manualCallInfoText}>
+                  Auto Timer: {isRunning && !isPaused ? `${timer}s` : 'Paused'}
+                </Text>
+              </View>
+            </View>
+            
+            <TouchableOpacity
+              style={[
+                styles.manualCallButton,
+                callingManual && styles.manualCallButtonDisabled,
+                (isRunning && !isPaused) && styles.manualCallButtonActive
+              ]}
+              onPress={callNextNumberManually}
+              disabled={callingManual}
+            >
+              {callingManual ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name="megaphone" size={22} color="#FFF" />
+                  <Text style={styles.manualCallButtonText}>
+                    Call Next Number Now
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            
+            <Text style={styles.manualCallHint}>
+              {isRunning && !isPaused 
+                ? "Manual calls will override the auto timer temporarily."
+                : "Use this to call numbers when auto calling is paused."}
+            </Text>
+          </Animated.View>
+        )}
 
         {/* Number Calling Controls */}
         {!isInitialized ? (
@@ -629,7 +854,7 @@ const HostGameRoom = ({ navigation, route }) => {
           ]}>
             <View style={styles.controlHeader}>
               <Ionicons name="radio" size={24} color="#4CAF50" />
-              <Text style={styles.controlTitle}>Number Calling Active</Text>
+              <Text style={styles.controlTitle}>Auto Number Calling Active</Text>
             </View>
             <Text style={styles.controlDescription}>
               Auto number calling is running. Next number in {timer} seconds.
@@ -649,7 +874,7 @@ const HostGameRoom = ({ navigation, route }) => {
               ) : (
                 <>
                   <Ionicons name="pause-circle" size={18} color="#FFF" />
-                  <Text style={styles.controlButtonText}>Pause Calling</Text>
+                  <Text style={styles.controlButtonText}>Pause Auto Calling</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -658,10 +883,10 @@ const HostGameRoom = ({ navigation, route }) => {
           <View style={styles.controlCard}>
             <View style={styles.controlHeader}>
               <Ionicons name="pause-circle" size={24} color="#FF9800" />
-              <Text style={styles.controlTitle}>Number Calling Paused</Text>
+              <Text style={styles.controlTitle}>Auto Number Calling Paused</Text>
             </View>
             <Text style={styles.controlDescription}>
-              Number calling is currently paused. Tap resume to continue calling numbers.
+              Auto number calling is currently paused. Tap resume to continue calling numbers automatically.
               {"\n"}Interval: 60 seconds
             </Text>
             <View style={[styles.timerDisplay, styles.pausedTimerDisplay]}>
@@ -678,7 +903,7 @@ const HostGameRoom = ({ navigation, route }) => {
               ) : (
                 <>
                   <Ionicons name="play-circle" size={18} color="#FFF" />
-                  <Text style={styles.controlButtonText}>Resume Calling</Text>
+                  <Text style={styles.controlButtonText}>Resume Auto Calling</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -806,6 +1031,18 @@ const HostGameRoom = ({ navigation, route }) => {
             <Ionicons name="list-outline" size={20} color="#FFF" />
             <Text style={styles.actionButtonText}>Called Numbers</Text>
           </TouchableOpacity>
+          
+          {/* Add this new button for Claim Requests */}
+          <TouchableOpacity
+            style={[styles.actionButton, styles.quaternaryAction]}
+            onPress={() => navigation.navigate("HostClaimRequests", {
+              gameId: gameId,
+              gameName: gameName,
+            })}
+          >
+            <Ionicons name="checkmark-done-outline" size={20} color="#FFF" />
+            <Text style={styles.actionButtonText}>Claim Requests</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.refreshHint}>
@@ -813,6 +1050,27 @@ const HostGameRoom = ({ navigation, route }) => {
           <Text style={styles.refreshHintText}>Pull down to refresh</Text>
         </View>
       </ScrollView>
+
+      {/* Floating Chat Button */}
+      <TouchableOpacity
+        style={styles.floatingChatButton}
+        onPress={joinChat}
+        activeOpacity={0.8}
+      >
+        <View style={styles.chatButtonContent}>
+          <Ionicons name="chatbubble-ellipses" size={24} color="#FFF" />
+          {participantCount > 0 && (
+            <View style={styles.chatBadge}>
+              <Text style={styles.chatBadgeText}>
+                {participantCount > 99 ? '99+' : participantCount}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.chatButtonText}>
+          {isChatJoined ? 'Live Chat' : 'Join Chat'}
+        </Text>
+      </TouchableOpacity>
 
       <IntervalModal />
       <NumberModal />
@@ -923,22 +1181,134 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
+    flexWrap: "wrap",
   },
   statItem: {
     alignItems: "center",
-    flex: 1,
+    width: "25%",
+    marginBottom: 10,
   },
   statValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "800",
     color: "#333",
     marginTop: 8,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#666",
     fontWeight: "500",
     marginTop: 4,
+    textAlign: "center",
+  },
+  winnersButtonContainer: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  winnersButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FF9800",
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 10,
+    shadowColor: "#FF9800",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  winnersButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  manualCallCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "#FF4081",
+    shadowColor: "#FF4081",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  manualCallHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 12,
+  },
+  manualCallTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#333",
+    flex: 1,
+  },
+  manualCallDescription: {
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  manualCallInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    padding: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  manualCallInfoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  manualCallInfoText: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500",
+  },
+  manualCallButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FF4081",
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 10,
+    shadowColor: "#FF4081",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  manualCallButtonActive: {
+    backgroundColor: "#E91E63",
+    borderWidth: 2,
+    borderColor: "#FFF",
+  },
+  manualCallButtonDisabled: {
+    opacity: 0.7,
+  },
+  manualCallButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  manualCallHint: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    textAlign: "center",
+    marginTop: 12,
+    fontStyle: "italic",
   },
   controlCard: {
     backgroundColor: "#FFF",
@@ -1216,6 +1586,9 @@ const styles = StyleSheet.create({
   tertiaryAction: {
     backgroundColor: "#2196F3",
   },
+  quaternaryAction: {
+    backgroundColor: "#4CAF50",
+  },
   actionButtonText: {
     color: "#FFF",
     fontSize: 14,
@@ -1234,6 +1607,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9CA3AF",
     fontStyle: "italic",
+  },
+  floatingChatButton: {
+    position: 'absolute',
+    bottom: 80,
+    right: 20,
+    backgroundColor: '#075E54',
+    borderRadius: 50,
+    width: 140,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  chatButtonContent: {
+    position: 'relative',
+    marginRight: 8,
+  },
+  chatBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  chatBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+    paddingHorizontal: 4,
+  },
+  chatButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginLeft: 4,
   },
   modalOverlay: {
     flex: 1,

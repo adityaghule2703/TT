@@ -17,8 +17,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
-const TICKET_WIDTH = Math.min(width, height) - 100; // Make it responsive
-const CELL_SIZE = (TICKET_WIDTH - 60) / 9; // Adjusted for modal
+const TICKET_WIDTH = Math.min(width, height) - 100;
+const CELL_SIZE = (TICKET_WIDTH - 60) / 9;
 
 const HostGamePatterns = () => {
   const [loading, setLoading] = useState(true);
@@ -29,7 +29,7 @@ const HostGamePatterns = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [filteredPatterns, setFilteredPatterns] = useState([]);
-  const [ticketCache, setTicketCache] = useState({}); // Cache tickets for each pattern
+  const [ticketCache, setTicketCache] = useState({});
 
   const filters = [
     { id: 'all', label: 'All Patterns' },
@@ -92,7 +92,6 @@ const HostGamePatterns = () => {
   const filterPatterns = () => {
     let filtered = [...patterns];
     
-    // Filter by category
     if (selectedFilter !== 'all') {
       filtered = filtered.filter(pattern => pattern.logic_type === selectedFilter);
     }
@@ -104,102 +103,84 @@ const HostGamePatterns = () => {
   const generateValidTicketNumbers = () => {
     const ticket = Array(3).fill().map(() => Array(9).fill(null));
     const numbersUsed = new Set();
+    const numbersByColumn = Array(9).fill().map(() => []);
     
-    // First, ensure each column has valid numbers (1-3 numbers per column)
-    const columnNumbers = [];
-    
+    // Generate numbers for each column (1-3 numbers per column)
     for (let col = 0; col < 9; col++) {
-      columnNumbers[col] = [];
       const min = col === 0 ? 1 : col * 10 + 1;
       const max = col === 8 ? 90 : (col + 1) * 10;
+      const count = Math.floor(Math.random() * 3) + 1; // 1 to 3 numbers per column
       
-      // Determine how many numbers this column should have (1-3)
-      const numbersInColumn = Math.floor(Math.random() * 3) + 1;
-      
-      while (columnNumbers[col].length < numbersInColumn) {
+      while (numbersByColumn[col].length < count) {
         const num = Math.floor(Math.random() * (max - min + 1)) + min;
         if (!numbersUsed.has(num)) {
-          columnNumbers[col].push(num);
+          numbersByColumn[col].push(num);
           numbersUsed.add(num);
         }
       }
-      
-      columnNumbers[col].sort((a, b) => a - b);
+      numbersByColumn[col].sort((a, b) => a - b);
     }
     
-    // Calculate total numbers and adjust to ensure exactly 15 numbers
-    let totalNumbers = columnNumbers.reduce((sum, col) => sum + col.length, 0);
+    // Adjust to ensure exactly 15 numbers total
+    let totalNumbers = numbersByColumn.reduce((sum, col) => sum + col.length, 0);
     
-    // Ensure exactly 15 numbers total
-    if (totalNumbers < 15) {
-      // Add more numbers to reach 15
-      for (let col = 0; col < 9 && totalNumbers < 15; col++) {
+    // Add numbers if less than 15
+    while (totalNumbers < 15) {
+      const col = Math.floor(Math.random() * 9);
+      if (numbersByColumn[col].length < 3) {
         const min = col === 0 ? 1 : col * 10 + 1;
         const max = col === 8 ? 90 : (col + 1) * 10;
-        
-        while (columnNumbers[col].length < 3 && totalNumbers < 15) {
-          const num = Math.floor(Math.random() * (max - min + 1)) + min;
-          if (!numbersUsed.has(num)) {
-            columnNumbers[col].push(num);
-            numbersUsed.add(num);
-            totalNumbers++;
-            columnNumbers[col].sort((a, b) => a - b);
-          }
-        }
-      }
-    } else if (totalNumbers > 15) {
-      // Remove numbers to reach 15
-      for (let col = 8; col >= 0 && totalNumbers > 15; col--) {
-        while (columnNumbers[col].length > 1 && totalNumbers > 15) {
-          const removed = columnNumbers[col].pop();
-          numbersUsed.delete(removed);
-          totalNumbers--;
+        const num = Math.floor(Math.random() * (max - min + 1)) + min;
+        if (!numbersUsed.has(num)) {
+          numbersByColumn[col].push(num);
+          numbersUsed.add(num);
+          numbersByColumn[col].sort((a, b) => a - b);
+          totalNumbers++;
         }
       }
     }
     
-    // Distribute numbers to ensure exactly 5 numbers per row
+    // Remove numbers if more than 15
+    while (totalNumbers > 15) {
+      const col = Math.floor(Math.random() * 9);
+      if (numbersByColumn[col].length > 1) {
+        const removed = numbersByColumn[col].pop();
+        numbersUsed.delete(removed);
+        totalNumbers--;
+      }
+    }
+    
+    // Place numbers in rows ensuring exactly 5 numbers per row
     const rowCounts = [0, 0, 0];
     
-    // First pass: Try to distribute numbers evenly
+    // First, distribute numbers randomly
     for (let col = 0; col < 9; col++) {
-      for (let numIndex = 0; numIndex < columnNumbers[col].length; numIndex++) {
-        // Find row with fewest numbers that doesn't have this column filled yet
-        let minRow = -1;
-        let minCount = Infinity;
-        
+      for (let num of numbersByColumn[col]) {
+        // Find available rows for this column
+        const availableRows = [];
         for (let row = 0; row < 3; row++) {
-          if (ticket[row][col] === null && rowCounts[row] < minCount && rowCounts[row] < 5) {
-            minCount = rowCounts[row];
-            minRow = row;
+          if (ticket[row][col] === null && rowCounts[row] < 5) {
+            availableRows.push(row);
           }
         }
         
-        if (minRow !== -1) {
-          ticket[minRow][col] = columnNumbers[col][numIndex];
-          rowCounts[minRow]++;
-        } else {
-          // Fallback: find any available spot
-          for (let row = 0; row < 3; row++) {
-            if (ticket[row][col] === null && rowCounts[row] < 5) {
-              ticket[row][col] = columnNumbers[col][numIndex];
-              rowCounts[row]++;
-              break;
-            }
-          }
+        if (availableRows.length > 0) {
+          const randomRow = availableRows[Math.floor(Math.random() * availableRows.length)];
+          ticket[randomRow][col] = num;
+          rowCounts[randomRow]++;
         }
       }
     }
     
-    // Second pass: Ensure exactly 5 numbers per row
+    // Adjust to ensure exactly 5 numbers per row
     for (let row = 0; row < 3; row++) {
       while (rowCounts[row] < 5) {
-        // Find a column that has less than 3 numbers and this row is empty
-        for (let col = 0; col < 9 && rowCounts[row] < 5; col++) {
+        // Find a column with less than 3 numbers and this row is empty
+        for (let col = 0; col < 9; col++) {
           if (ticket[row][col] === null) {
             const columnCount = ticket.reduce((sum, r) => sum + (r[col] !== null ? 1 : 0), 0);
             if (columnCount < 3) {
-              // Add a new number to this column
+              // Add a new number
               const min = col === 0 ? 1 : col * 10 + 1;
               const max = col === 8 ? 90 : (col + 1) * 10;
               let newNum;
@@ -210,16 +191,17 @@ const HostGamePatterns = () => {
               ticket[row][col] = newNum;
               numbersUsed.add(newNum);
               rowCounts[row]++;
+              break;
             }
           }
         }
       }
       
       while (rowCounts[row] > 5) {
-        // Find a number to move to another row
-        for (let col = 0; col < 9 && rowCounts[row] > 5; col++) {
+        // Move a number to another row
+        for (let col = 0; col < 9; col++) {
           if (ticket[row][col] !== null) {
-            // Check if another row needs this spot
+            // Find another row that needs this number
             for (let otherRow = 0; otherRow < 3; otherRow++) {
               if (otherRow !== row && rowCounts[otherRow] < 5 && ticket[otherRow][col] === null) {
                 ticket[otherRow][col] = ticket[row][col];
@@ -229,6 +211,7 @@ const HostGamePatterns = () => {
                 break;
               }
             }
+            if (rowCounts[row] <= 5) break;
           }
         }
       }
@@ -237,45 +220,15 @@ const HostGamePatterns = () => {
     return ticket;
   };
 
-  // Generate ticket for a specific pattern, ensuring pattern positions have numbers
+  // Generate ticket for a specific pattern
   const generateTicketForPattern = (pattern) => {
     const cacheKey = pattern.id;
     
-    // Return cached ticket if available
     if (ticketCache[cacheKey]) {
       return ticketCache[cacheKey];
     }
     
-    let ticket;
-    let isValid = false;
-    let attempts = 0;
-    const maxAttempts = 50;
-    
-    // Keep generating until we get a valid ticket with numbers at pattern positions
-    while (!isValid && attempts < maxAttempts) {
-      ticket = generateValidTicketNumbers();
-      isValid = true;
-      
-      // For position-based patterns, check if pattern positions have numbers
-      if (pattern.logic_type === 'position_based' && pattern.positions) {
-        for (const pos of pattern.positions) {
-          const row = pos.row - 1;
-          const col = pos.position - 1;
-          if (row >= 0 && row < 3 && col >= 0 && col < 9) {
-            if (ticket[row][col] === null) {
-              isValid = false;
-              break;
-            }
-          }
-        }
-      }
-      attempts++;
-    }
-    
-    // If we couldn't generate a valid ticket after max attempts, just use what we have
-    if (!isValid && ticket) {
-      console.warn('Could not generate perfect ticket for pattern after', maxAttempts, 'attempts');
-    }
+    const ticket = generateValidTicketNumbers();
     
     // Cache the ticket
     setTicketCache(prev => ({
@@ -286,25 +239,51 @@ const HostGamePatterns = () => {
     return ticket;
   };
 
-  // Get pattern grid positions
-  const getPatternGrid = (positions) => {
-    const grid = Array(3).fill().map(() => Array(9).fill(false));
+  // Get pattern positions relative to actual numbers in each row
+  const getPatternPositionsForTicket = (ticket, pattern) => {
+    if (pattern.logic_type !== 'position_based' || !pattern.positions) {
+      return null;
+    }
     
-    positions.forEach(pos => {
+    const patternGrid = Array(3).fill().map(() => Array(9).fill(false));
+    
+    pattern.positions.forEach(pos => {
       const row = pos.row - 1;
-      const col = pos.position - 1;
-      if (row >= 0 && row < 3 && col >= 0 && col < 9) {
-        grid[row][col] = true;
+      const patternPosition = pos.position; // This is position among actual numbers (1-5)
+      
+      if (row >= 0 && row < 3) {
+        // Find the column that has the patternPosition-th number in this row
+        let numberCount = 0;
+        for (let col = 0; col < 9; col++) {
+          if (ticket[row][col] !== null) {
+            numberCount++;
+            if (numberCount === patternPosition) {
+              patternGrid[row][col] = true;
+              break;
+            }
+          }
+        }
       }
     });
     
-    return grid;
+    return patternGrid;
+  };
+
+  // Helper to get actual number positions in a row (which columns have numbers)
+  const getRowNumberPositions = (row) => {
+    const positions = [];
+    for (let col = 0; col < 9; col++) {
+      if (row[col] !== null) {
+        positions.push(col);
+      }
+    }
+    return positions;
   };
 
   const renderPatternCard = (pattern) => {
     const isPositionBased = pattern.logic_type === 'position_based';
     const ticketNumbers = generateTicketForPattern(pattern);
-    const patternGrid = isPositionBased && pattern.positions ? getPatternGrid(pattern.positions) : null;
+    const patternGrid = isPositionBased ? getPatternPositionsForTicket(ticketNumbers, pattern) : null;
     
     return (
       <TouchableOpacity
@@ -363,6 +342,11 @@ const HostGamePatterns = () => {
               numbers={ticketNumbers} 
               patternGrid={patternGrid} 
             />
+            <View style={styles.positionExplanation}>
+              <Text style={styles.positionExplanationText}>
+                Positions are relative to actual numbers in each row
+              </Text>
+            </View>
           </View>
         )}
       </TouchableOpacity>
@@ -401,13 +385,13 @@ const HostGamePatterns = () => {
 
   const FullTicketGrid = ({ pattern }) => {
     const ticketNumbers = generateTicketForPattern(pattern);
-    const patternGrid = pattern.positions ? getPatternGrid(pattern.positions) : null;
+    const patternGrid = pattern.positions ? getPatternPositionsForTicket(ticketNumbers, pattern) : null;
     
     return (
       <View style={styles.fullTicketContainer}>
         <Text style={styles.ticketTitle}>Pattern Visualization</Text>
         <Text style={styles.ticketSubtitle}>
-          Pattern positions are highlighted in yellow
+          Positions are highlighted relative to actual numbers in each row
         </Text>
         
         <View style={styles.fullTicket}>
@@ -423,17 +407,32 @@ const HostGamePatterns = () => {
                   ]}
                 >
                   {cell !== null && (
-                    <Text style={[
-                      styles.fullCellNumber,
-                      patternGrid && patternGrid[rowIndex][colIndex] && styles.fullCellNumberPattern
-                    ]}>
-                      {cell}
-                    </Text>
+                    <>
+                      <Text style={[
+                        styles.fullCellNumber,
+                        patternGrid && patternGrid[rowIndex][colIndex] && styles.fullCellNumberPattern
+                      ]}>
+                        {cell}
+                      </Text>
+                      {patternGrid && patternGrid[rowIndex][colIndex] && (
+                        <View style={styles.positionIndicator}>
+                          <Text style={styles.positionIndicatorText}>
+                            {getPositionNumber(ticketNumbers[rowIndex], colIndex)}
+                          </Text>
+                        </View>
+                      )}
+                    </>
                   )}
                 </View>
               ))}
             </View>
           ))}
+        </View>
+        
+        <View style={styles.positionExplanation}>
+          <Text style={styles.positionExplanationText}>
+            Example: "Position 3" in Row 2 means the 3rd actual number from left in that row
+          </Text>
         </View>
         
         <View style={styles.ticketLegend}>
@@ -452,6 +451,17 @@ const HostGamePatterns = () => {
         </View>
       </View>
     );
+  };
+
+  // Helper to get position number (1-5) for a column in a row
+  const getPositionNumber = (row, column) => {
+    let position = 0;
+    for (let col = 0; col <= column; col++) {
+      if (row[col] !== null) {
+        position++;
+      }
+    }
+    return position;
   };
 
   const getPatternIcon = (logicType) => {
@@ -535,7 +545,6 @@ const HostGamePatterns = () => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor="#3498db" barStyle="light-content" />
       
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Tambola Patterns</Text>
         <Text style={styles.headerSubtitle}>Explore available patterns for your games</Text>
@@ -548,7 +557,6 @@ const HostGamePatterns = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3498db" />
         }
       >
-        {/* Filter Tabs */}
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -574,7 +582,6 @@ const HostGamePatterns = () => {
           ))}
         </ScrollView>
 
-        {/* Results Info */}
         <View style={styles.resultsInfo}>
           <Text style={styles.resultsCount}>
             {filteredPatterns.length} {filteredPatterns.length === 1 ? 'pattern' : 'patterns'} found
@@ -590,7 +597,6 @@ const HostGamePatterns = () => {
           )}
         </View>
 
-        {/* Patterns List */}
         <View style={styles.patternsContainer}>
           {filteredPatterns.length > 0 ? (
             filteredPatterns.map(renderPatternCard)
@@ -616,7 +622,6 @@ const HostGamePatterns = () => {
         <View style={styles.bottomSpace} />
       </ScrollView>
 
-      {/* Pattern Detail Modal */}
       <Modal
         visible={modalVisible}
         transparent={true}
@@ -682,9 +687,27 @@ const HostGamePatterns = () => {
                   </View>
 
                   {selectedPattern.logic_type === 'position_based' && selectedPattern.positions?.length > 0 && (
-                    <View style={styles.positionsSection}>
-                      <FullTicketGrid pattern={selectedPattern} />
-                    </View>
+                    <>
+                      <View style={styles.positionsSection}>
+                        <FullTicketGrid pattern={selectedPattern} />
+                      </View>
+                      
+                      <View style={styles.positionsList}>
+                        <Text style={styles.sectionTitle}>Pattern Positions</Text>
+                        {selectedPattern.positions.map((pos, index) => (
+                          <View key={index} style={styles.positionItem}>
+                            <View style={styles.positionBadge}>
+                              <Text style={styles.positionBadgeText}>
+                                {pos.row}-{pos.position}
+                              </Text>
+                            </View>
+                            <Text style={styles.positionText}>
+                              Row {pos.row}, Position {pos.position} (from left)
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </>
                   )}
 
                   {selectedPattern.logic_type !== 'position_based' && (
@@ -968,6 +991,16 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     fontWeight: '800',
   },
+  positionExplanation: {
+    marginTop: 8,
+    paddingHorizontal: 8,
+  },
+  positionExplanationText: {
+    fontSize: 11,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
   emptyState: {
     backgroundColor: '#FFF',
     padding: 40,
@@ -1111,7 +1144,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    width: TICKET_WIDTH, // Use the responsive width
+    width: TICKET_WIDTH,
     alignSelf: 'center',
   },
   fullRow: {
@@ -1127,6 +1160,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 8,
+    position: 'relative',
   },
   fullCellWithNumber: {
     backgroundColor: '#FFF',
@@ -1139,13 +1173,54 @@ const styles = StyleSheet.create({
     borderColor: '#FFD600',
   },
   fullCellNumber: {
-    fontSize: CELL_SIZE * 0.4, // Responsive font size
+    fontSize: CELL_SIZE * 0.3,
     fontWeight: '600',
     color: '#2C3E50',
   },
   fullCellNumberPattern: {
     color: '#2C3E50',
     fontWeight: '800',
+  },
+  positionIndicator: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#FFD600',
+    borderRadius: 6,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  positionIndicatorText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#333',
+  },
+  positionsList: {
+    marginBottom: 20,
+  },
+  positionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  positionBadge: {
+    backgroundColor: '#3498db',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 10,
+  },
+  positionBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  positionText: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
   },
   ticketLegend: {
     flexDirection: 'row',

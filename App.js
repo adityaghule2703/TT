@@ -47,6 +47,11 @@ import TicketRequestsScreen from "./pages/TicketRequestsScreen";
 import HostGameRoom from "./pages/HostGameRoom";
 import HostCalledNumbers from "./pages/HostCalledNumbers";
 import UserGameRoom from "./pages/UserGameRoom";
+import UserLiveChat from "./pages/UserLiveChat";
+import HostLiveChat from "./pages/HostLiveChat";
+import HostClaimRequests from "./pages/HostClaimRequests";
+import UserGameClaim from "./pages/UserGameClaim";
+import HostGameWinners from "./pages/HostGameWinners";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -248,7 +253,7 @@ export default function App() {
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             {loggedIn ? (
               <>
-                {/* MAIN APP WITH ROLE-BASED TABS */}
+                {/* MAIN APP WITH ROLE-BASED TABS - NO bottom padding for tabs */}
                 {userRole === "user" ? (
                   // USER TABS (Home, About, Game, Profile, Faqs)
                   <Stack.Screen name="UserTabs">
@@ -265,46 +270,143 @@ export default function App() {
                   </Stack.Screen>
                 )}
 
-                {/* USER-ONLY SCREENS */}
+                {/* USER-ONLY SCREENS - WITH bottom padding */}
                 {userRole === "user" && (
                   <>
-                    <Stack.Screen name="GameDetails" component={GameDetails} />
-                    <Stack.Screen name="TicketsScreen" component={TicketsScreen} />
-                    <Stack.Screen name="TicketRequestsScreen" component={TicketRequestsScreen}/>
-                    <Stack.Screen name="UserGameRoom" component={UserGameRoom} />
+                    <Stack.Screen 
+                      name="GameDetails" 
+                      component={GameDetails}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="TicketsScreen" 
+                      component={TicketsScreen}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="TicketRequestsScreen" 
+                      component={TicketRequestsScreen}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="UserGameRoom" 
+                      component={UserGameRoom}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="UserGameClaim" 
+                      component={UserGameClaim}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="UserLiveChat" 
+                      component={UserLiveChat}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
                   </>
                 )}
 
                 {userRole === "host" && (
                   <>
-                    <Stack.Screen name="HostGamePatterns" component={HostGamePatterns} />
-                    <Stack.Screen name="HostGameCreation" component={HostGameCreation} />
-                    <Stack.Screen name="HostGameEdit" component={HostGameEdit} />
-                    <Stack.Screen name="HostTicketRequests" component={HostTicketRequests} />
-                    <Stack.Screen name="HostGameUsers" component={HostGameUsers} />
-                    <Stack.Screen name="HostGameRoom" component={HostGameRoom} />
-                    <Stack.Screen name="HostCalledNumbers" component={HostCalledNumbers} />
+                    <Stack.Screen 
+                      name="HostGamePatterns" 
+                      component={HostGamePatterns}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostGameCreation" 
+                      component={HostGameCreation}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostGameEdit" 
+                      component={HostGameEdit}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostTicketRequests" 
+                      component={HostTicketRequests}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostGameUsers" 
+                      component={HostGameUsers}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostGameRoom" 
+                      component={HostGameRoom}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostClaimRequests" 
+                      component={HostClaimRequests}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostGameWinners" 
+                      component={HostGameWinners}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostCalledNumbers" 
+                      component={HostCalledNumbers}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostLiveChat" 
+                      component={HostLiveChat}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
                   </>
                 )}
-
-                {/* HOST-ONLY SCREENS (Stack screens for host) */}
-                {/* Add any stack screens that hosts need here */}
               </>
             ) : (
               <>
-                {/* AUTH SCREENS */}
-                <Stack.Screen name="Login">
+                {/* AUTH SCREENS - WITH bottom padding */}
+                <Stack.Screen 
+                  name="Login"
+                  options={{ contentStyle: { paddingBottom: 20 } }}
+                >
                   {(props) => (
                     <Login {...props} onLoginSuccess={handleLoginSuccess} />
                   )}
                 </Stack.Screen>
-                <Stack.Screen name="ChooseRole" component={ChooseRole} />
-                <Stack.Screen name="MobileVerify" component={MobileVerify} />
-                <Stack.Screen name="MobileVerifyOtp" component={MobileVerifyOtp} />
-                <Stack.Screen name="Register" component={Register} />
-                <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-                <Stack.Screen name="ForgotPasswordVerify" component={ForgotPasswordVerify} />
-                <Stack.Screen name="ResetPassword" component={ResetPassword} />
+                <Stack.Screen 
+                  name="ChooseRole" 
+                  component={ChooseRole}
+                  options={{ contentStyle: { paddingBottom: 20 } }}
+                />
+                <Stack.Screen 
+                  name="MobileVerify" 
+                  component={MobileVerify}
+                  options={{ contentStyle: { paddingBottom: 20 } }}
+                />
+                <Stack.Screen 
+                  name="MobileVerifyOtp" 
+                  component={MobileVerifyOtp}
+                  options={{ contentStyle: { paddingBottom: 20 } }}
+                />
+                <Stack.Screen 
+                  name="Register" 
+                  component={Register}
+                  options={{ contentStyle: { paddingBottom: 20 } }}
+                />
+                <Stack.Screen 
+                  name="ForgotPassword" 
+                  component={ForgotPassword}
+                  options={{ contentStyle: { paddingBottom: 20 } }}
+                />
+                <Stack.Screen 
+                  name="ForgotPasswordVerify" 
+                  component={ForgotPasswordVerify}
+                  options={{ contentStyle: { paddingBottom: 20 } }}
+                />
+                <Stack.Screen 
+                  name="ResetPassword" 
+                  component={ResetPassword}
+                  options={{ contentStyle: { paddingBottom: 20 } }}
+                />
               </>
             )}
           </Stack.Navigator>

@@ -15,11 +15,11 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
-const TICKET_WIDTH = width - 40;
-const CELL_SIZE = (TICKET_WIDTH - 40) / 9;
+const TICKET_WIDTH = width - 80;
+const CELL_SIZE = (TICKET_WIDTH - 30) / 9;
 
 const TicketsScreen = ({ route, navigation }) => {
   const { game } = route.params || {};
@@ -28,81 +28,140 @@ const TicketsScreen = ({ route, navigation }) => {
   const [myTickets, setMyTickets] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    sets: 0,
+  });
 
-  const GAME_IMAGES = {
-    ticket: "https://cdn-icons-png.flaticon.com/512/2589/2589909.png",
-    diamond: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-    celebrate: "https://cdn-icons-png.flaticon.com/512/3126/3126640.png",
-    empty: "https://cdn-icons-png.flaticon.com/512/4076/4076478.png",
-  };
+  const PRIMARY_COLOR = "#2D3748";
+  const SUCCESS_COLOR = "#10B981";
+  const WARNING_COLOR = "#F59E0B";
+  const DANGER_COLOR = "#EF4444";
+  const GRAY_COLOR = "#6B7280";
+  const LIGHT_GRAY = "#F3F4F6";
+  const BORDER_COLOR = "#E5E7EB";
 
   useEffect(() => {
     fetchMyTickets();
   }, []);
 
   const onRefresh = React.useCallback(() => {
+    console.log("Refreshing tickets...");
     setRefreshing(true);
-    fetchMyTickets().finally(() => setRefreshing(false));
+    fetchMyTickets().finally(() => {
+      setRefreshing(false);
+      console.log("Refresh complete");
+    });
   }, []);
 
   const fetchMyTickets = async () => {
+    console.log("fetchMyTickets called");
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem("token");
+      console.log("Token found:", token ? "Yes" : "No");
+      
       const res = await axios.get(
         "https://exilance.com/tambolatimez/public/api/user/my-tickets",
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          } 
+        }
       );
 
+      console.log("Tickets API Response:", res.data);
+      
       if (res.data.success) {
         // Filter tickets for the current game if game prop exists
         const tickets = game
-          ? res.data.tickets.data.filter((ticket) => ticket.game_id === game.id)
+          ? res.data.tickets.data.filter((ticket) => ticket.game_id == game.id)
           : res.data.tickets.data;
+        
+        console.log("Filtered tickets:", tickets.length);
         setMyTickets(tickets);
+        
+        // Calculate stats
+        const activeCount = tickets.filter(t => t.is_active).length;
+        const setsCount = getTicketSetCount(tickets);
+        
+        setStats({
+          total: tickets.length,
+          active: activeCount,
+          sets: setsCount,
+        });
       }
     } catch (error) {
       console.log("Error fetching tickets:", error);
-      Alert.alert("Error", "Failed to load your tickets");
+      console.log("Error response:", error.response?.data);
+      Alert.alert("Error", error.response?.data?.message || "Failed to load your tickets");
     } finally {
       setLoading(false);
     }
   };
 
-  const renderTicketGrid = (ticketData) => {
+  // Helper function to convert ticket_data to the format needed for rendering
+  const processTicketData = (ticketData) => {
+    if (!ticketData || !Array.isArray(ticketData)) return Array(3).fill(Array(9).fill(null));
+    
+    // Check if the data is in the new format (array of objects)
+    if (ticketData[0] && Array.isArray(ticketData[0]) && ticketData[0][0] && typeof ticketData[0][0] === 'object') {
+      // New format: array of objects with number property
+      const processedGrid = Array(3).fill().map(() => Array(9).fill(null));
+      
+      ticketData.forEach((row) => {
+        row.forEach((cell) => {
+          if (cell && cell.number !== null && cell.row !== undefined && cell.column !== undefined) {
+            processedGrid[cell.row][cell.column] = cell.number;
+          }
+        });
+      });
+      
+      return processedGrid;
+    } else if (ticketData[0] && Array.isArray(ticketData[0])) {
+      // Old format: simple 2D array
+      return ticketData.map(row => row.map(cell => cell));
+    }
+    
+    return Array(3).fill(Array(9).fill(null));
+  };
+
+  const renderTicketGrid = (ticketData, isModal = false) => {
+    const processedData = processTicketData(ticketData);
+    const cellSize = isModal ? (TICKET_WIDTH - 60) / 9 : CELL_SIZE;
+    
     return (
-      <View style={styles.ticketGridContainer}>
-        {/* Column numbers */}
-        <View style={styles.columnNumbers}>
-          {Array.from({ length: 9 }).map((_, colIndex) => (
-            <View key={`col-${colIndex}`} style={styles.columnNumberCell}>
-              <Text style={styles.columnNumberText}>{colIndex + 1}</Text>
+      <View style={[styles.ticketGridContainer, isModal && styles.modalTicketGrid]}>
+        {/* Column Headers */}
+        <View style={styles.columnHeaders}>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+            <View key={`header-${num}`} style={[styles.columnHeaderCell, { width: cellSize }]}>
+              <Text style={styles.columnHeaderText}>{num}</Text>
             </View>
           ))}
         </View>
 
         {/* Ticket rows */}
-        {ticketData.map((row, rowIndex) => (
+        {processedData.map((row, rowIndex) => (
           <View key={`row-${rowIndex}`} style={styles.ticketRow}>
             {row.map((cell, colIndex) => (
               <View
                 key={`cell-${rowIndex}-${colIndex}`}
                 style={[
                   styles.ticketCell,
-                  cell !== null && styles.filledCell,
+                  { width: cellSize, height: cellSize },
+                  cell !== null ? styles.filledCell : styles.emptyCell,
                   rowIndex === 0 && styles.firstRowCell,
                   rowIndex === 2 && styles.lastRowCell,
+                  colIndex === 0 && styles.firstColumnCell,
+                  colIndex === 8 && styles.lastColumnCell,
                 ]}
               >
                 {cell !== null && (
-                  <Text
-                    style={[
-                      styles.cellNumber,
-                      getCellColor(cell, colIndex + 1),
-                    ]}
-                  >
-                    {cell}
-                  </Text>
+                  <Text style={styles.cellNumber}>{cell}</Text>
                 )}
               </View>
             ))}
@@ -110,21 +169,6 @@ const TicketsScreen = ({ route, navigation }) => {
         ))}
       </View>
     );
-  };
-
-  const getCellColor = (number, column) => {
-    const colors = {
-      1: "#FF5252", // Red for 1-9
-      2: "#FF9800", // Orange for 10-19
-      3: "#FFEB3B", // Yellow for 20-29
-      4: "#4CAF50", // Green for 30-39
-      5: "#2196F3", // Blue for 40-49
-      6: "#9C27B0", // Purple for 50-59
-      7: "#E91E63", // Pink for 60-69
-      8: "#795548", // Brown for 70-79
-      9: "#607D8B", // Gray for 80-90
-    };
-    return { color: colors[column] || "#333" };
   };
 
   const renderTicketItem = ({ item }) => (
@@ -136,28 +180,32 @@ const TicketsScreen = ({ route, navigation }) => {
       }}
       activeOpacity={0.8}
     >
+      {/* Status Badge */}
+      <View style={[
+        styles.statusBadge,
+        item.is_active ? styles.activeStatus : styles.inactiveStatus
+      ]}>
+        <Ionicons
+          name={item.is_active ? "checkmark-circle" : "close-circle"}
+          size={12}
+          color="#FFF"
+        />
+        <Text style={styles.statusText}>
+          {item.is_active ? "Active" : "Inactive"}
+        </Text>
+      </View>
+
       <View style={styles.ticketCardHeader}>
         <View style={styles.ticketNumberContainer}>
-          <Image
-            source={{ uri: GAME_IMAGES.ticket }}
-            style={styles.ticketIcon}
-          />
-          <Text style={styles.ticketNumber}>Ticket #{item.ticket_number}</Text>
-        </View>
-        <View style={styles.statusBadge}>
-          <Ionicons
-            name="checkmark-circle"
-            size={14}
-            color={item.is_active ? "#4CAF50" : "#9E9E9E"}
-          />
-          <Text
-            style={[
-              styles.statusText,
-              { color: item.is_active ? "#4CAF50" : "#9E9E9E" },
-            ]}
-          >
-            {item.is_active ? "Active" : "Inactive"}
-          </Text>
+          <View style={styles.ticketIconContainer}>
+            <MaterialIcons name="confirmation-number" size={20} color={PRIMARY_COLOR} />
+          </View>
+          <View>
+            <Text style={styles.ticketId}>Ticket #{item.ticket_number}</Text>
+            <Text style={styles.ticketSet}>
+              Set: {item.ticket_set_id?.split("_")[1] || "N/A"}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -168,16 +216,19 @@ const TicketsScreen = ({ route, navigation }) => {
       <View style={styles.ticketCardFooter}>
         <View style={styles.ticketInfo}>
           <View style={styles.infoItem}>
-            <MaterialIcons name="games" size={12} color="#666" />
-            <Text style={styles.infoText} numberOfLines={1}>
-              Set: {item.ticket_set_id.split("_")[1]}
-            </Text>
-          </View>
-          <View style={styles.infoItem}>
-            <MaterialIcons name="date-range" size={12} color="#666" />
-            <Text style={styles.infoText} numberOfLines={1}>
-              {new Date(item.allocated_at).toLocaleDateString()}
-            </Text>
+            <View style={styles.infoIcon}>
+              <MaterialIcons name="date-range" size={12} color={PRIMARY_COLOR} />
+            </View>
+            <View>
+              <Text style={styles.infoLabel}>Allocated</Text>
+              <Text style={styles.infoText} numberOfLines={1}>
+                {new Date(item.allocated_at).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric'
+                })}
+              </Text>
+            </View>
           </View>
         </View>
         <TouchableOpacity
@@ -187,12 +238,43 @@ const TicketsScreen = ({ route, navigation }) => {
             setModalVisible(true);
           }}
         >
-          <Text style={styles.viewButtonText}>View Full</Text>
-          <Ionicons name="expand" size={12} color="#FF7675" />
+          <Feather name="eye" size={14} color="#FFF" />
+          <Text style={styles.viewButtonText}>View Details</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
+
+  // Calculate ticket set count
+  const getTicketSetCount = (tickets) => {
+    const sets = new Set(tickets.map(t => t.ticket_set_id));
+    return sets.size;
+  };
+
+  const StatCard = ({ icon, value, label, color }) => (
+    <View style={styles.statCard}>
+      <View style={[styles.statIconContainer, { backgroundColor: color }]}>
+        <MaterialIcons name={icon} size={18} color="#FFF" />
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+
+  if (loading) {
+    console.log("Showing loading screen");
+    return (
+      <View style={styles.loadingContainer}>
+        <View style={styles.loadingContent}>
+          <View style={styles.loadingIconWrapper}>
+            <MaterialIcons name="confirmation-number" size={40} color={PRIMARY_COLOR} />
+          </View>
+          <ActivityIndicator size="large" color={PRIMARY_COLOR} style={styles.loadingSpinner} />
+          <Text style={styles.loadingText}>Loading your tickets...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -202,8 +284,8 @@ const TicketsScreen = ({ route, navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#FF7675"
-            colors={["#FF7675"]}
+            tintColor={PRIMARY_COLOR}
+            colors={[PRIMARY_COLOR]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -215,26 +297,17 @@ const TicketsScreen = ({ route, navigation }) => {
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="arrow-back" size={24} color="#FFF" />
+              <Ionicons name="arrow-back" size={22} color="#FFF" />
             </TouchableOpacity>
 
             <View style={styles.headerTextContainer}>
-              <Text style={styles.pageTitle} numberOfLines={1}>
-                My Tickets
-              </Text>
+              <Text style={styles.headerTitle}>My Tickets</Text>
               {game && (
-                <View style={styles.gameInfoHeader}>
+                <View style={styles.gameInfoContainer}>
+                  <Ionicons name="game-controller" size={16} color="rgba(255,255,255,0.8)" />
                   <Text style={styles.gameName} numberOfLines={1}>
-                    {game.game_name}
+                    {game.game_name || "Game"}
                   </Text>
-                  <View style={styles.gameCodeBadge}>
-                    <MaterialIcons
-                      name="fingerprint"
-                      size={12}
-                      color="rgba(255,255,255,0.9)"
-                    />
-                    <Text style={styles.gameCodeText}>{game.game_code}</Text>
-                  </View>
                 </View>
               )}
             </View>
@@ -243,90 +316,82 @@ const TicketsScreen = ({ route, navigation }) => {
 
         {/* Content */}
         <View style={styles.content}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#FF7675" />
-              <Text style={styles.loadingText}>Loading your tickets...</Text>
-            </View>
-          ) : myTickets.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Image
-                source={{ uri: GAME_IMAGES.empty }}
-                style={styles.emptyIcon}
-              />
-              <Text style={styles.emptyTitle}>No Tickets Found</Text>
-              <Text style={styles.emptySubtitle}>
-                {game
-                  ? "You don't have any tickets for this game yet"
-                  : "You haven't been allocated any tickets yet"}
-              </Text>
-              <TouchableOpacity
-                style={styles.refreshButton}
-                onPress={fetchMyTickets}
-              >
-                <Ionicons name="refresh" size={16} color="#FFF" />
-                <Text style={styles.refreshButtonText}>Refresh</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              <View style={styles.statsCard}>
-                <View style={styles.statItem}>
-                  <Image
-                    source={{ uri: GAME_IMAGES.ticket }}
-                    style={styles.statImage}
-                  />
-                  <Text style={styles.statValue}>{myTickets.length}</Text>
-                  <Text style={styles.statLabel}>Total Tickets</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Image
-                    source={{ uri: GAME_IMAGES.diamond }}
-                    style={styles.statImage}
-                  />
-                  <Text style={styles.statValue}>
-                    {myTickets.filter((t) => t.is_active).length}
-                  </Text>
-                  <Text style={styles.statLabel}>Active</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Image
-                    source={{ uri: GAME_IMAGES.celebrate }}
-                    style={styles.statImage}
-                  />
-                  <Text style={styles.statValue}>
-                    {new Set(myTickets.map((t) => t.ticket_set_id)).size}
-                  </Text>
-                  <Text style={styles.statLabel}>Ticket Sets</Text>
-                </View>
-              </View>
+          {/* Stats Overview */}
+          <View style={styles.statsOverview}>
+            <StatCard 
+              icon="confirmation-number" 
+              value={stats.total} 
+              label="Total" 
+              color={PRIMARY_COLOR} 
+            />
+            <StatCard 
+              icon="check-circle" 
+              value={stats.active} 
+              label="Active" 
+              color={SUCCESS_COLOR} 
+            />
+            <StatCard 
+              icon="collections" 
+              value={stats.sets} 
+              label="Sets" 
+              color={PRIMARY_COLOR} 
+            />
+          </View>
 
-              <View style={styles.ticketsContainer}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>
-                    🎫 Allocated Tickets ({myTickets.length})
-                  </Text>
-                  <Text style={styles.sectionSubtitle}>
-                    Tap on any ticket to view details
-                  </Text>
-                </View>
+          {/* Tickets Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>🎫 Allocated Tickets</Text>
+              <Text style={styles.sectionCount}>{myTickets.length} Ticket{myTickets.length !== 1 ? 's' : ''}</Text>
+            </View>
 
-                <View style={styles.ticketsList}>
-                  {myTickets.map((ticket) => (
-                    <View key={ticket.id} style={styles.ticketWrapper}>
-                      {renderTicketItem({ item: ticket })}
-                    </View>
-                  ))}
+            {myTickets.length === 0 ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconWrapper}>
+                  <MaterialIcons name="confirmation-number" size={50} color={GRAY_COLOR} />
                 </View>
+                <Text style={styles.emptyTitle}>No Tickets Found</Text>
+                <Text style={styles.emptySubtitle}>
+                  {game
+                    ? "You don't have any tickets for this game yet"
+                    : "You haven't been allocated any tickets yet"}
+                </Text>
+                <TouchableOpacity
+                  style={styles.refreshButton}
+                  onPress={fetchMyTickets}
+                >
+                  <Ionicons name="refresh" size={18} color="#FFF" />
+                  <Text style={styles.refreshButtonText}>Refresh</Text>
+                </TouchableOpacity>
               </View>
-            </>
-          )}
+            ) : (
+              <View style={styles.ticketsList}>
+                {myTickets.map((ticket) => (
+                  <View key={ticket.id} style={styles.ticketWrapper}>
+                    {renderTicketItem({ item: ticket })}
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Bottom Info */}
+          <View style={styles.infoCard}>
+            <Ionicons name="information-circle" size={18} color={PRIMARY_COLOR} />
+            <Text style={styles.infoText}>
+              • Active tickets are eligible for game participation{'\n'}
+              • Each ticket has a unique number and belongs to a set{'\n'}
+              • Tickets are automatically allocated for approved requests
+            </Text>
+          </View>
+
+          <View style={styles.bottomSpace} />
         </View>
       </ScrollView>
 
       {/* Ticket Detail Modal */}
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
@@ -337,80 +402,117 @@ const TicketsScreen = ({ route, navigation }) => {
               <>
                 <View style={styles.modalHeader}>
                   <View style={styles.modalTitleContainer}>
-                    <Text style={styles.modalTitle}>
-                      Ticket #{selectedTicket.ticket_number}
-                    </Text>
-                    <View style={styles.modalStatusBadge}>
+                    <View style={styles.ticketNumberBadge}>
+                      <MaterialIcons name="confirmation-number" size={16} color="#FFF" />
+                      <Text style={styles.ticketNumberBadgeText}>
+                        #{selectedTicket.ticket_number}
+                      </Text>
+                    </View>
+                    <View style={[
+                      styles.modalStatusBadge,
+                      selectedTicket.is_active ? styles.activeStatus : styles.inactiveStatus
+                    ]}>
                       <Ionicons
-                        name="checkmark-circle"
+                        name={selectedTicket.is_active ? "checkmark-circle" : "close-circle"}
                         size={12}
-                        color={selectedTicket.is_active ? "#4CAF50" : "#9E9E9E"}
+                        color="#FFF"
                       />
-                      <Text
-                        style={[
-                          styles.modalStatusText,
-                          {
-                            color: selectedTicket.is_active
-                              ? "#4CAF50"
-                              : "#9E9E9E",
-                          },
-                        ]}
-                      >
+                      <Text style={styles.modalStatusText}>
                         {selectedTicket.is_active ? "Active" : "Inactive"}
                       </Text>
                     </View>
                   </View>
-                  <TouchableOpacity onPress={() => setModalVisible(false)}>
-                    <Ionicons name="close" size={24} color="#666" />
+                  <TouchableOpacity 
+                    style={styles.closeButton}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Ionicons name="close" size={22} color="#FFF" />
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.modalTicketInfo}>
-                  <View style={styles.modalInfoRow}>
-                    <View style={styles.modalInfoItem}>
-                      <MaterialIcons name="games" size={14} color="#666" />
-                      <Text style={styles.modalInfoLabel}>Ticket Set:</Text>
-                      <Text style={styles.modalInfoValue} numberOfLines={1}>
-                        {selectedTicket.ticket_set_id}
-                      </Text>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalInfoGrid}>
+                    <View style={styles.modalInfoRow}>
+                      <View style={styles.modalInfoItem}>
+                        <View style={styles.modalInfoIcon}>
+                          <MaterialIcons name="collections" size={14} color={PRIMARY_COLOR} />
+                        </View>
+                        <View>
+                          <Text style={styles.modalInfoLabel}>Ticket Set</Text>
+                          <Text style={styles.modalInfoValue} numberOfLines={1}>
+                            {selectedTicket.ticket_set_id || "N/A"}
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.modalInfoItem}>
+                        <View style={styles.modalInfoIcon}>
+                          <MaterialIcons name="date-range" size={14} color={PRIMARY_COLOR} />
+                        </View>
+                        <View>
+                          <Text style={styles.modalInfoLabel}>Allocated Date</Text>
+                          <Text style={styles.modalInfoValue} numberOfLines={1}>
+                            {new Date(selectedTicket.allocated_at).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
+                    
                     <View style={styles.modalInfoItem}>
-                      <MaterialIcons name="date-range" size={14} color="#666" />
-                      <Text style={styles.modalInfoLabel}>Allocated:</Text>
-                      <Text style={styles.modalInfoValue} numberOfLines={1}>
-                        {new Date(
-                          selectedTicket.allocated_at
-                        ).toLocaleString()}
-                      </Text>
+                      <View style={styles.modalInfoIcon}>
+                        <MaterialIcons name="access-time" size={14} color={PRIMARY_COLOR} />
+                      </View>
+                      <View>
+                        <Text style={styles.modalInfoLabel}>Allocated Time</Text>
+                        <Text style={styles.modalInfoValue} numberOfLines={1}>
+                          {new Date(selectedTicket.allocated_at).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </Text>
+                      </View>
                     </View>
                   </View>
 
                   {selectedTicket.game && (
                     <View style={styles.gameCard}>
                       <View style={styles.gameCardHeader}>
-                        <MaterialIcons name="sports-esports" size={16} color="#7209B7" />
+                        <Ionicons name="game-controller" size={16} color={PRIMARY_COLOR} />
                         <Text style={styles.gameCardTitle}>Game Details</Text>
                       </View>
                       <View style={styles.gameCardContent}>
                         <Text style={styles.gameNameText} numberOfLines={2}>
                           {selectedTicket.game.game_name}
                         </Text>
-                        <Text style={styles.gameCodeText} numberOfLines={1}>
-                          Code: {selectedTicket.game.game_code}
-                        </Text>
-                        <Text style={styles.gameTimeText} numberOfLines={1}>
-                          {new Date(
-                            selectedTicket.game.game_date
-                          ).toLocaleDateString()} •{" "}
-                          {selectedTicket.game.game_start_time}
-                        </Text>
+                        <View style={styles.gameDetailsRow}>
+                          <View style={styles.gameDetailItem}>
+                            <Feather name="hash" size={12} color={GRAY_COLOR} />
+                            <Text style={styles.gameCodeText}>
+                              {selectedTicket.game.game_code}
+                            </Text>
+                          </View>
+                          <View style={styles.gameDetailItem}>
+                            <Feather name="calendar" size={12} color={GRAY_COLOR} />
+                            <Text style={styles.gameTimeText}>
+                              {new Date(selectedTicket.game.game_date).toLocaleDateString()}
+                            </Text>
+                          </View>
+                        </View>
                       </View>
                     </View>
                   )}
-                </View>
 
-                <View style={styles.modalTicketGrid}>
-                  {renderTicketGrid(selectedTicket.ticket_data)}
+                  <View style={styles.fullTicketContainer}>
+                    <Text style={styles.ticketGridTitle}>Ticket Grid</Text>
+                    <View style={styles.fullTicketGrid}>
+                      {renderTicketGrid(selectedTicket.ticket_data, true)}
+                    </View>
+                  </View>
                 </View>
 
                 <View style={styles.modalActions}>
@@ -433,265 +535,282 @@ const TicketsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F6F8FA",
+    backgroundColor: "#F9FAFB",
   },
   container: {
     flex: 1,
+    backgroundColor: "#F9FAFB",
   },
-  header: {
-    backgroundColor: "#FF7675",
-    paddingTop: 30,
-    paddingBottom: 35,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
+  loadingContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    backgroundColor: "#F9FAFB",
+  },
+  loadingContent: {
+    alignItems: 'center',
+  },
+  loadingIconWrapper: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#6B7280",
+    fontWeight: "500",
+    marginTop: 20,
+  },
+  header: {
+    backgroundColor: "#2D3748",
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTextContainer: {
     flex: 1,
+    marginHorizontal: 12,
   },
-  pageTitle: {
-    fontSize: 24,
-    fontWeight: "800",
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "700",
     color: "#FFF",
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  gameInfoHeader: {
+  gameInfoContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 6,
   },
   gameName: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.95)",
-    fontWeight: "600",
-    flex: 1,
-    marginRight: 10,
-  },
-  gameCodeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-    gap: 4,
-  },
-  gameCodeText: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.9)",
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
     fontWeight: "500",
   },
   content: {
     padding: 20,
+    paddingTop: 0,
   },
-  loadingContainer: {
-    paddingVertical: 60,
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#666",
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  emptyIcon: {
-    width: 120,
-    height: 120,
-    marginBottom: 20,
-    opacity: 0.7,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
+  statsOverview: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 25,
-    paddingHorizontal: 40,
+    marginTop: -15,
   },
-  refreshButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FF7675",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  refreshButtonText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  statsCard: {
-    flexDirection: "row",
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-  statItem: {
+  statCard: {
     flex: 1,
     alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  statImage: {
+  statIconContainer: {
     width: 36,
     height: 36,
-    marginBottom: 8,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   statValue: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#333",
+    color: "#111827",
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: 11,
+    color: "#6B7280",
     fontWeight: "600",
+    textAlign: 'center',
   },
-  ticketsContainer: {
+  section: {
     marginBottom: 20,
   },
   sectionHeader: {
-    marginBottom: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#333",
-    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
   },
-  sectionSubtitle: {
+  sectionCount: {
     fontSize: 14,
-    color: "#666",
+    color: "#6B7280",
+    fontWeight: "600",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   ticketsList: {
     gap: 16,
   },
   ticketWrapper: {
-    marginBottom: 16,
+    marginBottom: 8,
   },
   ticketCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: "#E5E7EB",
+    position: 'relative',
+    overflow: 'hidden',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
+  statusBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  activeStatus: {
+    backgroundColor: "#10B981",
+  },
+  inactiveStatus: {
+    backgroundColor: "#6B7280",
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: "#FFF",
+  },
   ticketCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    marginTop: 30,
     marginBottom: 16,
   },
   ticketNumberContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    flex: 1,
+    gap: 12,
   },
-  ticketIcon: {
-    width: 24,
-    height: 24,
-    opacity: 0.8,
-  },
-  ticketNumber: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#333",
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+  ticketIconContainer: {
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    gap: 4,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
+  ticketId: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 2,
+  },
+  ticketSet: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   ticketPreview: {
-    backgroundColor: "#F9F9F9",
+    backgroundColor: "#F9FAFB",
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: 'center',
   },
   ticketGridContainer: {
     alignItems: "center",
   },
-  columnNumbers: {
+  columnHeaders: {
     flexDirection: "row",
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  columnNumberCell: {
-    width: CELL_SIZE,
-    height: 20,
+  columnHeaderCell: {
     justifyContent: "center",
     alignItems: "center",
+    marginHorizontal: 1,
   },
-  columnNumberText: {
-    fontSize: 10,
-    color: "#666",
-    fontWeight: "600",
+  columnHeaderText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#374151",
   },
   ticketRow: {
     flexDirection: "row",
-    marginBottom: 1,
+    marginBottom: 2,
   },
   ticketCell: {
-    width: CELL_SIZE,
-    height: CELL_SIZE,
-    backgroundColor: "#FFF",
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
     justifyContent: "center",
     alignItems: "center",
+    marginHorizontal: 1,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+  },
+  emptyCell: {
+    backgroundColor: "#F9FAFB",
+  },
+  filledCell: {
+    backgroundColor: "#111827",
   },
   firstRowCell: {
     borderTopWidth: 2,
-    borderTopColor: "#FF5252",
+    borderTopColor: "#374151",
   },
   lastRowCell: {
     borderBottomWidth: 2,
-    borderBottomColor: "#607D8B",
+    borderBottomColor: "#374151",
   },
-  filledCell: {
-    backgroundColor: "#FFF9E6",
+  firstColumnCell: {
+    borderLeftWidth: 2,
+    borderLeftColor: "#374151",
+  },
+  lastColumnCell: {
+    borderRightWidth: 2,
+    borderRightColor: "#374151",
   },
   cellNumber: {
     fontSize: 14,
     fontWeight: "700",
+    color: "#FFF",
   },
   ticketCardFooter: {
     flexDirection: "row",
@@ -700,163 +819,331 @@ const styles = StyleSheet.create({
   },
   ticketInfo: {
     flex: 1,
-    gap: 6,
   },
   infoItem: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  infoIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
     alignItems: "center",
-    gap: 6,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  infoLabel: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "500",
+    marginBottom: 2,
   },
   infoText: {
-    fontSize: 12,
-    color: "#666",
-    flex: 1,
+    fontSize: 13,
+    color: "#111827",
+    fontWeight: "600",
   },
   viewButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF5F5",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: "#2D3748",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 10,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: "#FFE0E0",
+    gap: 6,
   },
   viewButtonText: {
-    fontSize: 12,
-    color: "#FF7675",
+    color: "#FFF",
+    fontSize: 13,
     fontWeight: "600",
+  },
+  emptyState: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  emptyIconWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  refreshButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#2D3748",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  refreshButtonText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 20,
+  },
+  bottomSpace: {
+    height: 20,
   },
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
   },
   modalContainer: {
-    backgroundColor: "#FFF",
-    borderRadius: 25,
-    padding: 25,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 0,
     width: "100%",
     maxWidth: 400,
-    maxHeight: "80%",
+    maxHeight: "85%",
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    padding: 20,
+    paddingBottom: 16,
+    backgroundColor: "#2D3748",
   },
   modalTitleContainer: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+    flexWrap: 'wrap',
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#333",
+  ticketNumberBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+  },
+  ticketNumberBadgeText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFF",
   },
   modalStatusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
     gap: 4,
   },
   modalStatusText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
+    color: "#FFF",
   },
-  modalTicketInfo: {
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    padding: 20,
+  },
+  modalInfoGrid: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   modalInfoRow: {
     flexDirection: "row",
-    gap: 15,
-    marginBottom: 15,
+    gap: 16,
+    marginBottom: 12,
   },
   modalInfoItem: {
     flex: 1,
     flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  modalInfoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "#F8F9FF",
-    padding: 10,
-    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   modalInfoLabel: {
     fontSize: 12,
-    color: "#666",
-    fontWeight: "600",
-    marginRight: 4,
+    color: "#6B7280",
+    fontWeight: "500",
+    marginBottom: 2,
   },
   modalInfoValue: {
-    fontSize: 12,
-    color: "#333",
+    fontSize: 14,
+    color: "#111827",
     fontWeight: "600",
-    flex: 1,
   },
   gameCard: {
-    backgroundColor: "#F8F9FF",
+    backgroundColor: "#F9FAFB",
     borderRadius: 12,
-    padding: 15,
+    padding: 16,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#E8EAF6",
+    borderColor: "#E5E7EB",
   },
   gameCardHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   gameCardTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
-    color: "#7209B7",
+    color: "#111827",
   },
   gameCardContent: {
-    gap: 4,
+    gap: 8,
   },
   gameNameText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#333",
+    color: "#111827",
+    lineHeight: 20,
+  },
+  gameDetailsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    flexWrap: 'wrap',
+  },
+  gameDetailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  gameCodeText: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   gameTimeText: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  fullTicketContainer: {
+    marginBottom: 20,
+  },
+  ticketGridTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  fullTicketGrid: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
   },
   modalTicketGrid: {
-    backgroundColor: "#F9F9F9",
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    alignItems: "center",
+    // Additional styles for modal grid if needed
   },
   modalActions: {
-    alignItems: "center",
+    padding: 20,
+    paddingTop: 0,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
   },
   closeModalButton: {
-    backgroundColor: "#FF7675",
+    backgroundColor: "#2D3748",
     paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 10,
     width: "100%",
     alignItems: "center",
   },
   closeModalButtonText: {
     color: "#FFF",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 

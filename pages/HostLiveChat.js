@@ -1,0 +1,895 @@
+import React, { useState, useEffect, useRef } from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+  TextInput,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  ActivityIndicator,
+  Modal,
+} from "react-native";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+
+const HostLiveChat = ({ navigation, route }) => {
+  const { gameId, gameName, participantCount } = route.params;
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [participants, setParticipants] = useState([]);
+  const [isConnected, setIsConnected] = useState(true);
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [currentHostId, setCurrentHostId] = useState(null);
+  
+  const scrollViewRef = useRef(null);
+  const messageInputRef = useRef(null);
+
+  // Fetch current host ID
+  const getCurrentHostId = async () => {
+    try {
+      const tokenData = await AsyncStorage.getItem("host");
+      if (tokenData) {
+        const host = JSON.parse(tokenData);
+        setCurrentHostId(host.id);
+        return host.id;
+      }
+      return null;
+    } catch (error) {
+      console.log("Error getting host ID:", error);
+      return null;
+    }
+  };
+
+  // Fetch chat messages
+  const fetchMessages = async () => {
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      const response = await axios.get(
+        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/messages`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setMessages(response.data.data || []);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.log("Error fetching messages:", error);
+      setLoading(false);
+    }
+  };
+
+  // Fetch participants
+  const fetchParticipants = async () => {
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      const response = await axios.get(
+        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/participants`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setParticipants(response.data.data || []);
+      }
+    } catch (error) {
+      console.log("Error fetching participants:", error);
+    }
+  };
+
+  // Send message
+  const sendMessage = async () => {
+    if (!newMessage.trim() || sending) return;
+
+    setSending(true);
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      const response = await axios.post(
+        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/send`,
+        {
+          message: newMessage.trim(),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setNewMessage("");
+        const tokenData = await AsyncStorage.getItem("host");
+        const host = tokenData ? JSON.parse(tokenData) : null;
+        
+        const newMsg = {
+          type: "chat",
+          sender: {
+            id: host?.id || 0,
+            type: "host",
+            name: host?.name || "Host",
+          },
+          message: newMessage.trim(),
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          is_muted: false,
+        };
+        
+        setMessages(prev => [...prev, newMsg]);
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+        
+        setTimeout(fetchMessages, 500);
+      }
+    } catch (error) {
+      console.log("Error sending message:", error);
+      alert("Failed to send message");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Leave chat
+  const leaveChat = async () => {
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      await axios.post(
+        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/leave`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+      navigation.goBack();
+    } catch (error) {
+      console.log("Error leaving chat:", error);
+    }
+  };
+
+  useEffect(() => {
+    getCurrentHostId();
+    fetchMessages();
+    fetchParticipants();
+    
+    // Set up polling for new messages every 5 seconds
+    const messageInterval = setInterval(fetchMessages, 5000);
+    const participantInterval = setInterval(fetchParticipants, 10000);
+
+    return () => {
+      clearInterval(messageInterval);
+      clearInterval(participantInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Scroll to bottom when messages change
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }, [messages]);
+
+  const renderMessage = (message, index) => {
+    if (message.type === "system") {
+      return (
+        <View key={index} style={styles.systemMessageContainer}>
+          <View style={styles.systemMessage}>
+            <Ionicons name="information-circle" size={14} color="#666" />
+            <Text style={styles.systemMessageText}>{message.message}</Text>
+          </View>
+          <Text style={styles.systemTimestamp}>{message.timestamp}</Text>
+        </View>
+      );
+    }
+
+    const isHostMessage = message.sender?.type === "host" || message.sender?.is_host;
+    const isOwnMessage = isHostMessage && message.sender?.id === currentHostId;
+
+    if (isOwnMessage) {
+      // Own message - aligned to right
+      return (
+        <View key={index} style={styles.ownMessageContainer}>
+          <View style={styles.ownMessageBubble}>
+            <Text style={styles.ownMessageText}>
+              {message.message}
+            </Text>
+            <View style={styles.ownMessageFooter}>
+              <Text style={styles.ownTimestamp}>
+                {message.timestamp}
+              </Text>
+              <Ionicons 
+                name="checkmark-done" 
+                size={12} 
+                color={message.is_muted ? "#666" : "#34B7F1"} 
+                style={styles.messageStatusIcon}
+              />
+            </View>
+          </View>
+        </View>
+      );
+    } else {
+      // Other person's message - aligned to left
+      return (
+        <View key={index} style={styles.otherMessageContainer}>
+          <View style={styles.otherMessageBubble}>
+            <Text style={styles.senderName}>
+              {message.sender?.name || "User"}
+              {isHostMessage && " (Host)"}
+            </Text>
+            <Text style={styles.otherMessageText}>
+              {message.message}
+            </Text>
+            <View style={styles.otherMessageFooter}>
+              <Text style={styles.otherTimestamp}>
+                {message.timestamp}
+              </Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+  };
+
+  const ParticipantsModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={showParticipantsModal}
+      onRequestClose={() => setShowParticipantsModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Chat Participants</Text>
+            <TouchableOpacity onPress={() => setShowParticipantsModal(false)}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.participantsList}>
+            {participants.map((participant, index) => (
+              <View key={index} style={styles.participantItem}>
+                <View style={styles.participantAvatar}>
+                  <Text style={styles.participantAvatarText}>
+                    {participant.name?.charAt(0) || "U"}
+                  </Text>
+                </View>
+                <View style={styles.participantInfo}>
+                  <Text style={styles.participantName}>{participant.name}</Text>
+                  <View style={styles.participantStatus}>
+                    <View style={[
+                      styles.statusDot,
+                      { backgroundColor: participant.is_online ? '#4CAF50' : '#9E9E9E' }
+                    ]} />
+                    <Text style={styles.participantStatusText}>
+                      {participant.is_online ? 'Online' : 'Offline'}
+                    </Text>
+                  </View>
+                </View>
+                {participant.type === 'host' && (
+                  <View style={styles.hostBadge}>
+                    <Ionicons name="shield-checkmark" size={12} color="#FFF" />
+                    <Text style={styles.hostBadgeText}>Host</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </ScrollView>
+          
+          <View style={styles.modalFooter}>
+            <Text style={styles.totalParticipants}>
+              Total: {participants.length} participant{participants.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#25D366" />
+        <Text style={styles.loadingText}>Loading Chat...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar backgroundColor="#075E54" barStyle="light-content" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFF" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.headerContent}
+          onPress={() => setShowParticipantsModal(true)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {gameName}
+            </Text>
+            <View style={styles.onlineStatus}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.onlineText}>
+                {participants.length} online
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.headerSubtitle}>Host Chat</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => setShowParticipantsModal(true)}
+        >
+          <Ionicons name="people" size={22} color="#FFF" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={leaveChat}
+        >
+          <Ionicons name="exit-outline" size={22} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Chat Messages */}
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.messagesContainer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.messagesContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Welcome message */}
+        <View style={styles.welcomeContainer}>
+          <View style={styles.welcomeBubble}>
+            <Ionicons name="chatbubbles" size={24} color="#075E54" />
+            <Text style={styles.welcomeTitle}>Welcome to Host Chat!</Text>
+            <Text style={styles.welcomeText}>
+              Chat with players and other hosts. You're hosting the chat for {gameName}.
+            </Text>
+            <View style={styles.welcomeTips}>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                <Text style={styles.tipText}>You have host privileges</Text>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                <Text style={styles.tipText}>Help players with questions</Text>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                <Text style={styles.tipText}>Monitor the conversation</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Messages */}
+        {messages.length === 0 ? (
+          <View style={styles.emptyMessages}>
+            <Ionicons name="chatbubble-outline" size={60} color="#E0E0E0" />
+            <Text style={styles.emptyTitle}>No messages yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Start the conversation! 👋
+            </Text>
+          </View>
+        ) : (
+          messages.map((message, index) => renderMessage(message, index))
+        )}
+        
+        <View style={styles.messagesSpacer} />
+      </ScrollView>
+
+      {/* Message Input */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.inputContainer}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+        <View style={styles.inputWrapper}>
+          <TouchableOpacity style={styles.emojiButton}>
+            <Ionicons name="happy-outline" size={24} color="#666" />
+          </TouchableOpacity>
+          
+          <TextInput
+            ref={messageInputRef}
+            style={styles.textInput}
+            placeholder="Type a message as host..."
+            placeholderTextColor="#999"
+            value={newMessage}
+            onChangeText={setNewMessage}
+            multiline
+            maxLength={500}
+            onSubmitEditing={sendMessage}
+          />
+          
+          {newMessage.trim() ? (
+            <TouchableOpacity
+              style={styles.sendButton}
+              onPress={sendMessage}
+              disabled={sending}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Ionicons name="send" size={20} color="#FFF" />
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.attachButton}>
+              <Ionicons name="attach" size={22} color="#666" />
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        <View style={styles.inputFooter}>
+          <Text style={styles.charCount}>
+            {newMessage.length}/500
+          </Text>
+          <View style={styles.connectionStatus}>
+            <View style={[
+              styles.connectionDot,
+              { backgroundColor: isConnected ? '#4CAF50' : '#FF5252' }
+            ]} />
+            <Text style={styles.connectionText}>
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </Text>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+
+      <ParticipantsModal />
+    </SafeAreaView>
+  );
+};
+
+// Use EXACTLY the same styles as UserLiveChat
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#ECE5DD",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#ECE5DD",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#666",
+    fontWeight: "500",
+  },
+  header: {
+    backgroundColor: "#075E54",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+  },
+  backButton: {
+    marginRight: 12,
+  },
+  headerContent: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  headerTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFF",
+    marginRight: 8,
+    flex: 1,
+  },
+  onlineStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  onlineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#4CAF50",
+    marginRight: 4,
+  },
+  onlineText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.9)",
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  messagesContainer: {
+    flex: 1,
+    backgroundColor: "#ECE5DD",
+  },
+  messagesContent: {
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+  },
+  welcomeContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  welcomeBubble: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 20,
+    alignItems: "center",
+    width: "100%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  welcomeTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#075E54",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  welcomeText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  welcomeTips: {
+    width: "100%",
+    gap: 8,
+  },
+  tipItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  tipText: {
+    fontSize: 12,
+    color: "#666",
+    flex: 1,
+  },
+  emptyMessages: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#666",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
+  },
+  systemMessageContainer: {
+    alignItems: "center",
+    marginVertical: 8,
+  },
+  systemMessage: {
+    backgroundColor: "rgba(255,255,255,0.8)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    maxWidth: "80%",
+  },
+  systemMessageText: {
+    fontSize: 12,
+    color: "#666",
+    flex: 1,
+  },
+  systemTimestamp: {
+    fontSize: 10,
+    color: "#999",
+    marginTop: 4,
+  },
+  // OWN MESSAGE STYLES - Right aligned
+  ownMessageContainer: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginVertical: 4,
+    paddingHorizontal: 12,
+  },
+  ownMessageBubble: {
+    backgroundColor: "#DCF8C6",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderTopRightRadius: 4,
+    maxWidth: "80%",
+    alignSelf: "flex-end",
+  },
+  ownMessageText: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: "#000",
+  },
+  ownMessageFooter: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  ownTimestamp: {
+    fontSize: 11,
+    color: "rgba(0,0,0,0.6)",
+    marginRight: 4,
+  },
+  messageStatusIcon: {
+    marginLeft: 2,
+  },
+  // OTHER MESSAGE STYLES - Left aligned
+  otherMessageContainer: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    marginVertical: 4,
+    paddingHorizontal: 12,
+  },
+  otherMessageBubble: {
+    backgroundColor: "#FFF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderTopLeftRadius: 4,
+    maxWidth: "80%",
+    alignSelf: "flex-start",
+  },
+  senderName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#075E54",
+    marginBottom: 2,
+  },
+  otherMessageText: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: "#333",
+  },
+  otherMessageFooter: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  otherTimestamp: {
+    fontSize: 11,
+    color: "rgba(0,0,0,0.6)",
+  },
+  messagesSpacer: {
+    height: 80,
+  },
+  inputContainer: {
+    backgroundColor: "#F0F0F0",
+    borderTopWidth: 1,
+    borderTopColor: "#E0E0E0",
+    paddingBottom: Platform.OS === "ios" ? 20 : 8,
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  emojiButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  textInput: {
+    flex: 1,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    maxHeight: 100,
+    fontSize: 16,
+    color: "#333",
+    marginHorizontal: 8,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  attachButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#25D366",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  inputFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    marginTop: 4,
+  },
+  charCount: {
+    fontSize: 12,
+    color: "#999",
+  },
+  connectionStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  connectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 4,
+  },
+  connectionText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  modalContainer: {
+    backgroundColor: "#FFF",
+    borderRadius: 25,
+    padding: 20,
+    width: "100%",
+    maxWidth: 400,
+    maxHeight: "80%",
+    borderWidth: 1,
+    borderColor: "#EEE",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEE",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#075E54",
+  },
+  participantsList: {
+    maxHeight: 300,
+  },
+  participantItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F5F5F5",
+  },
+  participantAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#075E54",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  participantAvatarText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  participantInfo: {
+    flex: 1,
+  },
+  participantName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 2,
+  },
+  participantStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  participantStatusText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  hostBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FF9800",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  hostBadgeText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  modalFooter: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#EEE",
+  },
+  totalParticipants: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    fontWeight: "600",
+  },
+});
+
+export default HostLiveChat;

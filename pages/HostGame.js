@@ -12,6 +12,7 @@ import {
   Modal,
   Dimensions,
   Alert,
+  TextInput,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -23,15 +24,23 @@ const HostGame = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [games, setGames] = useState([]);
+  const [filteredGames, setFilteredGames] = useState([]);
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
   const [loadingGameDetails, setLoadingGameDetails] = useState(false);
   const [startingGame, setStartingGame] = useState(false);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     fetchGames();
   }, []);
+
+  useEffect(() => {
+    filterGames();
+  }, [games, searchQuery]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -59,7 +68,9 @@ const HostGame = ({ navigation }) => {
       );
 
       if (response.data.success) {
-        setGames(response.data.games.data || []);
+        const gamesData = response.data.games.data || [];
+        setGames(gamesData);
+        setFilteredGames(gamesData);
         setError(null);
       } else {
         throw new Error("Failed to fetch games");
@@ -72,6 +83,22 @@ const HostGame = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const filterGames = () => {
+    if (searchQuery.trim() === "") {
+      setFilteredGames(games);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = games.filter(
+      (game) =>
+        game.game_name.toLowerCase().includes(query) ||
+        game.game_code.toLowerCase().includes(query)
+    );
+    
+    setFilteredGames(filtered);
   };
 
   const fetchGameDetails = async (gameId) => {
@@ -714,13 +741,37 @@ const HostGame = ({ navigation }) => {
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Tambola Games</Text>
           <Text style={styles.headerSubtitle}>
-            {games.length} {games.length === 1 ? "game" : "games"} available
+            {filteredGames.length} {filteredGames.length === 1 ? "game" : "games"} shown
+            {searchQuery ? ` for "${searchQuery}"` : ""}
           </Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.refreshButton} onPress={fetchGames}>
             <Ionicons name="refresh" size={20} color="#FFF" />
           </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Simple Search Box */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputContainer}>
+          <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search games by name or code..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={() => setSearchQuery("")}
+              style={styles.clearButton}
+            >
+              <Ionicons name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -745,18 +796,18 @@ const HostGame = ({ navigation }) => {
         }
         contentContainerStyle={styles.scrollContent}
       >
-        {games.length > 0 && (
+        {filteredGames.length > 0 && (
           <View style={styles.statsContainer}>
             <View style={styles.statsCard}>
               <Ionicons name="calendar-outline" size={24} color="#3498db" />
-              <Text style={styles.statsCount}>{games.length}</Text>
+              <Text style={styles.statsCount}>{filteredGames.length}</Text>
               <Text style={styles.statsLabel}>Total Games</Text>
             </View>
 
             <View style={styles.statsCard}>
               <Ionicons name="play-circle-outline" size={24} color="#4CAF50" />
               <Text style={styles.statsCount}>
-                {games.filter((g) => g.status === "active" || g.status === "live").length}
+                {filteredGames.filter((g) => g.status === "active" || g.status === "live").length}
               </Text>
               <Text style={styles.statsLabel}>Active/Live</Text>
             </View>
@@ -764,7 +815,7 @@ const HostGame = ({ navigation }) => {
             <View style={styles.statsCard}>
               <Ionicons name="time-outline" size={24} color="#FF9800" />
               <Text style={styles.statsCount}>
-                {games.filter((g) => g.status === "scheduled").length}
+                {filteredGames.filter((g) => g.status === "scheduled").length}
               </Text>
               <Text style={styles.statsLabel}>Scheduled</Text>
             </View>
@@ -783,19 +834,21 @@ const HostGame = ({ navigation }) => {
         </View>
 
         <View style={styles.gamesContainer}>
-          {games.length > 0 ? (
+          {filteredGames.length > 0 ? (
             <>
-              {games.map(renderGameCard)}
+              {filteredGames.map(renderGameCard)}
               <View style={styles.listFooter}>
                 <Ionicons name="checkmark-done" size={18} color="#9CA3AF" />
-                <Text style={styles.listFooterText}>All games loaded</Text>
+                <Text style={styles.listFooterText}>
+                  {searchQuery ? `Found ${filteredGames.length} games` : "All games loaded"}
+                </Text>
               </View>
             </>
           ) : (
             <View style={styles.emptyState}>
               <View style={styles.emptyIllustration}>
                 <Ionicons
-                  name="game-controller-outline"
+                  name={searchQuery ? "search-outline" : "game-controller-outline"}
                   size={80}
                   color="#D1D5DB"
                 />
@@ -803,19 +856,33 @@ const HostGame = ({ navigation }) => {
                 <View style={[styles.emptyDot, styles.emptyDot2]} />
                 <View style={[styles.emptyDot, styles.emptyDot3]} />
               </View>
-              <Text style={styles.emptyStateTitle}>No Games Yet</Text>
+              <Text style={styles.emptyStateTitle}>
+                {searchQuery ? "No Games Found" : "No Games Yet"}
+              </Text>
               <Text style={styles.emptyStateText}>
-                Create your first tambola game and start hosting exciting
-                matches
+                {searchQuery 
+                  ? `No games found matching "${searchQuery}"`
+                  : "Create your first tambola game and start hosting exciting matches"
+                }
               </Text>
               <TouchableOpacity
                 style={styles.emptyStateButton}
-                onPress={() => navigation.navigate("HostGameCreation")}
+                onPress={() => {
+                  if (searchQuery) {
+                    setSearchQuery("");
+                  } else {
+                    navigation.navigate("HostGameCreation");
+                  }
+                }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="add-circle" size={18} color="#FFF" />
+                <Ionicons 
+                  name={searchQuery ? "refresh" : "add-circle"} 
+                  size={18} 
+                  color="#FFF" 
+                />
                 <Text style={styles.emptyStateButtonText}>
-                  Create First Game
+                  {searchQuery ? "Clear Search" : "Create First Game"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -878,6 +945,36 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  // Simple Search Box
+  searchContainer: {
+    backgroundColor: "#FFF",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  searchInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#333",
+    padding: 0,
+  },
+  clearButton: {
+    padding: 4,
   },
   fabPrimary: {
     position: "absolute",

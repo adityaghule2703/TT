@@ -13,10 +13,11 @@ import {
   RefreshControl,
   SafeAreaView,
   Dimensions,
+  Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, FontAwesome5, Feather } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 
@@ -34,6 +35,11 @@ const GameDetails = ({ route, navigation }) => {
   const [callingStatus, setCallingStatus] = useState(null);
   const [calledNumbers, setCalledNumbers] = useState([]);
   const [timer, setTimer] = useState(0);
+  const [joiningRoom, setJoiningRoom] = useState(false);
+  const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
+
+  // Toast state
+  const [toast, setToast] = useState({ visible: false, message: "", type: "" });
 
   const GAME_IMAGES = {
     header: "https://cdn-icons-png.flaticon.com/512/2331/2331966.png",
@@ -56,7 +62,51 @@ const GameDetails = ({ route, navigation }) => {
     fetchGameStatus();
     fetchMyTicketCount();
     fetchMyRequestCount();
-  }, []);
+    
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchGameStatus();
+      fetchMyTicketCount();
+      fetchMyRequestCount();
+      setJoiningRoom(false);
+      setHasJoinedRoom(false);
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  // Toast Functions
+  const showToast = (message, type = "success") => {
+    setToast({ visible: true, message, type });
+  };
+
+  const hideToast = () => {
+    setToast({ ...toast, visible: false });
+  };
+
+  // Toast Component
+  const Toast = () => {
+    if (!toast.visible) return null;
+    
+    const backgroundColor = toast.type === "success" ? "#40E0D0" : "#FF6B6B";
+    
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        hideToast();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }, []);
+
+    return (
+      <View style={[styles.toast, { backgroundColor }]}>
+        <Ionicons 
+          name={toast.type === "success" ? "checkmark-circle" : "alert-circle"} 
+          size={20} 
+          color="#FFF" 
+        />
+        <Text style={styles.toastText}>{toast.message}</Text>
+      </View>
+    );
+  };
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -129,12 +179,50 @@ const GameDetails = ({ route, navigation }) => {
     }
   };
 
+  const updateGameRoomStatus = async () => {
+    try {
+      setJoiningRoom(true);
+      const token = await AsyncStorage.getItem("token");
+      
+      const response = await axios.post(
+        `https://exilance.com/tambolatimez/public/api/user/game-room/${game.id}/update-status`,
+        {
+          is_active: true
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setHasJoinedRoom(true);
+        showToast("Joined game room successfully!", "success");
+        navigation.navigate("UserGameRoom", { 
+          gameId: game.id,
+          gameName: game.game_name 
+        });
+        setJoiningRoom(false);
+      } else {
+        showToast(response.data.message || "Failed to join game room", "error");
+        setJoiningRoom(false);
+      }
+    } catch (error) {
+      console.log("Error updating game room status:", error.response?.data || error.message);
+      showToast(
+        error.response?.data?.message || "Failed to join game room. Please try again.",
+        "error"
+      );
+      setJoiningRoom(false);
+    }
+  };
+
   const handleRequestTickets = async () => {
     if (ticketQuantity < 1 || ticketQuantity > 4) {
-      Alert.alert(
-        "Invalid Quantity",
-        "Ticket quantity must be between 1 and 4"
-      );
+      showToast("Ticket quantity must be between 1 and 4", "error");
       return;
     }
 
@@ -157,23 +245,47 @@ const GameDetails = ({ route, navigation }) => {
         }
       );
 
-      if (response.data.success) {
-        Alert.alert("Success", "Ticket request submitted successfully!");
+      const isSuccess = 
+        response.data.success === true || 
+        response.data.status === true || 
+        response.data.message?.toLowerCase().includes("success");
+
+      if (isSuccess) {
+        showToast(response.data.message || "Ticket request submitted successfully!", "success");
+        
         setTicketModalVisible(false);
         setTicketQuantity(1);
         setTicketMessage("");
-        // Refresh counts after submitting request
+        
         fetchMyRequestCount();
         fetchMyTicketCount();
+        
+        setTimeout(() => {
+          navigation.navigate("TicketRequestsScreen", { 
+            gameId: game.id,
+            gameName: game.game_name 
+          });
+        }, 1500);
       } else {
-        Alert.alert("Error", response.data.message || "Failed to submit request");
+        const errorMessage = response.data.message || 
+                            response.data.error || 
+                            "Failed to submit request";
+        showToast(errorMessage, "error");
       }
     } catch (error) {
       console.log("Request error:", error.response?.data || error.message);
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Failed to submit ticket request"
-      );
+      
+      let errorMessage = "Failed to submit ticket request. Please try again.";
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message || 
+                      error.response.data?.error || 
+                      `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        errorMessage = "No response from server. Please check your connection.";
+      }
+      
+      showToast(errorMessage, "error");
     } finally {
       setRequestLoading(false);
     }
@@ -190,37 +302,55 @@ const GameDetails = ({ route, navigation }) => {
     });
   };
 
-  const navigateToGameRoom = () => {
-    navigation.navigate("UserGameRoom", { 
-      gameId: game.id,
-      gameName: game.game_name 
-    });
+  const handleJoinGameRoom = () => {
+    if (!gameStatus || gameStatus.status !== 'live') {
+      showToast("Game is not live yet!", "info");
+      return;
+    }
+    
+    if (hasJoinedRoom) {
+      navigation.navigate("UserGameRoom", { 
+        gameId: game.id,
+        gameName: game.game_name 
+      });
+    } else {
+      updateGameRoomStatus();
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Toast Notification */}
+      <Toast />
+      
       <ScrollView
         style={styles.container}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#FF7675"
-            colors={["#FF7675"]}
+            tintColor="#40E0D0"
+            colors={["#40E0D0"]}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Background Patterns */}
+        <View style={styles.backgroundPatterns}>
+          <View style={styles.patternCircle1} />
+          <View style={styles.patternCircle2} />
+        </View>
+
+        {/* UPDATED HEADER - Matching Game screen style */}
         <View style={styles.header}>
-          <View style={styles.headerContent}>
+          <View style={styles.headerTop}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="arrow-back" size={24} color="#FFF" />
+              <Ionicons name="arrow-back" size={24} color="#40E0D0" />
             </TouchableOpacity>
-
+            
             <View style={styles.headerTextContainer}>
               <Text style={styles.gameName} numberOfLines={2} ellipsizeMode="tail">
                 {game.game_name}
@@ -229,7 +359,7 @@ const GameDetails = ({ route, navigation }) => {
                 <MaterialIcons
                   name="fingerprint"
                   size={16}
-                  color="rgba(255,255,255,0.9)"
+                  color="#6C757D"
                 />
                 <Text style={styles.gameCode}>{game.game_code}</Text>
               </View>
@@ -240,33 +370,40 @@ const GameDetails = ({ route, navigation }) => {
         {/* Content */}
         <View style={styles.content}>
           {/* Game Status Card */}
-          <View style={styles.gameStatusCard}>
-            <View style={styles.gameStatusHeader}>
+          <View style={styles.card}>
+            <View style={styles.cardPattern} />
+            
+            <View style={styles.cardHeader}>
               <Image
                 source={{ 
                   uri: gameStatus?.status === 'live' 
                     ? GAME_IMAGES.live 
                     : GAME_IMAGES.scheduled 
                 }}
-                style={styles.gameStatusImage}
+                style={styles.cardHeaderImage}
               />
-              <Text style={styles.gameStatusTitle}>
+              <Text style={styles.cardTitle}>
                 {gameStatus?.status === 'live' ? 'Game Status' : 'Game Schedule'}
               </Text>
               <View style={[
                 styles.statusBadge,
                 { 
                   backgroundColor: gameStatus?.status === 'live' 
-                    ? '#FF525220' 
-                    : '#4CAF5020' 
+                    ? '#4CAF5020' 
+                    : '#40E0D020' 
                 }
               ]}>
+                <Ionicons 
+                  name={gameStatus?.status === 'live' ? 'radio-button-on' : 'time'} 
+                  size={12} 
+                  color={gameStatus?.status === 'live' ? '#4CAF50' : '#40E0D0'} 
+                />
                 <Text style={[
                   styles.statusBadgeText,
                   { 
                     color: gameStatus?.status === 'live' 
-                      ? '#FF5252' 
-                      : '#4CAF50' 
+                      ? '#4CAF50' 
+                      : '#40E0D0' 
                   }
                 ]}>
                   {gameStatus?.status?.toUpperCase() || 'LOADING'}
@@ -276,31 +413,37 @@ const GameDetails = ({ route, navigation }) => {
             
             {gameStatus?.status === 'live' ? (
               <View>
-                <Text style={styles.liveGameDescription}>
+                <Text style={styles.cardDescription}>
                   The game is now live! Number calling has started.
                 </Text>
                 {callingStatus?.is_running ? (
-                  <View style={styles.liveStats}>
-                    <View style={styles.liveStatItem}>
-                      <Ionicons name="megaphone" size={20} color="#4CAF50" />
-                      <Text style={styles.liveStatValue}>
-                        {calledNumbers.length} Called
+                  <View style={styles.statsContainer}>
+                    <View style={styles.statCard}>
+                      <View style={styles.statIcon}>
+                        <Ionicons name="megaphone" size={20} color="#40E0D0" />
+                      </View>
+                      <Text style={styles.statValue}>
+                        {calledNumbers.length}
                       </Text>
-                      <Text style={styles.liveStatLabel}>Numbers</Text>
+                      <Text style={styles.statLabel}>Called</Text>
                     </View>
-                    <View style={styles.liveStatItem}>
-                      <Ionicons name="time" size={20} color="#FF9800" />
-                      <Text style={styles.liveStatValue}>
+                    <View style={styles.statCard}>
+                      <View style={styles.statIcon}>
+                        <Ionicons name="time" size={20} color="#FF6B35" />
+                      </View>
+                      <Text style={styles.statValue}>
                         {timer}s
                       </Text>
-                      <Text style={styles.liveStatLabel}>Next Call</Text>
+                      <Text style={styles.statLabel}>Next Call</Text>
                     </View>
-                    <View style={styles.liveStatItem}>
-                      <Ionicons name="grid" size={20} color="#2196F3" />
-                      <Text style={styles.liveStatValue}>
+                    <View style={styles.statCard}>
+                      <View style={styles.statIcon}>
+                        <Ionicons name="grid" size={20} color="#FFD700" />
+                      </View>
+                      <Text style={styles.statValue}>
                         {90 - calledNumbers.length}
                       </Text>
-                      <Text style={styles.liveStatLabel}>Remaining</Text>
+                      <Text style={styles.statLabel}>Remaining</Text>
                     </View>
                   </View>
                 ) : (
@@ -310,16 +453,25 @@ const GameDetails = ({ route, navigation }) => {
                 )}
                 
                 <TouchableOpacity
-                  style={styles.joinRoomButton}
-                  onPress={navigateToGameRoom}
+                  style={[styles.primaryButton, joiningRoom && styles.buttonDisabled]}
+                  onPress={handleJoinGameRoom}
+                  disabled={joiningRoom}
                 >
-                  <Ionicons name="enter" size={20} color="#FFF" />
-                  <Text style={styles.joinRoomButtonText}>Join Game Room</Text>
+                  {joiningRoom ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="enter" size={20} color="#FFF" />
+                      <Text style={styles.primaryButtonText}>
+                        {hasJoinedRoom ? "Re-enter Game Room" : "Join Game Room"}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
             ) : (
               <View>
-                <Text style={styles.scheduledGameDescription}>
+                <Text style={styles.cardDescription}>
                   Game is scheduled to start on {new Date(game.game_date).toLocaleDateString("en-US", {
                     weekday: "long",
                     month: "long",
@@ -327,9 +479,9 @@ const GameDetails = ({ route, navigation }) => {
                     year: "numeric"
                   })} at {game.game_start_time}
                 </Text>
-                <View style={styles.scheduledButton}>
-                  <Ionicons name="calendar" size={20} color="#4CAF50" />
-                  <Text style={styles.scheduledButtonText}>
+                <View style={styles.scheduledBadgeContainer}>
+                  <Ionicons name="calendar" size={20} color="#40E0D0" />
+                  <Text style={styles.scheduledBadgeText}>
                     Game is Scheduled
                   </Text>
                 </View>
@@ -337,183 +489,131 @@ const GameDetails = ({ route, navigation }) => {
             )}
           </View>
 
-          {/* Stats Card */}
-          <View style={styles.statsCard}>
-            <View style={styles.statItem}>
-              <Image
-                source={{ uri: GAME_IMAGES.ticket }}
-                style={styles.statImage}
-              />
-              <Text style={styles.statValue}>₹{game.ticket_cost}</Text>
-              <Text style={styles.statLabel}>Ticket Cost</Text>
-            </View>
-
-            <View style={styles.statItem}>
-              <Image
-                source={{ uri: GAME_IMAGES.players }}
-                style={styles.statImage}
-              />
-              <Text style={styles.statValue}>{game.max_players}</Text>
-              <Text style={styles.statLabel}>Max Players</Text>
-            </View>
-
-            <View style={styles.statItem}>
-              <Image
-                source={{ uri: GAME_IMAGES.trophy }}
-                style={styles.statImage}
-              />
-              <Text style={styles.statValue}>{game.max_winners}</Text>
-              <Text style={styles.statLabel}>Winners</Text>
-            </View>
-          </View>
-
-          {/* Rest of the existing code remains the same... */}
-          {/* Details Card */}
-          <View style={styles.detailsCard}>
+          {/* Game Details Card */}
+          <View style={styles.card}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>🎮 Game Details</Text>
-              <Image
-                source={{ uri: GAME_IMAGES.celebrate }}
-                style={styles.sectionIcon}
-              />
+              <Text style={styles.sectionTitle}>Game Details</Text>
+              <Ionicons name="game-controller" size={24} color="#40E0D0" />
             </View>
 
             {/* Date & Time */}
-            <View style={styles.detailRowFixed}>
-              <View style={styles.detailLabelContainer}>
-                <Image
-                  source={{ uri: GAME_IMAGES.calendar }}
-                  style={styles.detailRowIcon}
-                />
-                <Text style={styles.detailLabel}>Date & Time</Text>
+            <View style={styles.detailRow}>
+              <View style={styles.detailItem}>
+                <View style={styles.detailIcon}>
+                  <Ionicons name="calendar" size={16} color="#40E0D0" />
+                </View>
+                <View>
+                  <Text style={styles.detailLabel}>Date</Text>
+                  <Text style={styles.detailText} numberOfLines={1}>
+                    {new Date(game.game_date).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.detailValueContainer}>
-                <Text style={styles.detailValue} numberOfLines={1}>
-                  {new Date(game.game_date).toLocaleDateString("en-US", {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                  })}{" "}
-                  • {game.game_start_time}
-                </Text>
-              </View>
-            </View>
-
-            {/* Ticket Type */}
-            <View style={styles.detailRowFixed}>
-              <View style={styles.detailLabelContainer}>
-                {game.ticket_type === "paid" ? (
-                  <Image
-                    source={{ uri: GAME_IMAGES.diamond }}
-                    style={styles.detailRowIcon}
-                  />
-                ) : (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={22}
-                    color="#4CAF50"
-                  />
-                )}
-                <Text style={styles.detailLabel}>Ticket Type</Text>
-              </View>
-              <View
-                style={[
-                  styles.typeBadge,
-                  game.ticket_type === "paid"
-                    ? styles.paidType
-                    : styles.freeType,
-                ]}
-              >
-                <Text style={styles.typeText} numberOfLines={1}>
-                  {game.ticket_type === "paid" ? "Premium" : "Free"}
-                </Text>
+              
+              <View style={styles.detailItem}>
+                <View style={styles.detailIcon}>
+                  <Ionicons name="time" size={16} color="#40E0D0" />
+                </View>
+                <View>
+                  <Text style={styles.detailLabel}>Time</Text>
+                  <Text style={styles.detailText} numberOfLines={1}>
+                    {game.game_start_time}
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {/* Prize Pool */}
-            <View style={styles.detailRowFixed}>
-              <View style={styles.detailLabelContainer}>
-                <Image
-                  source={{ uri: GAME_IMAGES.wallet }}
-                  style={styles.detailRowIcon}
-                />
-                <Text style={styles.detailLabel}>Prize Pool</Text>
+            {/* Prize Pool (Replaced Ticket Type) */}
+            <View style={styles.detailRow}>
+              <View style={styles.detailItem}>
+                <View style={styles.detailIcon}>
+                  <MaterialIcons name="account-balance-wallet" size={16} color="#40E0D0" />
+                </View>
+                <View>
+                  <Text style={styles.detailLabel}>Prize Pool</Text>
+                  <Text style={styles.detailText} numberOfLines={1}>
+                    {game.ticket_type === "paid"
+                      ? `₹${(game.ticket_cost * game.max_players).toLocaleString()}`
+                      : "Exciting Prizes"}
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.prizePool} numberOfLines={1}>
-                {game.ticket_type === "paid"
-                  ? `₹${game.ticket_cost * game.max_players}`
-                  : "Exciting Prizes"}
-              </Text>
+              
+              <View style={styles.detailItem}>
+                <View style={styles.detailIcon}>
+                  <Ionicons name="person" size={16} color="#40E0D0" />
+                </View>
+                <View>
+                  <Text style={styles.detailLabel}>Host</Text>
+                  <Text style={styles.detailText} numberOfLines={1}>
+                    {game.user?.name || 'Tambola Timez'}
+                  </Text>
+                </View>
+              </View>
             </View>
 
             {/* My Tickets Count */}
-            <View style={styles.detailRowFixed}>
-              <View style={styles.detailLabelContainer}>
-                <Image
-                  source={{ uri: GAME_IMAGES.ticket }}
-                  style={styles.detailRowIcon}
-                />
-                <Text style={styles.detailLabel}>My Tickets</Text>
-              </View>
+            <View style={styles.myCountContainer}>
               <TouchableOpacity
                 style={[
-                  styles.myTicketsBadge,
-                  myTicketCount > 0
-                    ? styles.hasTicketsBadge
-                    : styles.noTicketsBadge,
+                  styles.countButton,
+                  myTicketCount > 0 ? styles.hasCountButton : styles.noCountButton,
                 ]}
                 onPress={navigateToTickets}
               >
-                <Text
-                  style={[
-                    styles.myTicketsText,
-                    myTicketCount > 0
-                      ? styles.hasTicketsText
-                      : styles.noTicketsText,
-                  ]}
-                >
-                  {myTicketCount > 0
-                    ? `${myTicketCount} Ticket${myTicketCount > 1 ? "s" : ""}`
-                    : "No Tickets"}
-                </Text>
+                <View style={styles.countIcon}>
+                  <Image
+                    source={{ uri: GAME_IMAGES.ticket }}
+                    style={styles.countIconImage}
+                  />
+                </View>
+                <View style={styles.countInfo}>
+                  <Text style={styles.countLabel}>My Tickets</Text>
+                  <Text style={[
+                    styles.countValue,
+                    myTicketCount > 0 ? styles.hasCountValue : styles.noCountValue,
+                  ]}>
+                    {myTicketCount > 0
+                      ? `${myTicketCount} Ticket${myTicketCount > 1 ? "s" : ""}`
+                      : "No Tickets"}
+                  </Text>
+                </View>
                 {myTicketCount > 0 && (
-                  <Ionicons name="arrow-forward" size={14} color="#4CAF50" />
+                  <Ionicons name="arrow-forward" size={16} color="#40E0D0" />
                 )}
               </TouchableOpacity>
-            </View>
 
-            {/* My Requests Count */}
-            <View style={styles.detailRowFixed}>
-              <View style={styles.detailLabelContainer}>
-                <Image
-                  source={{ uri: GAME_IMAGES.requests }}
-                  style={styles.detailRowIcon}
-                />
-                <Text style={styles.detailLabel}>My Requests</Text>
-              </View>
+              {/* My Requests Count */}
               <TouchableOpacity
                 style={[
-                  styles.myRequestsBadge,
-                  myRequestCount > 0
-                    ? styles.hasRequestsBadge
-                    : styles.noRequestsBadge,
+                  styles.countButton,
+                  myRequestCount > 0 ? styles.hasCountButton : styles.noCountButton,
                 ]}
                 onPress={navigateToMyRequests}
               >
-                <Text
-                  style={[
-                    styles.myRequestsText,
-                    myRequestCount > 0
-                      ? styles.hasRequestsText
-                      : styles.noRequestsText,
-                  ]}
-                >
-                  {myRequestCount > 0
-                    ? `${myRequestCount} Request${myRequestCount > 1 ? "s" : ""}`
-                    : "No Requests"}
-                </Text>
+                <View style={styles.countIcon}>
+                  <Image
+                    source={{ uri: GAME_IMAGES.requests }}
+                    style={styles.countIconImage}
+                  />
+                </View>
+                <View style={styles.countInfo}>
+                  <Text style={styles.countLabel}>My Requests</Text>
+                  <Text style={[
+                    styles.countValue,
+                    myRequestCount > 0 ? styles.hasCountValue : styles.noCountValue,
+                  ]}>
+                    {myRequestCount > 0
+                      ? `${myRequestCount} Request${myRequestCount > 1 ? "s" : ""}`
+                      : "No Requests"}
+                  </Text>
+                </View>
                 {myRequestCount > 0 && (
-                  <Ionicons name="arrow-forward" size={14} color="#2196F3" />
+                  <Ionicons name="arrow-forward" size={16} color="#40E0D0" />
                 )}
               </TouchableOpacity>
             </View>
@@ -521,70 +621,76 @@ const GameDetails = ({ route, navigation }) => {
             {game.message && (
               <View style={styles.messageCard}>
                 <View style={styles.messageHeader}>
-                  <MaterialIcons name="message" size={18} color="#7209B7" />
+                  <MaterialIcons name="message" size={18} color="#40E0D0" />
                   <Text style={styles.messageTitle}>Host Message</Text>
                 </View>
                 <Text style={styles.messageContent}>{game.message}</Text>
               </View>
             )}
+          </View>
 
-            {/* Action Buttons */}
-            <View style={styles.actionButtonsContainer}>
+          {/* Action Buttons */}
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Actions</Text>
+              <Ionicons name="flash" size={24} color="#40E0D0" />
+            </View>
+
+            <View style={styles.actionsContainer}>
               <TouchableOpacity
                 style={[
                   styles.actionButton,
-                  styles.requestButton,
-                  game.ticket_type === "paid"
-                    ? styles.paidRequestButton
-                    : styles.freeRequestButton,
+                  styles.primaryActionButton,
+                  game.ticket_type === "paid" ? styles.paidActionButton : styles.freeActionButton,
                 ]}
                 onPress={() => setTicketModalVisible(true)}
               >
-                <Image
-                  source={{ uri: GAME_IMAGES.request }}
-                  style={styles.requestButtonIcon}
-                />
-                <Text style={styles.requestButtonText}>Request Tickets</Text>
+                <View style={styles.actionButtonIcon}>
+                  <Image
+                    source={{ uri: GAME_IMAGES.request }}
+                    style={styles.actionButtonImage}
+                  />
+                </View>
+                <Text style={styles.actionButtonText}>Request Tickets</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.actionButton,
-                  styles.showTicketsButton,
+                  styles.secondaryActionButton,
                   myTicketCount === 0 && styles.disabledButton,
                 ]}
                 onPress={navigateToTickets}
                 disabled={myTicketCount === 0}
               >
-                <Image
-                  source={{ uri: GAME_IMAGES.ticket }}
-                  style={styles.showTicketsIcon}
-                />
-                <Text style={styles.showTicketsText}>
-                  {myTicketCount > 0
-                    ? `Show My Tickets (${myTicketCount})`
-                    : "No Tickets"}
+                <View style={styles.actionButtonIcon}>
+                  <Image
+                    source={{ uri: GAME_IMAGES.ticket }}
+                    style={styles.actionButtonImage}
+                  />
+                </View>
+                <Text style={styles.secondaryActionButtonText}>
+                  My Tickets
                 </Text>
               </TouchableOpacity>
 
-              {/* My Requests Button */}
               <TouchableOpacity
                 style={[
                   styles.actionButton,
-                  styles.myRequestsButton,
+                  styles.secondaryActionButton,
                   myRequestCount === 0 && styles.disabledButton,
                 ]}
                 onPress={navigateToMyRequests}
                 disabled={myRequestCount === 0}
               >
-                <Image
-                  source={{ uri: GAME_IMAGES.requests }}
-                  style={styles.myRequestsButtonIcon}
-                />
-                <Text style={styles.myRequestsButtonText}>
-                  {myRequestCount > 0
-                    ? `My Requests (${myRequestCount})`
-                    : "No Requests"}
+                <View style={styles.actionButtonIcon}>
+                  <Image
+                    source={{ uri: GAME_IMAGES.requests }}
+                    style={styles.actionButtonImage}
+                  />
+                </View>
+                <Text style={styles.secondaryActionButtonText}>
+                  My Requests
                 </Text>
               </TouchableOpacity>
             </View>
@@ -592,47 +698,47 @@ const GameDetails = ({ route, navigation }) => {
 
           {/* Game Rewards */}
           {game.pattern_rewards && game.pattern_rewards.length > 0 && (
-            <View style={styles.rewardsCard}>
+            <View style={styles.card}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>🏆 Game Rewards</Text>
+                <Text style={styles.sectionTitle}>Game Rewards</Text>
                 <Image
-                  source={{ uri: GAME_IMAGES.pattern }}
-                  style={styles.sectionIcon}
+                  source={{ uri: GAME_IMAGES.trophy }}
+                  style={styles.rewardsIcon}
                 />
               </View>
+              
               {game.pattern_rewards.map((reward, index) => (
-                <View key={reward.pattern_id} style={styles.rewardItem}>
+                <View key={reward.pattern_id} style={styles.rewardCard}>
+                  <View style={styles.rewardPattern} />
+                  
                   <View style={styles.rewardHeader}>
-                    <Image
-                      source={{ uri: GAME_IMAGES.trophy }}
-                      style={styles.rewardIcon}
-                    />
-                    <Text style={styles.rewardName} numberOfLines={1}>
-                      {reward.reward_name}
-                    </Text>
-                    <Text style={styles.rewardAmount} numberOfLines={1}>
-                      ₹{reward.amount}
-                    </Text>
+                    <View style={styles.rewardIcon}>
+                      <MaterialIcons name="emoji-events" size={24} color="#FFD700" />
+                    </View>
+                    <View style={styles.rewardInfo}>
+                      <Text style={styles.rewardName} numberOfLines={1}>
+                        {reward.reward_name}
+                      </Text>
+                      <Text style={styles.rewardDescription} numberOfLines={2}>
+                        {reward.description}
+                      </Text>
+                    </View>
+                    <View style={styles.rewardAmountContainer}>
+                      <Text style={styles.rewardAmount} numberOfLines={1}>
+                        ₹{reward.amount}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={styles.rewardDescription} numberOfLines={2}>
-                    {reward.description}
-                  </Text>
+                  
                   <View style={styles.rewardFooter}>
-                    <View style={styles.rewardCount}>
-                      <MaterialIcons
-                        name="confirmation-number"
-                        size={14}
-                        color="#666"
-                      />
-                      <Text style={styles.countText} numberOfLines={1}>
+                    <View style={styles.rewardDetail}>
+                      <MaterialIcons name="confirmation-number" size={14} color="#40E0D0" />
+                      <Text style={styles.rewardDetailText} numberOfLines={1}>
                         Count: {reward.reward_count}
                       </Text>
                     </View>
-                    <View style={styles.rewardBadge}>
-                      <Text
-                        style={styles.rewardBadgeText}
-                        numberOfLines={1}
-                      >
+                    <View style={styles.patternBadge}>
+                      <Text style={styles.patternBadgeText} numberOfLines={1}>
                         Pattern {reward.pattern_id}
                       </Text>
                     </View>
@@ -647,7 +753,7 @@ const GameDetails = ({ route, navigation }) => {
         <View style={styles.bottomSpace} />
       </ScrollView>
 
-      {/* Ticket Request Modal - Same as before */}
+      {/* Ticket Request Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -657,19 +763,25 @@ const GameDetails = ({ route, navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>🎫 Request Tickets</Text>
+              <Text style={styles.modalTitle}>Request Tickets</Text>
               <TouchableOpacity onPress={() => setTicketModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#666" />
+                <Ionicons name="close" size={24} color="#6C757D" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.gameInfoModal}>
+            <View style={styles.modalGameInfo}>
               <Text style={styles.modalGameName} numberOfLines={2}>
                 {game.game_name}
               </Text>
-              <Text style={styles.modalGamePrice}>
-                Ticket Price: ₹{game.ticket_cost} each
-              </Text>
+              <Text style={styles.modalGameId}>ID: {game.game_code}</Text>
+              <View style={styles.modalTicketCost}>
+                <Text style={[
+                  styles.modalTicketCostText,
+                  { color: game.ticket_type === "paid" ? "#FFD700" : "#40E0D0" }
+                ]}>
+                  Ticket Price: {game.ticket_type === "paid" ? `₹${game.ticket_cost}` : "FREE"}
+                </Text>
+              </View>
             </View>
 
             {/* Quantity Selector */}
@@ -700,18 +812,17 @@ const GameDetails = ({ route, navigation }) => {
             </View>
 
             {/* Total Amount */}
-            <View style={styles.totalSection}>
-              <View style={styles.totalLeft}>
-                <Text style={styles.totalLabel}>Total Amount:</Text>
-                <Image
-                  source={{ uri: GAME_IMAGES.wallet }}
-                  style={styles.totalIcon}
-                />
+            {game.ticket_type === "paid" && (
+              <View style={styles.totalSection}>
+                <View style={styles.totalLabelContainer}>
+                  <Ionicons name="wallet" size={20} color="#40E0D0" />
+                  <Text style={styles.totalLabel}>Total Amount:</Text>
+                </View>
+                <Text style={styles.totalAmount} numberOfLines={1}>
+                  ₹{game.ticket_cost * ticketQuantity}
+                </Text>
               </View>
-              <Text style={styles.totalAmount} numberOfLines={1}>
-                ₹{game.ticket_cost * ticketQuantity}
-              </Text>
-            </View>
+            )}
 
             {/* Message Input */}
             <View style={styles.messageSection}>
@@ -724,6 +835,7 @@ const GameDetails = ({ route, navigation }) => {
                 multiline
                 numberOfLines={3}
                 maxLength={200}
+                placeholderTextColor="#ADB5BD"
               />
               <Text style={styles.charCount}>
                 {ticketMessage.length}/200 characters
@@ -754,10 +866,7 @@ const GameDetails = ({ route, navigation }) => {
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <>
-                    <Image
-                      source={{ uri: GAME_IMAGES.request }}
-                      style={styles.submitIcon}
-                    />
+                    <Ionicons name="send" size={18} color="#FFF" />
                     <Text style={styles.submitButtonText}>Submit Request</Text>
                   </>
                 )}
@@ -773,342 +882,340 @@ const GameDetails = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F6F8FA",
+    backgroundColor: "#F8F9FA",
   },
   container: {
     flex: 1,
   },
-  header: {
-    backgroundColor: "#FF7675",
-    paddingTop: 30,
-    paddingBottom: 35,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-  },
-  headerContent: {
+  // Toast Styles
+  toast: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 999,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 10,
+    flex: 1,
+  },
+  backgroundPatterns: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    zIndex: 0,
+  },
+  patternCircle1: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(64, 224, 208, 0.05)',
+  },
+  patternCircle2: {
+    position: 'absolute',
+    bottom: 200,
+    left: -30,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 107, 53, 0.03)',
+  },
+  // UPDATED HEADER STYLES - Matching Game screen
+  header: {
+    backgroundColor: "#FFFFFF",
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E9ECEF",
+    zIndex: 1,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: "#F8F9FA",
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
   },
   headerTextContainer: {
     flex: 1,
-    justifyContent: 'center',
   },
   gameName: {
     fontSize: 24,
-    fontWeight: "800",
-    color: "#FFF",
-    marginBottom: 8,
-    lineHeight: 28,
+    fontWeight: "700",
+    color: "#40E0D0",
+    letterSpacing: -0.5,
   },
   gameCodeContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    marginTop: 2,
   },
   gameCode: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.9)",
+    color: "#6C757D",
     fontWeight: "500",
   },
   content: {
     padding: 20,
+    zIndex: 1,
+    marginTop: 0,
   },
-  gameStatusCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
+  // Card Styles
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: "#E9ECEF",
+    position: 'relative',
+    overflow: 'hidden',
   },
-  gameStatusHeader: {
+  cardPattern: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 50,
+    height: 50,
+    borderBottomLeftRadius: 16,
+    borderTopRightRadius: 25,
+    backgroundColor: 'rgba(64, 224, 208, 0.03)',
+  },
+  cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
     gap: 12,
   },
-  gameStatusImage: {
+  cardHeaderImage: {
     width: 24,
     height: 24,
   },
-  gameStatusTitle: {
+  cardTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#333",
+    color: "#212529",
     flex: 1,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
   },
   statusBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
-    textTransform: "uppercase",
   },
-  liveGameDescription: {
+  cardDescription: {
     fontSize: 14,
-    color: "#666",
+    color: "#6C757D",
     lineHeight: 20,
     marginBottom: 16,
   },
-  liveStats: {
+  statsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  liveStatItem: {
-    alignItems: "center",
-    flex: 1,
-  },
-  liveStatValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#333",
-    marginTop: 8,
-  },
-  liveStatLabel: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
-    marginTop: 4,
-  },
-  waitingText: {
-    fontSize: 14,
-    color: "#FF9800",
-    fontStyle: "italic",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  joinRoomButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FF7675",
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-  },
-  joinRoomButtonText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  scheduledGameDescription: {
-    fontSize: 14,
-    color: "#666",
-    lineHeight: 20,
     marginBottom: 16,
   },
-  scheduledButton: {
-    flexDirection: "row",
+  statCard: {
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F0F9FF",
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-    borderWidth: 2,
-    borderColor: "#4CAF50",
-  },
-  scheduledButtonText: {
-    color: "#4CAF50",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  statsCard: {
-    flexDirection: "row",
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-  statItem: {
     flex: 1,
-    alignItems: "center",
   },
-  statImage: {
-    width: 40,
-    height: 40,
-    marginBottom: 8,
+  statIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
   },
   statValue: {
     fontSize: 18,
-    fontWeight: "800",
-    color: "#333",
+    fontWeight: "700",
+    color: "#212529",
     marginBottom: 2,
   },
   statLabel: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "600",
+    fontSize: 11,
+    color: "#6C757D",
+    fontWeight: "500",
   },
-  detailsCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
+  waitingText: {
+    fontSize: 14,
+    color: "#FF6B35",
+    fontStyle: "italic",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  primaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#40E0D0",
+    paddingVertical: 14,
+    borderRadius: 10,
+    gap: 8,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  primaryButtonText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  scheduledBadgeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8F9FA",
+    paddingVertical: 14,
+    borderRadius: 10,
+    gap: 8,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: "#E9ECEF",
+  },
+  scheduledBadgeText: {
+    color: "#40E0D0",
+    fontSize: 14,
+    fontWeight: "600",
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "800",
-    color: "#333",
+    fontWeight: "700",
+    color: "#212529",
   },
-  sectionIcon: {
-    width: 30,
-    height: 30,
-    opacity: 0.8,
-  },
-  detailRowFixed: {
+  detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-    minHeight: 50,
+    marginBottom: 12,
   },
-  detailLabelContainer: {
+  detailItem: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    alignItems: "flex-start",
+    gap: 8,
     flex: 1,
   },
-  detailRowIcon: {
-    width: 22,
-    height: 22,
-    opacity: 0.8,
+  detailIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
   },
   detailLabel: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "600",
-    minWidth: 90,
+    fontSize: 10,
+    color: "#6C757D",
+    fontWeight: "500",
+    marginBottom: 2,
   },
-  detailValueContainer: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  detailValue: {
-    fontSize: 14,
-    color: "#333",
-    fontWeight: "600",
-    textAlign: "right",
-  },
-  typeBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  paidType: {
-    backgroundColor: "#FFF8E1",
-    borderWidth: 1,
-    borderColor: "#FFD700",
-  },
-  freeType: {
-    backgroundColor: "#E8F5E9",
-    borderWidth: 1,
-    borderColor: "#4CAF50",
-  },
-  typeText: {
+  detailText: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#333",
+    color: "#212529",
+    fontWeight: "600",
   },
-  prizePool: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#7209B7",
-    textAlign: 'right',
-    flex: 1,
+  myCountContainer: {
+    gap: 8,
+    marginBottom: 16,
   },
-  myTicketsBadge: {
+  countButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 6,
-    minWidth: 100,
-  },
-  hasTicketsBadge: {
-    backgroundColor: "#E8F5E9",
+    padding: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#4CAF50",
+    gap: 12,
   },
-  noTicketsBadge: {
-    backgroundColor: "#F5F5F5",
-    borderWidth: 1,
-    borderColor: "#9E9E9E",
+  hasCountButton: {
+    backgroundColor: "#F8F9FA",
+    borderColor: "#E9ECEF",
   },
-  myTicketsText: {
-    fontSize: 12,
-    fontWeight: "700",
+  noCountButton: {
+    backgroundColor: "#F8F9FA",
+    borderColor: "#E9ECEF",
+    opacity: 0.7,
   },
-  hasTicketsText: {
-    color: "#4CAF50",
-  },
-  noTicketsText: {
-    color: "#666",
-  },
-  myRequestsBadge: {
-    flexDirection: "row",
+  countIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 6,
-    minWidth: 100,
-  },
-  hasRequestsBadge: {
-    backgroundColor: "#E3F2FD",
     borderWidth: 1,
-    borderColor: "#2196F3",
+    borderColor: "#E9ECEF",
   },
-  noRequestsBadge: {
-    backgroundColor: "#F5F5F5",
-    borderWidth: 1,
-    borderColor: "#9E9E9E",
+  countIconImage: {
+    width: 20,
+    height: 20,
   },
-  myRequestsText: {
-    fontSize: 12,
-    fontWeight: "700",
+  countInfo: {
+    flex: 1,
   },
-  hasRequestsText: {
-    color: "#2196F3",
+  countLabel: {
+    fontSize: 11,
+    color: "#6C757D",
+    fontWeight: "500",
+    marginBottom: 2,
   },
-  noRequestsText: {
-    color: "#666",
+  countValue: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  hasCountValue: {
+    color: "#40E0D0",
+  },
+  noCountValue: {
+    color: "#6C757D",
   },
   messageCard: {
-    backgroundColor: "#F8F9FF",
-    borderRadius: 12,
-    padding: 15,
-    marginTop: 15,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
   },
   messageHeader: {
     flexDirection: "row",
@@ -1119,147 +1226,147 @@ const styles = StyleSheet.create({
   messageTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#7209B7",
+    color: "#40E0D0",
   },
   messageContent: {
     fontSize: 13,
-    color: "#555",
-    lineHeight: 20,
+    color: "#6C757D",
+    lineHeight: 18,
   },
-  actionButtonsContainer: {
-    marginTop: 20,
+  actionsContainer: {
     gap: 12,
   },
   actionButton: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 16,
-    borderRadius: 15,
-    gap: 12,
+    paddingVertical: 14,
+    borderRadius: 10,
+    gap: 8,
   },
-  requestButton: {},
-  paidRequestButton: {
-    backgroundColor: "#FF7675",
-  },
-  freeRequestButton: {
-    backgroundColor: "#4CAF50",
-  },
-  requestButtonIcon: {
+  actionButtonIcon: {
     width: 24,
     height: 24,
   },
-  requestButtonText: {
+  actionButtonImage: {
+    width: "100%",
+    height: "100%",
+  },
+  primaryActionButton: {},
+  paidActionButton: {
+    backgroundColor: "#40E0D0",
+  },
+  freeActionButton: {
+    backgroundColor: "#40E0D0",
+  },
+  actionButtonText: {
     color: "#FFF",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
   },
-  showTicketsButton: {
+  secondaryActionButton: {
     backgroundColor: "#FFF",
-    borderWidth: 2,
-    borderColor: "#4CAF50",
+    borderWidth: 1,
+    borderColor: "#40E0D0",
   },
-  showTicketsIcon: {
-    width: 24,
-    height: 24,
-  },
-  showTicketsText: {
-    color: "#4CAF50",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  myRequestsButton: {
-    backgroundColor: "#FFF",
-    borderWidth: 2,
-    borderColor: "#2196F3",
-  },
-  myRequestsButtonIcon: {
-    width: 24,
-    height: 24,
-  },
-  myRequestsButtonText: {
-    color: "#2196F3",
-    fontSize: 16,
+  secondaryActionButtonText: {
+    color: "#40E0D0",
+    fontSize: 14,
     fontWeight: "700",
   },
   disabledButton: {
     opacity: 0.5,
   },
-  rewardsCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-  rewardItem: {
-    backgroundColor: "#FFF9E6",
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#FFE082",
-  },
-  rewardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 8,
-  },
-  rewardIcon: {
+  rewardsIcon: {
     width: 24,
     height: 24,
   },
-  rewardName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#333",
+  rewardCard: {
+    backgroundColor: "#F8F9FA",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  rewardPattern: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 40,
+    height: 40,
+    borderBottomLeftRadius: 10,
+    borderTopRightRadius: 15,
+    backgroundColor: 'rgba(64, 224, 208, 0.03)',
+  },
+  rewardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 8,
+  },
+  rewardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+  },
+  rewardInfo: {
     flex: 1,
+  },
+  rewardName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#212529",
+    marginBottom: 2,
+  },
+  rewardDescription: {
+    fontSize: 12,
+    color: "#6C757D",
+    lineHeight: 16,
+  },
+  rewardAmountContainer: {
+    minWidth: 60,
   },
   rewardAmount: {
     fontSize: 16,
-    fontWeight: "800",
-    color: "#FFB300",
-    minWidth: 60,
+    fontWeight: "700",
+    color: "#FF6B35",
     textAlign: 'right',
-  },
-  rewardDescription: {
-    fontSize: 13,
-    color: "#666",
-    marginBottom: 10,
-    lineHeight: 18,
   },
   rewardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  rewardCount: {
+  rewardDetail: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    flex: 1,
   },
-  countText: {
-    fontSize: 12,
-    color: "#666",
+  rewardDetailText: {
+    fontSize: 11,
+    color: "#6C757D",
   },
-  rewardBadge: {
-    backgroundColor: "#E3F2FD",
+  patternBadge: {
+    backgroundColor: "rgba(64, 224, 208, 0.1)",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 10,
-    minWidth: 80,
+    borderRadius: 6,
   },
-  rewardBadgeText: {
-    fontSize: 11,
-    color: "#1976D2",
+  patternBadgeText: {
+    fontSize: 10,
+    color: "#40E0D0",
     fontWeight: "600",
-    textAlign: 'center',
   },
   bottomSpace: {
-    height: 30,
+    height: 20,
   },
   // Modal Styles
   modalOverlay: {
@@ -1271,12 +1378,12 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     backgroundColor: "#FFF",
-    borderRadius: 25,
-    padding: 25,
+    borderRadius: 16,
+    padding: 20,
     width: "100%",
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: "#E9ECEF",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1286,26 +1393,35 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "800",
-    color: "#333",
+    fontWeight: "700",
+    color: "#212529",
   },
-  gameInfoModal: {
-    backgroundColor: "#F6F8FA",
-    borderRadius: 12,
+  modalGameInfo: {
+    backgroundColor: "#F8F9FA",
+    borderRadius: 10,
     padding: 15,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#E8EAF6",
+    borderColor: "#E9ECEF",
   },
   modalGameName: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#333",
+    color: "#212529",
     marginBottom: 4,
   },
-  modalGamePrice: {
+  modalGameId: {
+    fontSize: 13,
+    color: "#6C757D",
+    marginBottom: 8,
+  },
+  modalTicketCost: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalTicketCostText: {
     fontSize: 14,
-    color: "#666",
+    fontWeight: "600",
   },
   quantitySection: {
     marginBottom: 20,
@@ -1313,7 +1429,7 @@ const styles = StyleSheet.create({
   quantityLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: "#212529",
     marginBottom: 12,
   },
   quantitySelector: {
@@ -1323,21 +1439,21 @@ const styles = StyleSheet.create({
   quantityButton: {
     width: 60,
     height: 60,
-    borderRadius: 15,
-    backgroundColor: "#F6F8FA",
+    borderRadius: 12,
+    backgroundColor: "#F8F9FA",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E8EAF6",
+    borderColor: "#E9ECEF",
   },
   quantityButtonActive: {
-    backgroundColor: "#FF7675",
-    borderColor: "#FF7675",
+    backgroundColor: "#40E0D0",
+    borderColor: "#40E0D0",
   },
   quantityButtonText: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#666",
+    color: "#6C757D",
   },
   quantityButtonTextActive: {
     color: "#FFF",
@@ -1346,55 +1462,50 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#FFF8E1",
+    backgroundColor: "#F8F9FA",
     padding: 15,
-    borderRadius: 12,
+    borderRadius: 10,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#FFE082",
+    borderColor: "#E9ECEF",
   },
-  totalLeft: {
+  totalLabelContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  totalIcon: {
-    width: 20,
-    height: 20,
-  },
   totalLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: "#212529",
   },
   totalAmount: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
-    color: "#FF7675",
-    maxWidth: 120,
+    color: "#40E0D0",
   },
   messageSection: {
-    marginBottom: 25,
+    marginBottom: 20,
   },
   messageLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: "#212529",
     marginBottom: 8,
   },
   messageInput: {
-    backgroundColor: "#F6F8FA",
-    borderRadius: 12,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 10,
     padding: 15,
     fontSize: 14,
     minHeight: 80,
     textAlignVertical: "top",
     borderWidth: 1,
-    borderColor: "#E8EAF6",
+    borderColor: "#E9ECEF",
   },
   charCount: {
     fontSize: 12,
-    color: "#999",
+    color: "#6C757D",
     textAlign: "right",
     marginTop: 4,
   },
@@ -1404,36 +1515,32 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: "#F6F8FA",
-    paddingVertical: 15,
-    borderRadius: 12,
+    backgroundColor: "#F8F9FA",
+    paddingVertical: 14,
+    borderRadius: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E8EAF6",
+    borderColor: "#E9ECEF",
   },
   cancelButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#666",
+    color: "#6C757D",
   },
   submitButton: {
     flex: 2,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 15,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 10,
     gap: 8,
   },
-  submitIcon: {
-    width: 20,
-    height: 20,
-  },
   paidSubmit: {
-    backgroundColor: "#FF7675",
+    backgroundColor: "#40E0D0",
   },
   freeSubmit: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#40E0D0",
   },
   submitButtonDisabled: {
     opacity: 0.7,

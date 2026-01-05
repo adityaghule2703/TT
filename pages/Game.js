@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   ScrollView,
   View,
@@ -9,40 +9,84 @@ import {
   Image,
   RefreshControl,
   Dimensions,
+  TextInput,
+  Keyboard,
+  Animated,
+  FlatList,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 
 const { width } = Dimensions.get('window');
 
-
 const GAME_ICONS = [
-  "https://cdn-icons-png.flaticon.com/512/2331/2331966.png", // Game controller
-  "https://cdn-icons-png.flaticon.com/512/808/808439.png",   // Dice
-  "https://cdn-icons-png.flaticon.com/512/869/869869.png",   // Ticket
-  "https://cdn-icons-png.flaticon.com/512/1086/1086741.png", // Trophy
-  "https://cdn-icons-png.flaticon.com/512/2921/2921222.png", // Celebration
-  "https://cdn-icons-png.flaticon.com/512/3094/3094707.png", // Bingo ball
-  "https://cdn-icons-png.flaticon.com/512/3048/3048394.png", // Clock
-  "https://cdn-icons-png.flaticon.com/512/3126/3126640.png", // Friends playing
+  "https://cdn-icons-png.flaticon.com/512/2331/2331966.png",
+  "https://cdn-icons-png.flaticon.com/512/808/808439.png",
+  "https://cdn-icons-png.flaticon.com/512/869/869869.png",
+  "https://cdn-icons-png.flaticon.com/512/1086/1086741.png",
+  "https://cdn-icons-png.flaticon.com/512/2921/2921222.png",
+  "https://cdn-icons-png.flaticon.com/512/3094/3094707.png",
+];
+
+// Image slider data
+const SLIDER_IMAGES = [
+  { 
+    id: 1, 
+    uri: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=800&auto=format&fit=crop',
+    title: 'Win Exciting Prizes',
+    subtitle: 'Join premium games for bigger rewards'
+  },
+  { 
+    id: 2, 
+    uri: 'https://plus.unsplash.com/premium_photo-1722018576685-45a415a4ff67?q=80&w=1032&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+    title: 'Instant Withdrawals',
+    subtitle: 'Get your winnings within minutes'
+  },
+  { 
+    id: 3, 
+    uri: 'https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=800&auto=format&fit=crop',
+    title: 'Play Anywhere',
+    subtitle: 'Join games from your mobile device'
+  }
 ];
 
 const Game = ({ navigation }) => {
   const [games, setGames] = useState([]);
+  const [filteredGames, setFilteredGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({
     totalGames: 0,
     freeGames: 0,
     premiumGames: 0,
     totalPlayers: 0,
+    liveGames: 0,
+    upcomingGames: 0,
   });
+  
+  // Image slider states
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const slideInterval = useRef(null);
+  const flatListRef = useRef(null);
 
   useEffect(() => {
     fetchGames();
+    startAutoSlide();
+    
+    return () => {
+      if (slideInterval.current) {
+        clearInterval(slideInterval.current);
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    filterGames();
+  }, [games, searchQuery, selectedCategory]);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -50,42 +94,191 @@ const Game = ({ navigation }) => {
   }, []);
 
   const fetchGames = async () => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      const res = await axios.get(
-        "https://exilance.com/tambolatimez/public/api/user/games/available",
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (res.data.success) {
-        const gamesData = res.data.games.data;
-        setGames(gamesData);
-        
-     
-        const freeGames = gamesData.filter(g => g.ticket_type === "free").length;
-        const premiumGames = gamesData.filter(g => g.ticket_type === "paid").length;
-        const totalPlayers = gamesData.reduce((acc, game) => acc + game.max_players, 0);
-        
-        setStats({
-          totalGames: gamesData.length,
-          freeGames,
-          premiumGames,
-          totalPlayers,
-        });
-      }
-    } catch (error) {
-      console.log(error);
-      alert("Failed to load games!");
-    } finally {
-      setLoading(false);
+  try {
+    const token = await AsyncStorage.getItem("token");
+    const res = await axios.get(
+      "https://exilance.com/tambolatimez/public/api/user/games",
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    
+    if (res.data.success) {
+      // Access games from games.data instead of directly from games
+      const gamesData = res.data.games.data || [];
+      setGames(gamesData);
+      
+      // Use the status_counts from the API response
+      const statusCounts = res.data.status_counts || {};
+      
+      // Calculate statistics using the new API data
+      const freeGames = gamesData.filter(g => g.ticket_type === "free").length;
+      const premiumGames = gamesData.filter(g => g.ticket_type === "paid").length;
+      const liveGames = statusCounts.live || 0;
+      const upcomingGames = statusCounts.scheduled || 0;
+      const completedGames = statusCounts.completed || 0;
+      
+      // Calculate total players if available_tickets exists
+      const totalPlayers = gamesData.reduce((acc, game) => {
+        const players = game.available_tickets || 0;
+        return acc + players;
+      }, 0);
+      
+      setStats({
+        totalGames: res.data.total_games || gamesData.length,
+        freeGames,
+        premiumGames,
+        totalPlayers,
+        liveGames,
+        upcomingGames,
+        completedGames,
+      });
     }
+  } catch (error) {
+    console.log("Error fetching games:", error);
+    alert("Failed to load games!");
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const startAutoSlide = () => {
+    slideInterval.current = setInterval(() => {
+      setCurrentImageIndex(prevIndex => {
+        const nextIndex = prevIndex === SLIDER_IMAGES.length - 1 ? 0 : prevIndex + 1;
+        
+        // Scroll to next image
+        flatListRef.current?.scrollToIndex({
+          index: nextIndex,
+          animated: true,
+        });
+        
+        return nextIndex;
+      });
+    }, 3000); // Change slide every 3 seconds
+  };
+
+  const onSliderScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+    { useNativeDriver: false }
+  );
+
+  const filterGames = () => {
+    let filtered = games;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(game =>
+        game.game_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        game.game_code.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Apply category filter
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(game => {
+        switch(selectedCategory) {
+          case 'free':
+            return game.ticket_type === "free";
+          case 'premium':
+            return game.ticket_type === "paid";
+          case 'soon':
+            if (game.status !== 'scheduled') return false;
+            const gameTime = new Date(`${game.game_date}T${game.game_start_time}`);
+            const now = new Date();
+            const diffHours = (gameTime - now) / (1000 * 60 * 60);
+            return diffHours > 0 && diffHours < 2;
+          case 'high':
+            return game.ticket_type === "paid" && parseFloat(game.ticket_cost) >= 100;
+          case 'popular':
+            return (game.available_tickets && game.available_tickets < 30) || false;
+          default:
+            return true;
+        }
+      });
+    }
+
+    setFilteredGames(filtered);
   };
 
   const getGameIcon = (index) => {
     return GAME_ICONS[index % GAME_ICONS.length];
   };
 
+  const renderImageSlider = () => {
+    return (
+      <View style={styles.sliderContainer}>
+        <Animated.FlatList
+          ref={flatListRef}
+          data={SLIDER_IMAGES}
+          keyExtractor={(item) => item.id.toString()}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={onSliderScroll}
+          scrollEventThrottle={16}
+          renderItem={({ item }) => (
+            <View style={styles.slide}>
+              <Image
+                source={{ uri: item.uri }}
+                style={styles.sliderImage}
+                resizeMode="cover"
+              />
+              <View style={styles.imageOverlay} />
+              <View style={styles.slideContent}>
+                <Text style={styles.slideTitle}>{item.title}</Text>
+                <Text style={styles.slideSubtitle}>{item.subtitle}</Text>
+              </View>
+            </View>
+          )}
+          onMomentumScrollEnd={(event) => {
+            const slideIndex = Math.round(
+              event.nativeEvent.contentOffset.x / (width - 40)
+            );
+            setCurrentImageIndex(slideIndex);
+          }}
+        />
+        
+        {/* Pagination dots */}
+        <View style={styles.pagination}>
+          {SLIDER_IMAGES.map((_, index) => {
+            const inputRange = [
+              (index - 1) * (width - 40),
+              index * (width - 40),
+              (index + 1) * (width - 40),
+            ];
+
+            const dotWidth = scrollX.interpolate({
+              inputRange,
+              outputRange: [8, 20, 8],
+              extrapolate: 'clamp',
+            });
+
+            const opacity = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.3, 1, 0.3],
+              extrapolate: 'clamp',
+            });
+
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.paginationDot,
+                  {
+                    width: dotWidth,
+                    opacity: opacity,
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
   const renderGameCard = (game, index) => {
     const gameIcon = getGameIcon(index);
+    const ticketCost = parseFloat(game.ticket_cost || 0);
     
     return (
       <TouchableOpacity
@@ -94,11 +287,31 @@ const Game = ({ navigation }) => {
         activeOpacity={0.9}
         onPress={() => navigation.navigate("GameDetails", { game })}
       >
-  
+        {/* Background Pattern */}
+        <View style={styles.gameCardPattern} />
+        
+        {/* Status Badge - Moved to left side to avoid overlapping */}
+        <View style={[styles.statusBadge, 
+          game.status === 'live' ? styles.liveBadge :
+          game.status === 'scheduled' ? styles.scheduledBadge :
+          styles.completedBadge
+        ]}>
+          <Ionicons 
+            name={game.status === 'live' ? 'radio-button-on' : 'time'} 
+            size={10} 
+            color="#FFF" 
+          />
+          <Text style={styles.statusText}>
+            {game.status === 'live' ? 'LIVE' : 'SOON'}
+          </Text>
+        </View>
+
         <View style={styles.cardHeader}>
           <View style={styles.gameIconContainer}>
-            <Image source={{ uri: gameIcon }} style={styles.gameIcon} />
-            <View>
+            <View style={styles.gameIconWrapper}>
+              <Image source={{ uri: gameIcon }} style={styles.gameIcon} />
+            </View>
+            <View style={styles.gameInfo}>
               <Text style={styles.gameName} numberOfLines={1}>{game.game_name}</Text>
               <Text style={styles.gameId}>ID: {game.game_code}</Text>
             </View>
@@ -110,60 +323,85 @@ const Game = ({ navigation }) => {
           ]}>
             {game.ticket_type === "paid" ? (
               <>
-                <Ionicons name="diamond" size={14} color="#FFD700" />
-                <Text style={styles.gameTypeText}>₹{game.ticket_cost}</Text>
+                <MaterialIcons name="diamond" size={14} color="#FFD700" />
+                <Text style={styles.gameTypeText}>₹{ticketCost}</Text>
               </>
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                <Ionicons name="checkmark-circle" size={14} color="#40E0D0" />
                 <Text style={styles.gameTypeText}>FREE</Text>
               </>
             )}
           </View>
         </View>
 
-   
         <View style={styles.gameDetails}>
           <View style={styles.detailRow}>
             <View style={styles.detailItem}>
-              <Ionicons name="calendar" size={16} color="#FF7675" />
-              <Text style={styles.detailText}>
-                {new Date(game.game_date).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric'
-                })}
-              </Text>
+              <View style={styles.detailIcon}>
+                <Ionicons name="calendar" size={14} color="#40E0D0" />
+              </View>
+              <View>
+                <Text style={styles.detailLabel}>Date</Text>
+                <Text style={styles.detailText}>
+                  {game.game_date_formatted || game.game_date}
+                </Text>
+              </View>
             </View>
             
             <View style={styles.detailItem}>
-              <Ionicons name="time" size={16} color="#FF7675" />
-              <Text style={styles.detailText}>{game.game_start_time}</Text>
+              <View style={styles.detailIcon}>
+                <Ionicons name="time" size={14} color="#40E0D0" />
+              </View>
+              <View>
+                <Text style={styles.detailLabel}>Time</Text>
+                <Text style={styles.detailText}>{game.game_time_formatted || game.game_start_time}</Text>
+              </View>
             </View>
           </View>
           
           <View style={styles.detailRow}>
             <View style={styles.detailItem}>
-              <Ionicons name="people" size={16} color="#2196F3" />
-              <Text style={styles.detailText}>{game.max_players} Players</Text>
+              <View style={styles.detailIcon}>
+                <Ionicons name="person" size={14} color="#40E0D0" />
+              </View>
+              <View>
+                <Text style={styles.detailLabel}>Host</Text>
+                <Text style={styles.detailText}>
+                  {game.user ? game.user.name : 'Tambola Timez'}
+                </Text>
+              </View>
             </View>
             
-            <View style={styles.detailItem}>
-              <MaterialIcons name="emoji-events" size={16} color="#FFB300" />
-              <Text style={styles.detailText}>{game.max_winners} Winners</Text>
-            </View>
+            {game.available_tickets !== undefined && (
+              <View style={styles.detailItem}>
+                <View style={styles.detailIcon}>
+                  <MaterialIcons name="confirmation-number" size={14} color="#40E0D0" />
+                </View>
+                <View>
+                  <Text style={styles.detailLabel}>Tickets</Text>
+                  <Text style={styles.detailText}>
+                    {game.available_tickets} Left
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
         </View>
 
-       
         <View style={styles.prizeContainer}>
-          <MaterialIcons name="account-balance-wallet" size={18} color="#7209B7" />
-          <Text style={styles.prizeText}>
-            Prize Pool: {game.ticket_type === "paid" 
-              ? `₹${game.ticket_cost * game.max_players}`
-              : "Exciting Prizes"}
-          </Text>
+          <View style={styles.prizeIcon}>
+            <MaterialIcons name="account-balance-wallet" size={18} color="#40E0D0" />
+          </View>
+          <View style={styles.prizeInfo}>
+            <Text style={styles.prizeLabel}>Prize Pool</Text>
+            <Text style={styles.prizeText}>
+              {game.ticket_type === "paid" && game.available_tickets 
+                ? `₹${(ticketCost * game.available_tickets).toLocaleString()}`
+                : "Exciting Prizes"}
+            </Text>
+          </View>
         </View>
-
 
         <TouchableOpacity 
           style={[
@@ -173,47 +411,57 @@ const Game = ({ navigation }) => {
           onPress={() => navigation.navigate("GameDetails", { game })}
         >
           <Text style={styles.joinButtonText}>
-            {game.ticket_type === "paid" ? "Join Premium Game" : "Join Free Game"}
+            {game.status === 'live' ? 'JOIN GAME' : 'VIEW DETAILS'}
           </Text>
-          <Ionicons name="arrow-forward" size={18} color="#FFF" />
+          <Ionicons name="arrow-forward" size={16} color="#FFF" />
         </TouchableOpacity>
       </TouchableOpacity>
     );
   };
 
-  const CategoryItem = ({ icon, title, count, isActive, onPress }) => (
+  const CategoryItem = ({ title, count, isActive, onPress }) => (
     <TouchableOpacity
       style={[styles.categoryItem, isActive && styles.categoryItemActive]}
       onPress={onPress}
     >
-      <View style={styles.categoryIconContainer}>
-        <Text style={styles.categoryIcon}>{icon}</Text>
-        {count > 0 && (
-          <View style={styles.categoryCount}>
-            <Text style={styles.categoryCountText}>{count}</Text>
-          </View>
-        )}
-      </View>
       <Text style={[styles.categoryTitle, isActive && styles.categoryTitleActive]}>
         {title}
       </Text>
+      {count > 0 && (
+        <View style={styles.categoryCount}>
+          <Text style={styles.categoryCountText}>{count}</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <View style={styles.loadingAnimation}>
-          <Image 
-            source={{ uri: "https://cdn-icons-png.flaticon.com/512/3300/3300023.png" }}
-            style={styles.loadingIcon}
-          />
-          <ActivityIndicator size="large" color="#FF7675" style={styles.loadingSpinner} />
+        <View style={styles.backgroundPatterns}>
+          <View style={styles.patternCircle1} />
+          <View style={styles.patternCircle2} />
         </View>
-        <Text style={styles.loadingText}>Loading exciting games...</Text>
+        
+        <View style={styles.loadingAnimation}>
+          <View style={styles.loadingIconWrapper}>
+            <Ionicons name="game-controller" size={40} color="#40E0D0" />
+          </View>
+          <ActivityIndicator size="large" color="#40E0D0" style={styles.loadingSpinner} />
+        </View>
+        <Text style={styles.loadingText}>Loading games...</Text>
       </View>
     );
   }
+
+  const categories = [
+    { id: 'all', title: 'All Games', count: stats.totalGames },
+    { id: 'free', title: 'Free', count: stats.freeGames },
+    { id: 'premium', title: 'Premium', count: stats.premiumGames },
+    { id: 'soon', title: 'Starting Soon', count: stats.upcomingGames },
+    { id: 'high', title: 'High Prize', count: games.filter(g => g.ticket_type === "paid" && parseFloat(g.ticket_cost) >= 100).length },
+    { id: 'popular', title: 'Popular', count: games.filter(g => g.available_tickets && g.available_tickets < 30).length },
+  ];
 
   return (
     <ScrollView
@@ -223,155 +471,96 @@ const Game = ({ navigation }) => {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor="#FF7675"
-          colors={['#FF7675']}
+          tintColor="#40E0D0"
+          colors={['#40E0D0']}
         />
       }
     >
- 
+      {/* BACKGROUND PATTERNS */}
+      <View style={styles.backgroundPatterns}>
+        <View style={styles.patternCircle1} />
+        <View style={styles.patternCircle2} />
+      </View>
+
+      {/* HEADER */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>🎯 Tambola Live</Text>
-          <Text style={styles.headerSubtitle}>
-            Join live games, win real prizes, and experience the thrill of Tambola!
-          </Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.appName}>Tambola Games</Text>
+            <Text style={styles.appTagline}>Play, Compete & Win Big</Text>
+          </View>
         </View>
-        <View style={styles.headerIconWrapper}>
-          <Image
-            source={{ uri: "https://cdn-icons-png.flaticon.com/512/2331/2331966.png" }}
-            style={styles.headerIcon}
+
+        {/* SEARCH BOX */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchIcon}>
+            <Feather name="search" size={20} color="#6C757D" />
+          </View>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search games by name or ID..."
+            placeholderTextColor="#ADB5BD"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            onSubmitEditing={Keyboard.dismiss}
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              style={styles.clearButton}
+              onPress={() => setSearchQuery('')}
+            >
+              <Ionicons name="close-circle" size={20} color="#6C757D" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-  
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: '#FFE6E6' }]}>
-            <FontAwesome5 name="fire" size={18} color="#FF7675" />
-          </View>
-          <Text style={styles.statNumber}>{stats.totalGames}</Text>
-          <Text style={styles.statLabel}>Live Games</Text>
-        </View>
-        
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: '#E6F7E9' }]}>
-            <MaterialIcons name="emoji-events" size={20} color="#4CAF50" />
-          </View>
-          <Text style={styles.statNumber}>{stats.totalPlayers}</Text>
-          <Text style={styles.statLabel}>Total Players</Text>
-        </View>
-        
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: '#FFF0E6' }]}>
-            <Ionicons name="diamond" size={18} color="#FFA726" />
-          </View>
-          <Text style={styles.statNumber}>{stats.premiumGames}</Text>
-          <Text style={styles.statLabel}>Premium</Text>
-        </View>
+      {/* IMAGE SLIDER SECTION */}
+      <View style={styles.sliderSection}>
+        {renderImageSlider()}
       </View>
 
+     
 
-      <View style={styles.categoriesSection}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Browse Categories</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAllText}>See All</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesList}
-        >
-          <CategoryItem
-            icon="🎯"
-            title="All Games"
-            count={stats.totalGames}
-            isActive={selectedCategory === 'all'}
-            onPress={() => setSelectedCategory('all')}
-          />
-          
-          <CategoryItem
-            icon="🎁"
-            title="Free Games"
-            count={stats.freeGames}
-            isActive={selectedCategory === 'free'}
-            onPress={() => setSelectedCategory('free')}
-          />
-          
-          <CategoryItem
-            icon="👑"
-            title="Premium"
-            count={stats.premiumGames}
-            isActive={selectedCategory === 'premium'}
-            onPress={() => setSelectedCategory('premium')}
-          />
-          
-          <CategoryItem
-            icon="⚡"
-            title="Starting Soon"
-            count={games.filter(g => {
-              const gameTime = new Date(`${g.game_date} ${g.game_start_time}`);
-              const now = new Date();
-              const diffHours = (gameTime - now) / (1000 * 60 * 60);
-              return diffHours > 0 && diffHours < 2;
-            }).length}
-            isActive={selectedCategory === 'soon'}
-            onPress={() => setSelectedCategory('soon')}
-          />
-          
-          <CategoryItem
-            icon="💰"
-            title="High Prize"
-            count={games.filter(g => g.ticket_type === "paid" && g.ticket_cost >= 100).length}
-            isActive={selectedCategory === 'high'}
-            onPress={() => setSelectedCategory('high')}
-          />
-          
-          <CategoryItem
-            icon="👥"
-            title="Popular"
-            count={games.filter(g => g.max_players > 50).length}
-            isActive={selectedCategory === 'popular'}
-            onPress={() => setSelectedCategory('popular')}
-          />
-        </ScrollView>
-      </View>
-
-
-      <View style={styles.gamesSection}>
+      {/* GAMES LIST */}
+      <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Available Games</Text>
-          <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="options" size={18} color="#FF7675" />
-            <Text style={styles.filterButtonText}>Filter</Text>
-          </TouchableOpacity>
+          <Text style={styles.gameCount}>{filteredGames.length} Games</Text>
         </View>
 
-        {games.length === 0 ? (
+        {filteredGames.length === 0 ? (
           <View style={styles.emptyState}>
-            <Image 
-              source={{ uri: "https://cdn-icons-png.flaticon.com/512/4076/4076478.png" }}
-              style={styles.emptyIcon}
-            />
-            <Text style={styles.emptyTitle}>No Games Available</Text>
+            <View style={styles.emptyIconWrapper}>
+              <Ionicons name="game-controller-outline" size={50} color="#40E0D0" />
+            </View>
+            <Text style={styles.emptyTitle}>No Games Found</Text>
             <Text style={styles.emptySubtitle}>
-              Check back later for new exciting games!
+              {searchQuery ? `No games found for "${searchQuery}"` : 
+               selectedCategory !== 'all' ? `No ${selectedCategory} games available` :
+               "Check back later for new exciting games!"}
             </Text>
-            <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
-              <Ionicons name="refresh" size={18} color="#FFF" />
-              <Text style={styles.refreshButtonText}>Refresh Games</Text>
-            </TouchableOpacity>
+            {(searchQuery || selectedCategory !== 'all') && (
+              <TouchableOpacity 
+                style={styles.clearFiltersButton}
+                onPress={() => {
+                  setSearchQuery('');
+                  setSelectedCategory('all');
+                }}
+              >
+                <Text style={styles.clearFiltersButtonText}>Clear Filters</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View style={styles.gamesList}>
-            {games.map((game, index) => renderGameCard(game, index))}
+            {filteredGames.map((game, index) => renderGameCard(game, index))}
           </View>
         )}
       </View>
 
+      {/* BOTTOM SPACE */}
       <View style={styles.bottomSpace} />
     </ScrollView>
   );
@@ -382,208 +571,290 @@ export default Game;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F6F8FA",
+    backgroundColor: "#F8F9FA",
+  },
+  backgroundPatterns: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    zIndex: 0,
+  },
+  patternCircle1: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(64, 224, 208, 0.05)',
+  },
+  patternCircle2: {
+    position: 'absolute',
+    bottom: 200,
+    left: -30,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 107, 53, 0.03)',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F6F8FA",
+    backgroundColor: "#F8F9FA",
   },
   loadingAnimation: {
     position: 'relative',
     marginBottom: 20,
   },
-  loadingIcon: {
-    width: 70,
-    height: 70,
-    opacity: 0.7,
+  loadingIconWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(64, 224, 208, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(64, 224, 208, 0.2)',
   },
   loadingSpinner: {
     position: 'absolute',
-    top: 5,
-    left: 5,
+    top: 10,
+    left: 10,
   },
   loadingText: {
     fontSize: 16,
-    color: "#666",
+    color: "#6C757D",
     fontWeight: "500",
   },
   header: {
-    backgroundColor: "#FF7675",
-    paddingTop: 40,
-    paddingBottom: 40,
+    backgroundColor: "#FFFFFF",
+    paddingTop: 50,
     paddingHorizontal: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E9ECEF",
+    zIndex: 1,
+  },
+  headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
+    marginBottom: 15,
   },
-  headerContent: {
-    flex: 1,
+  appName: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#40E0D0",
+    letterSpacing: -0.5,
   },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#FFF",
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.9)",
+  appTagline: {
+    fontSize: 13,
+    color: "#6C757D",
+    marginTop: 2,
     fontWeight: "500",
-    lineHeight: 20,
   },
-  headerIconWrapper: {
-    marginLeft: 15,
-  },
-  headerIcon: {
-    width: 70,
-    height: 70,
-    opacity: 0.9,
-  },
-  statsContainer: {
+  searchContainer: {
     flexDirection: "row",
-    paddingHorizontal: 15,
-    marginTop: -15,
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#FFF",
-    borderRadius: 15,
-    padding: 15,
-    marginHorizontal: 5,
     alignItems: "center",
+    backgroundColor: "#F8F9FA",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: "#E9ECEF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  statIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#212529",
+    paddingVertical: 4,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  sliderSection: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+    zIndex: 1,
+  },
+  sliderContainer: {
+    height: 200,
+    position: 'relative',
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  slide: {
+    width: width - 40,
+    height: 200,
+    position: 'relative',
+  },
+  sliderImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  slideContent: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+  },
+  slideTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
     marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#333",
-    marginBottom: 2,
+  slideSubtitle: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
-  statLabel: {
-    fontSize: 11,
-    color: "#666",
+  pagination: {
+    flexDirection: 'row',
+    position: 'absolute',
+    bottom: 8,
+    alignSelf: 'center',
+  },
+  paginationDot: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#40E0D0',
+    marginHorizontal: 4,
+  },
+  categoriesScroll: {
+    marginTop: 15,
+    zIndex: 1,
+  },
+  categoriesList: {
+    paddingRight: 20,
+  },
+  categoryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: "#E9ECEF",
+  },
+  categoryItemActive: {
+    backgroundColor: "#40E0D0",
+    borderColor: "#40E0D0",
+  },
+  categoryTitle: {
+    fontSize: 13,
     fontWeight: "600",
+    color: "#6C757D",
   },
-  categoriesSection: {
-    marginBottom: 20,
+  categoryTitleActive: {
+    color: "#FFF",
+  },
+  categoryCount: {
+    backgroundColor: "#FF6B35",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 6,
+  },
+  categoryCountText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 15,
+    zIndex: 1,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
     marginBottom: 15,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#333",
-  },
-  seeAllText: {
-    fontSize: 14,
-    color: "#FF7675",
-    fontWeight: "600",
-  },
-  categoriesList: {
-    paddingHorizontal: 15,
-    paddingBottom: 5,
-  },
-  categoryItem: {
-    alignItems: "center",
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    backgroundColor: "#FFF",
-    borderRadius: 15,
-    marginRight: 12,
-    borderWidth: 1.5,
-    borderColor: "#E8EAF6",
-    minWidth: 85,
-  },
-  categoryItemActive: {
-    backgroundColor: "#FF7675",
-    borderColor: "#FF7675",
-  },
-  categoryIconContainer: {
-    position: "relative",
-    marginBottom: 6,
-  },
-  categoryIcon: {
-    fontSize: 24,
-  },
-  categoryCount: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: "#FF7675",
-    borderRadius: 8,
-    width: 16,
-    height: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  categoryCountText: {
-    color: "#FFF",
-    fontSize: 9,
+    fontSize: 18,
     fontWeight: "700",
+    color: "#212529",
   },
-  categoryTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#666",
-    textAlign: "center",
-  },
-  categoryTitleActive: {
-    color: "#FFF",
-  },
-  gamesSection: {
-    paddingHorizontal: 15,
-    marginBottom: 20,
-  },
-  filterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E8EAF6",
-    gap: 4,
-  },
-  filterButtonText: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "600",
+  gameCount: {
+    fontSize: 14,
+    color: "#6C757D",
+    fontWeight: "500",
   },
   gamesList: {
-    gap: 15,
+    gap: 12,
   },
   gameCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 18,
-    padding: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: "#E9ECEF",
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  gameCardPattern: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 50,
+    height: 50,
+    borderBottomLeftRadius: 16,
+    borderTopRightRadius: 25,
+    backgroundColor: 'rgba(64, 224, 208, 0.03)',
+  },
+  statusBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+    zIndex: 1,
+  },
+  liveBadge: {
+    backgroundColor: '#4CAF50',
+  },
+  scheduledBadge: {
+    backgroundColor: '#2196F3',
+  },
+  completedBadge: {
+    backgroundColor: '#9E9E9E',
+  },
+  statusText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 15,
+    marginTop: 8,
+    marginBottom: 16,
   },
   gameIconContainer: {
     flexDirection: "row",
@@ -591,94 +862,141 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
+  gameIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+    padding: 8,
+  },
   gameIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    backgroundColor: "#F5F7FA",
-    padding: 10,
+    width: "100%",
+    height: "100%",
+  },
+  gameInfo: {
+    flex: 1,
   },
   gameName: {
     fontSize: 16,
-    fontWeight: "800",
-    color: "#333",
+    fontWeight: "700",
+    color: "#212529",
     marginBottom: 2,
   },
   gameId: {
     fontSize: 12,
-    color: "#777",
+    color: "#6C757D",
     fontWeight: "500",
   },
   gameTypeBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
     gap: 4,
-    marginLeft: 10,
+    marginLeft: 8,
+    borderWidth: 1,
   },
   paidBadge: {
-    backgroundColor: "#FFF8E1",
-    borderWidth: 1,
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
     borderColor: "#FFD700",
   },
   freeBadge: {
-    backgroundColor: "#E8F5E9",
-    borderWidth: 1,
-    borderColor: "#4CAF50",
+    backgroundColor: "rgba(64, 224, 208, 0.1)",
+    borderColor: "#40E0D0",
   },
   gameTypeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
+    color: "#212529",
   },
   gameDetails: {
-    marginBottom: 15,
+    marginBottom: 16,
   },
   detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   detailItem: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+    alignItems: "flex-start",
+    gap: 8,
     flex: 1,
   },
-  detailText: {
-    fontSize: 13,
-    color: "#555",
+  detailIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+  },
+  detailLabel: {
+    fontSize: 10,
+    color: "#6C757D",
     fontWeight: "500",
+    marginBottom: 2,
+  },
+  detailText: {
+    fontSize: 12,
+    color: "#212529",
+    fontWeight: "600",
   },
   prizeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8F9FF",
+    backgroundColor: "#F8F9FA",
     padding: 12,
-    borderRadius: 12,
-    marginBottom: 15,
-    gap: 8,
+    borderRadius: 10,
+    marginBottom: 16,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+  },
+  prizeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "rgba(64, 224, 208, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#40E0D0",
+  },
+  prizeInfo: {
+    flex: 1,
+  },
+  prizeLabel: {
+    fontSize: 11,
+    color: "#6C757D",
+    fontWeight: "500",
+    marginBottom: 2,
   },
   prizeText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "700",
-    color: "#333",
-    flex: 1,
+    color: "#212529",
   },
   joinButton: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
+    borderRadius: 10,
+    gap: 6,
   },
   paidButton: {
-    backgroundColor: "#FF7675",
+    backgroundColor: "#40E0D0",
   },
   freeButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#40E0D0",
   },
   joinButtonText: {
     color: "#FFF",
@@ -686,46 +1004,52 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   emptyState: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 32,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 40,
-    paddingHorizontal: 30,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+    overflow: 'hidden',
   },
-  emptyIcon: {
-    width: 90,
-    height: 90,
-    marginBottom: 15,
-    opacity: 0.7,
+  emptyIconWrapper: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(64, 224, 208, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(64, 224, 208, 0.2)',
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#333",
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#212529",
     marginBottom: 8,
     textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 14,
-    color: "#666",
+    color: "#6C757D",
     textAlign: "center",
     lineHeight: 20,
-    marginBottom: 25,
+    marginBottom: 20,
   },
-  refreshButton: {
-    backgroundColor: "#FF7675",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 20,
-    gap: 8,
+  clearFiltersButton: {
+    backgroundColor: "#40E0D0",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
-  refreshButtonText: {
+  clearFiltersButtonText: {
     color: "#FFF",
     fontSize: 14,
     fontWeight: "700",
   },
   bottomSpace: {
-    height: 30,
+    height: 20,
   },
 });

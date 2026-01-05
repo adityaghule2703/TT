@@ -105,7 +105,7 @@ const Faqs = () => {
     if (linksLoading) {
       return (
         <View style={styles.helpLinksContainer}>
-          <ActivityIndicator size="small" color="#FF7675" />
+          <ActivityIndicator size="small" color="#40E0D0" />
         </View>
       );
     }
@@ -115,7 +115,7 @@ const Faqs = () => {
     return (
       <View style={styles.helpLinksContainer}>
         <View style={styles.helpLinksHeader}>
-          <Ionicons name="videocam" size={22} color="#FF7675" />
+          <Ionicons name="videocam" size={22} color="#40E0D0" />
           <Text style={styles.helpLinksTitle}>Helpful Videos</Text>
         </View>
         <Text style={styles.helpLinksSubtitle}>
@@ -131,7 +131,7 @@ const Faqs = () => {
               activeOpacity={0.7}
             >
               <View style={styles.linkIconContainer}>
-                <Ionicons name="play-circle" size={20} color="#FF7675" />
+                <Ionicons name="play-circle" size={20} color="#40E0D0" />
               </View>
               <View style={styles.linkContent}>
                 <Text style={styles.linkTitle} numberOfLines={2}>
@@ -141,7 +141,7 @@ const Faqs = () => {
                   {link.description}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#999" />
+              <Ionicons name="chevron-forward" size={18} color="#6C757D" />
             </TouchableOpacity>
           ))}
         </View>
@@ -151,7 +151,7 @@ const Faqs = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#F6F8FA" barStyle="dark-content" />
+      <StatusBar backgroundColor="#F8F9FA" barStyle="dark-content" />
       <ScrollView 
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
@@ -159,8 +159,8 @@ const Faqs = () => {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh} 
-            tintColor="#FF7675"
-            colors={["#FF7675"]}
+            tintColor="#40E0D0"
+            colors={["#40E0D0"]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -169,7 +169,7 @@ const Faqs = () => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Help Desk</Text>
           <TouchableOpacity>
-            <Text style={styles.settingsIcon}>⚙️</Text>
+            <Ionicons name="settings-outline" size={24} color="#40E0D0" />
           </TouchableOpacity>
         </View>
 
@@ -185,7 +185,7 @@ const Faqs = () => {
 
         {/* INTRO */}
         <Text style={styles.introText}>
-          We're here to help you with anything and everything on Tambola Live. Use the search below or check our frequently asked questions.
+          We're here to help you with anything and everything on Tambola Timez. Use the search below or check our frequently asked questions.
         </Text>
 
         {/* SEARCH */}
@@ -195,6 +195,7 @@ const Faqs = () => {
             value={search}
             onChangeText={setSearch}
             style={styles.searchInput}
+            placeholderTextColor="#ADB5BD"
           />
         </View>
 
@@ -204,7 +205,7 @@ const Faqs = () => {
         {/* FAQ LIST */}
         <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
 
-        {loading && <ActivityIndicator size="large" color="#FF7675" style={{ marginTop: 20 }} />}
+        {loading && <ActivityIndicator size="large" color="#40E0D0" style={{ marginTop: 20 }} />}
 
         {!loading &&
           filteredFaqs.map((faq) => (
@@ -222,9 +223,11 @@ const Faqs = () => {
                   />
                   <Text style={styles.faqQuestion}>{faq.question}</Text>
                 </View>
-                <Text style={styles.toggleIcon}>
-                  {expanded[faq.id] ? "−" : "+"}
-                </Text>
+                <Ionicons 
+                  name={expanded[faq.id] ? "chevron-up" : "chevron-down"} 
+                  size={20} 
+                  color="#40E0D0" 
+                />
               </TouchableOpacity>
               {expanded[faq.id] && (
                 <View style={styles.faqAnswerWrapper}>
@@ -256,11 +259,11 @@ export default Faqs;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F6F8FA",
+    backgroundColor: "#F8F9FA",
   },
   container: {
     flex: 1,
-    backgroundColor: "#F6F8FA",
+    backgroundColor: "#F8F9FA",
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -274,13 +277,10 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   headerTitle: { 
-    fontSize: 22, 
-    fontWeight: "800",
-    color: "#333",
-  },
-  settingsIcon: { 
-    fontSize: 22,
-    color: "#333",
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#212529",
+    letterSpacing: -0.5,
   },
   topImageWrapper: { 
     alignItems: "center", 
@@ -289,37 +289,44 @@ const styles = StyleSheet.create({
   topImage: { 
     width: 120, 
     height: 120, 
-    opacity: 0.7 
+    opacity: 0.8,
+    // Removed tintColor to keep original image colors
   },
   introText: {
-    fontSize: 14,
-    color: "#555",
-    marginBottom: 15,
-    lineHeight: 20,
+    fontSize: 15,
+    color: "#6C757D",
+    marginBottom: 20,
+    lineHeight: 22,
+    textAlign: "center",
   },
   searchBox: {
-    backgroundColor: "#fff",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    paddingHorizontal: 15,
-    marginBottom: 20,
-    height: 45,
+    paddingHorizontal: 16,
+    marginBottom: 24,
+    height: 50,
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: "#E9ECEF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   searchInput: { 
-    fontSize: 14, 
+    fontSize: 15, 
     height: "100%",
-    color: "#333",
+    color: "#212529",
   },
   // Help Links Styles
   helpLinksContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    marginBottom: 20,
-    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    marginBottom: 24,
+    padding: 20,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: "#E9ECEF",
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 2 },
@@ -332,15 +339,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   helpLinksTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
-    color: "#333",
+    color: "#212529",
     marginLeft: 10,
   },
   helpLinksSubtitle: {
     fontSize: 14,
-    color: "#666",
-    marginBottom: 16,
+    color: "#6C757D",
+    marginBottom: 20,
     lineHeight: 20,
   },
   linksList: {
@@ -349,123 +356,126 @@ const styles = StyleSheet.create({
   linkItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF7F7",
+    backgroundColor: "rgba(64, 224, 208, 0.05)",
     borderRadius: 12,
-    padding: 14,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "#FFE8E8",
+    borderColor: "rgba(64, 224, 208, 0.1)",
   },
   linkIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: "#FFE8E8",
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "rgba(64, 224, 208, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: "rgba(64, 224, 208, 0.2)",
   },
   linkContent: {
     flex: 1,
   },
   linkTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#333",
+    color: "#212529",
     marginBottom: 4,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   linkDescription: {
-    fontSize: 12,
-    color: "#666",
-    lineHeight: 16,
+    fontSize: 13,
+    color: "#6C757D",
+    lineHeight: 18,
   },
   // FAQ Section
   sectionTitle: { 
-    fontSize: 16, 
+    fontSize: 18,
     fontWeight: "700", 
-    marginBottom: 10,
-    color: "#333",
+    marginBottom: 16,
+    color: "#212529",
   },
   faqCard: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
     marginBottom: 12,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: "#E9ECEF",
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
     elevation: 2,
   },
   faqHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 15,
     alignItems: "center",
+    padding: 18,
   },
   faqTitleWrapper: { 
     flexDirection: "row", 
     alignItems: "center", 
-    flex: 1 
+    flex: 1,
+    gap: 12,
   },
   faqIcon: { 
     width: 24, 
     height: 24, 
-    marginRight: 10, 
-    tintColor: "#FF7675" 
+    // Removed tintColor to keep original image colors
   },
   faqQuestion: { 
     fontSize: 15, 
     fontWeight: "600", 
-    color: "#333", 
-    flexShrink: 1 
-  },
-  toggleIcon: { 
-    fontSize: 20, 
-    color: "#FF7675", 
-    fontWeight: "700" 
+    color: "#212529", 
+    flex: 1,
+    lineHeight: 20,
   },
   faqAnswerWrapper: {
-    backgroundColor: "#FFF7F7",
-    paddingHorizontal: 15,
-    paddingBottom: 15,
+    backgroundColor: "rgba(64, 224, 208, 0.03)",
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+    paddingTop: 2,
     borderTopWidth: 1,
-    borderTopColor: "#FFE8E8",
+    borderTopColor: "rgba(64, 224, 208, 0.1)",
   },
   faqAnswer: { 
     fontSize: 14, 
-    color: "#555", 
-    lineHeight: 20 
+    color: "#495057", 
+    lineHeight: 22 
   },
   noFaqs: { 
     textAlign: "center", 
     marginTop: 20, 
-    color: "#777" 
+    color: "#6C757D",
+    fontSize: 15,
+    fontStyle: "italic",
   },
   ctaButton: {
-    backgroundColor: "#FF7675",
+    backgroundColor: "#40E0D0",
     borderRadius: 12,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    marginTop: 25,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    marginTop: 30,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: "#40E0D0",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "rgba(64, 224, 208, 0.2)",
   },
   ctaText: { 
-    color: "#fff", 
-    fontWeight: "600", 
+    color: "#FFFFFF", 
+    fontWeight: "500", 
     marginBottom: 6,
     fontSize: 14,
   },
   ctaBtnText: { 
-    color: "#fff", 
-    fontWeight: "800", 
+    color: "#FFFFFF", 
+    fontWeight: "700", 
     fontSize: 16 
   },
   bottomSpace: {
