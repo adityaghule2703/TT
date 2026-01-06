@@ -12,6 +12,8 @@ import {
   RefreshControl,
   Image,
   Modal,
+  Animated,
+  Easing,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -33,10 +35,13 @@ const UserGameRoom = ({ navigation, route }) => {
   const [isChatJoined, setIsChatJoined] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const [markingLoading, setMarkingLoading] = useState(false);
-  const [voiceType, setVoiceType] = useState('female'); // 'female' or 'male'
+  const [voiceType, setVoiceType] = useState('female');
   const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [showGameEndModal, setShowGameEndModal] = useState(false);
+  const [gameCompleted, setGameCompleted] = useState(false);
   
   const lastCalledRef = useRef(null);
+  const confettiAnimation = useRef(new Animated.Value(0)).current;
 
   const GAME_IMAGES = {
     ticket: "https://cdn-icons-png.flaticon.com/512/2589/2589909.png",
@@ -49,6 +54,89 @@ const UserGameRoom = ({ navigation, route }) => {
     megaphone: "https://cdn-icons-png.flaticon.com/512/2599/2599562.png",
     trophy: "https://cdn-icons-png.flaticon.com/512/869/869869.png",
     voice: "https://cdn-icons-png.flaticon.com/512/727/727240.png",
+    confetti: "https://cdn-icons-png.flaticon.com/512/2821/2821812.png",
+    numbers: "https://cdn-icons-png.flaticon.com/512/3884/3884344.png",
+  };
+
+  // Check if all numbers are called
+  useEffect(() => {
+    if (calledNumbers.length >= 90 && !gameCompleted) {
+      setGameCompleted(true);
+      // Show game end modal after a short delay
+      setTimeout(() => {
+        setShowGameEndModal(true);
+        startConfettiAnimation();
+      }, 1000);
+    }
+  }, [calledNumbers]);
+
+  const startConfettiAnimation = () => {
+    confettiAnimation.setValue(0);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(confettiAnimation, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.timing(confettiAnimation, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      ]),
+      { iterations: -1 }
+    ).start();
+  };
+
+  const stopConfettiAnimation = () => {
+    confettiAnimation.stopAnimation();
+    confettiAnimation.setValue(0);
+  };
+
+  const handleCloseGameEndModal = () => {
+    stopConfettiAnimation();
+    setShowGameEndModal(false);
+    navigation.goBack();
+  };
+
+  const handleNavigateToClaim = () => {
+    stopConfettiAnimation();
+    setShowGameEndModal(false);
+    // Navigate to claims screen if you have tickets
+    if (myTickets.length > 0) {
+      navigation.navigate('UserGameClaim', {
+        gameId,
+        gameName,
+        gameData: gameStatus
+      });
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  const handleViewWinners = () => {
+    stopConfettiAnimation();
+    setShowGameEndModal(false);
+    navigation.navigate('UserGameWinners', {
+      gameId,
+      gameName,
+      gameData: gameStatus,
+      calledNumbers: calledNumbers
+    });
+  };
+
+  // Navigate to called numbers page
+  const handleViewAllCalledNumbers = () => {
+    navigation.navigate('UserCalledNumbers', {
+      gameId,
+      gameName,
+      calledNumbers,
+      voiceType,
+      gameData: gameStatus
+    });
   };
 
   // Load saved voice preference
@@ -87,6 +175,7 @@ const UserGameRoom = ({ navigation, route }) => {
     return () => {
       clearInterval(statusInterval);
       Speech.stop();
+      stopConfettiAnimation();
     };
   }, []);
 
@@ -94,10 +183,8 @@ const UserGameRoom = ({ navigation, route }) => {
   const speakNumber = (number) => {
     Speech.stop();
     
-    // Convert number to string
     const numStr = number.toString();
     
-    // Format: "Number two five twenty-five"
     const singleDigits = numStr.split('').map(digit => {
       switch(digit) {
         case '0': return 'zero';
@@ -114,20 +201,16 @@ const UserGameRoom = ({ navigation, route }) => {
       }
     }).join(' ');
     
-    // Get the full number name (1-90)
     const fullNumberName = getNumberName(number);
     
-    // Combine both formats
     const speechText = `Number ${singleDigits} ${fullNumberName}`;
     
-    // Configure voice based on selection
     const voiceConfig = {
       language: 'en-US',
       pitch: voiceType === 'male' ? 0.8 : 1.0,
       rate: 0.8,
     };
     
-    // For iOS/Android, we can try to set voice if available
     Speech.speak(speechText, voiceConfig);
   };
 
@@ -301,7 +384,6 @@ const UserGameRoom = ({ navigation, route }) => {
         }
       );
 
-      // Update the ticket in state
       setMyTickets(prevTickets => 
         prevTickets.map(ticket => {
           if (ticket.id === ticketId) {
@@ -333,7 +415,6 @@ const UserGameRoom = ({ navigation, route }) => {
   const handleNumberClick = async (ticketId, cellNumber) => {
     if (cellNumber === null || markingLoading) return;
     
-    // Mark the number immediately
     await markNumberOnTicket(ticketId, cellNumber);
   };
 
@@ -355,14 +436,13 @@ const UserGameRoom = ({ navigation, route }) => {
               const isMarked = cellObj.is_marked;
               const isEmpty = cellNumber === null;
               
-              // Determine cell background color - KEEPING SAME COLORS BUT WITH BETTER CONTRAST
               let cellBackgroundColor;
               if (isEmpty) {
-                cellBackgroundColor = "#CCCCCC"; // Gray for empty cells
+                cellBackgroundColor = "#CCCCCC";
               } else if (isMarked) {
-                cellBackgroundColor = "#FF5252"; // Red for marked cells
+                cellBackgroundColor = "#FF5252";
               } else {
-                cellBackgroundColor = "#80CBC4"; // Medium turquoise for unmarked cells (darker for better contrast)
+                cellBackgroundColor = "#80CBC4";
               }
               
               return (
@@ -382,7 +462,7 @@ const UserGameRoom = ({ navigation, route }) => {
                     <View style={styles.cellContent}>
                       <Text style={[
                         styles.cellNumber,
-                        { color: "#FFFFFF" }, // White text for all numbers
+                        { color: "#FFFFFF" },
                       ]}>
                         {cellNumber}
                       </Text>
@@ -397,89 +477,86 @@ const UserGameRoom = ({ navigation, route }) => {
     );
   };
 
-// Inside UserGameRoom component, update the renderTicketItem function:
-
-const renderTicketItem = ({ item }) => (
-  <View style={styles.ticketCard}>
-    <View style={styles.cardPattern} />
-    
-    <View style={styles.ticketCardHeader}>
-      <View style={styles.ticketNumberContainer}>
-        <Image
-          source={{ uri: GAME_IMAGES.ticket }}
-          style={styles.ticketIcon}
-        />
-        <View style={styles.ticketInfo}>
-          <Text style={styles.ticketLabel}>Ticket Number</Text>
-          <Text style={styles.ticketNumber}>#{item.ticket_number}</Text>
+  const renderTicketItem = ({ item }) => (
+    <View style={styles.ticketCard}>
+      <View style={styles.cardPattern} />
+      
+      <View style={styles.ticketCardHeader}>
+        <View style={styles.ticketNumberContainer}>
+          <Image
+            source={{ uri: GAME_IMAGES.ticket }}
+            style={styles.ticketIcon}
+          />
+          <View style={styles.ticketInfo}>
+            <Text style={styles.ticketLabel}>Ticket Number</Text>
+            <Text style={styles.ticketNumber}>#{item.ticket_number}</Text>
+          </View>
         </View>
-      </View>
-      <View style={[
-        styles.statusBadge,
-        { backgroundColor: item.is_active ? '#4CAF5020' : '#9E9E9E20' }
-      ]}>
-        <Ionicons
-          name="checkmark-circle"
-          size={12}
-          color={item.is_active ? "#4CAF50" : "#9E9E9E"}
-        />
-        <Text
-          style={[
-            styles.statusText,
-            { color: item.is_active ? "#4CAF50" : "#9E9E9E" },
-          ]}
-        >
-          {item.is_active ? "Active" : "Inactive"}
-        </Text>
-      </View>
-    </View>
-
-    <View style={styles.ticketPreview}>
-      {renderTicketGrid(item.ticket_data, item.id)}
-    </View>
-
-    <View style={styles.ticketCardFooter}>
-      <View style={styles.ticketInfoRow}>
-        <View style={styles.infoItem}>
-          <MaterialIcons name="games" size={14} color="#6C757D" />
-          <Text style={styles.infoLabel}>Set</Text>
-          <Text style={styles.infoValue} numberOfLines={1}>
-            {item.ticket_set_id.split("_")[1]}
-          </Text>
-        </View>
-        <View style={styles.infoItem}>
-          <MaterialIcons name="date-range" size={14} color="#6C757D" />
-          <Text style={styles.infoLabel}>Allocated</Text>
-          <Text style={styles.infoValue} numberOfLines={1}>
-            {new Date(item.allocated_at).toLocaleDateString()}
-          </Text>
-        </View>
-        <View style={styles.infoItem}>
-          <Ionicons name="grid" size={14} color="#6C757D" />
-          <Text style={styles.infoLabel}>Marked</Text>
-          <Text style={styles.infoValue} numberOfLines={1}>
-            {item.ticket_data.flat().filter(cell => cell.is_marked).length}
+        <View style={[
+          styles.statusBadge,
+          { backgroundColor: item.is_active ? '#4CAF5020' : '#9E9E9E20' }
+        ]}>
+          <Ionicons
+            name="checkmark-circle"
+            size={12}
+            color={item.is_active ? "#4CAF50" : "#9E9E9E"}
+          />
+          <Text
+            style={[
+              styles.statusText,
+              { color: item.is_active ? "#4CAF50" : "#9E9E9E" },
+            ]}
+          >
+            {item.is_active ? "Active" : "Inactive"}
           </Text>
         </View>
       </View>
-    </View>
 
-    {/* ADDED SUBMIT CLAIM BUTTON */}
-    <TouchableOpacity
-      style={styles.submitClaimButton}
-      onPress={() => navigation.navigate('UserGameClaim', {
-        gameId,
-        gameName,
-        ticketId: item.id,
-        ticketNumber: item.ticket_number,
-        gameData: gameStatus // Pass the game data which contains pattern rewards
-      })}
-    >
-      <Ionicons name="trophy-outline" size={16} color="#FFF" />
-      <Text style={styles.submitClaimButtonText}>Submit Claim</Text>
-    </TouchableOpacity>
-  </View>
-);
+      <View style={styles.ticketPreview}>
+        {renderTicketGrid(item.ticket_data, item.id)}
+      </View>
+
+      <View style={styles.ticketCardFooter}>
+        <View style={styles.ticketInfoRow}>
+          <View style={styles.infoItem}>
+            <MaterialIcons name="games" size={14} color="#6C757D" />
+            <Text style={styles.infoLabel}>Set</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {item.ticket_set_id.split("_")[1]}
+            </Text>
+          </View>
+          <View style={styles.infoItem}>
+            <MaterialIcons name="date-range" size={14} color="#6C757D" />
+            <Text style={styles.infoLabel}>Allocated</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {new Date(item.allocated_at).toLocaleDateString()}
+            </Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Ionicons name="grid" size={14} color="#6C757D" />
+            <Text style={styles.infoLabel}>Marked</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {item.ticket_data.flat().filter(cell => cell.is_marked).length}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.submitClaimButton}
+        onPress={() => navigation.navigate('UserGameClaim', {
+          gameId,
+          gameName,
+          ticketId: item.id,
+          ticketNumber: item.ticket_number,
+          gameData: gameStatus
+        })}
+      >
+        <Ionicons name="trophy-outline" size={16} color="#FFF" />
+        <Text style={styles.submitClaimButtonText}>Submit Claim</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -493,6 +570,94 @@ const renderTicketItem = ({ item }) => (
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+
+      {/* Game End Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showGameEndModal}
+        onRequestClose={handleCloseGameEndModal}
+      >
+        <View style={styles.gameEndModalOverlay}>
+          <Animated.View 
+            style={[
+              styles.confettiContainer,
+              {
+                transform: [{
+                  translateY: confettiAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -20]
+                  })
+                }]
+              }
+            ]}
+          >
+            <Image
+              source={{ uri: GAME_IMAGES.confetti }}
+              style={styles.confettiImage}
+            />
+          </Animated.View>
+          
+          <View style={styles.gameEndModalContent}>
+            <View style={styles.gameEndModalHeader}>
+              <Image
+                source={{ uri: GAME_IMAGES.trophy }}
+                style={styles.gameEndTrophy}
+              />
+              <Text style={styles.gameEndModalTitle}>Game Complete! 🎉</Text>
+            </View>
+            
+            <View style={styles.gameEndModalBody}>
+              <Text style={styles.gameEndCongratulations}>
+                Congratulations!
+              </Text>
+              <Text style={styles.gameEndMessage}>
+                All 90 numbers have been called! The game has ended.
+              </Text>
+              
+              <View style={styles.gameEndStats}>
+                <View style={styles.endStatItem}>
+                  <Text style={styles.endStatValue}>{calledNumbers.length}</Text>
+                  <Text style={styles.endStatLabel}>Numbers Called</Text>
+                </View>
+                <View style={styles.endStatItem}>
+                  <Text style={styles.endStatValue}>{myTickets.length}</Text>
+                  <Text style={styles.endStatLabel}>Your Tickets</Text>
+                </View>
+                <View style={styles.endStatItem}>
+                  <Text style={styles.endStatValue}>
+                    {myTickets.flatMap(t => 
+                      t.ticket_data.flat().filter(cell => cell.is_marked)
+                    ).length}
+                  </Text>
+                  <Text style={styles.endStatLabel}>Marked Numbers</Text>
+                </View>
+              </View>
+              
+              <Text style={styles.gameEndThanks}>
+                Thank you for playing! Check out the winners and claim your prizes.
+              </Text>
+            </View>
+            
+            <View style={styles.gameEndModalFooter}>
+              <TouchableOpacity
+                style={styles.viewWinnersButton}
+                onPress={handleViewWinners}
+              >
+                <Ionicons name="trophy" size={20} color="#FFF" />
+                <Text style={styles.viewWinnersButtonText}>View Winners</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={handleCloseGameEndModal}
+              >
+                <Text style={styles.closeButtonText}>Exit Game Room</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Voice Selection Modal */}
       <Modal
@@ -569,7 +734,7 @@ const renderTicketItem = ({ item }) => (
                 if (calledNumbers.length > 0) {
                   speakNumber(calledNumbers[calledNumbers.length - 1]);
                 } else {
-                  speakNumber(25); // Test with number 25
+                  speakNumber(25);
                 }
               }}
             >
@@ -662,13 +827,15 @@ const renderTicketItem = ({ item }) => (
               ]}>
                 <Ionicons name="radio-button-on" size={12} color="#4CAF50" />
                 <Text style={[styles.statusBadgeText, { color: "#4CAF50" }]}>
-                  LIVE
+                  {calledNumbers.length >= 90 ? "COMPLETED" : "LIVE"}
                 </Text>
               </View>
             </View>
             
             <Text style={styles.cardDescription}>
-              The game is now live! Number calling has started.
+              {calledNumbers.length >= 90 
+                ? "Game completed! All numbers have been called." 
+                : "The game is now live! Number calling has started."}
             </Text>
 
             {calledNumbers.length > 0 ? (
@@ -702,7 +869,9 @@ const renderTicketItem = ({ item }) => (
                       {calledNumbers[calledNumbers.length - 1]}
                     </Text>
                     <Text style={styles.lastNumberLabel}>
-                      Tap to hear • Current voice: {voiceType}
+                      {calledNumbers.length >= 90 
+                        ? "Game Completed • All 90 numbers called" 
+                        : `Tap to hear • Current voice: ${voiceType}`}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -713,7 +882,7 @@ const renderTicketItem = ({ item }) => (
                     <View style={styles.statIcon}>
                       <Ionicons name="grid" size={18} color="#40E0D0" />
                     </View>
-                    <Text style={styles.statValue}>{calledNumbers.length}</Text>
+                    <Text style={styles.statValue}>{calledNumbers.length}/90</Text>
                     <Text style={styles.statLabel}>Total Called</Text>
                   </View>
                   <View style={styles.statCard}>
@@ -736,15 +905,51 @@ const renderTicketItem = ({ item }) => (
                   </View>
                 </View>
 
-                {/* Recent Numbers */}
+                {/* Progress Bar */}
+                <View style={styles.progressSection}>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressLabel}>Game Progress</Text>
+                    <Text style={styles.progressPercentage}>
+                      {Math.round((calledNumbers.length / 90) * 100)}%
+                    </Text>
+                  </View>
+                  <View style={styles.progressBar}>
+                    <View 
+                      style={[
+                        styles.progressFill,
+                        { 
+                          width: `${(calledNumbers.length / 90) * 100}%`,
+                          backgroundColor: calledNumbers.length >= 90 ? "#4CAF50" : "#40E0D0"
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.progressText}>
+                    {calledNumbers.length} of 90 numbers called
+                  </Text>
+                </View>
+
+                {/* Recent Numbers - Now showing only 5 */}
                 <View style={styles.recentNumbersSection}>
                   <View style={styles.sectionHeader}>
-                    <Ionicons name="list" size={20} color="#40E0D0" />
+                    <Image
+                      source={{ uri: GAME_IMAGES.numbers }}
+                      style={styles.sectionIcon}
+                    />
                     <Text style={styles.sectionTitle}>Recent Numbers</Text>
+                    
+                    {/* View All Button */}
+                    <TouchableOpacity
+                      style={styles.viewAllButton}
+                      onPress={handleViewAllCalledNumbers}
+                    >
+                      <Text style={styles.viewAllButtonText}>View All</Text>
+                      <Ionicons name="ellipsis-horizontal" size={16} color="#40E0D0" />
+                    </TouchableOpacity>
                   </View>
                   
                   <View style={styles.recentNumbersGrid}>
-                    {calledNumbers.slice(-8).reverse().map((num, index) => (
+                    {calledNumbers.slice(-5).reverse().map((num, index) => (
                       <TouchableOpacity
                         key={index}
                         style={[
@@ -764,6 +969,19 @@ const renderTicketItem = ({ item }) => (
                         )}
                       </TouchableOpacity>
                     ))}
+                    
+                    {/* Show total count if more than 5 */}
+                    {calledNumbers.length > 5 && (
+                      <TouchableOpacity
+                        style={styles.moreNumbersChip}
+                        onPress={handleViewAllCalledNumbers}
+                      >
+                        <Text style={styles.moreNumbersText}>
+                          +{calledNumbers.length - 5}
+                        </Text>
+                        <Ionicons name="chevron-forward" size={12} color="#40E0D0" />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               </View>
@@ -1006,6 +1224,187 @@ const styles = StyleSheet.create({
     zIndex: 1,
     marginTop: 0,
   },
+  // Game End Modal Styles
+  gameEndModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  confettiContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  confettiImage: {
+    width: 200,
+    height: 200,
+    opacity: 0.7,
+  },
+  gameEndModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  gameEndModalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  gameEndTrophy: {
+    width: 80,
+    height: 80,
+    marginBottom: 16,
+  },
+  gameEndModalTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#FF6B35',
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  gameEndModalBody: {
+    marginBottom: 24,
+  },
+  gameEndCongratulations: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#40E0D0',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  gameEndMessage: {
+    fontSize: 16,
+    color: '#6C757D',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  gameEndStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  endStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  endStatValue: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#212529',
+    marginBottom: 4,
+  },
+  endStatLabel: {
+    fontSize: 12,
+    color: '#6C757D',
+    fontWeight: '600',
+  },
+  gameEndThanks: {
+    fontSize: 14,
+    color: '#212529',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  gameEndModalFooter: {
+    gap: 12,
+  },
+  viewWinnersButton: {
+    backgroundColor: '#FF6B35',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  viewWinnersButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  claimButton: {
+    backgroundColor: '#F8F9FA',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: '#40E0D0',
+  },
+  claimButtonText: {
+    color: '#40E0D0',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  closeButton: {
+    backgroundColor: '#F8F9FA',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  closeButtonText: {
+    color: '#6C757D',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Progress Bar Styles
+  progressSection: {
+    marginBottom: 16,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: '#6C757D',
+    fontWeight: '600',
+  },
+  progressPercentage: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#40E0D0',
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#E9ECEF',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 12,
+    color: '#6C757D',
+    textAlign: 'center',
+  },
   // Modal Styles
   modalOverlay: {
     flex: 1,
@@ -1159,6 +1558,23 @@ const styles = StyleSheet.create({
     color: "#212529",
     flex: 1,
   },
+  // View All Button
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    gap: 4,
+  },
+  viewAllButtonText: {
+    fontSize: 12,
+    color: '#40E0D0',
+    fontWeight: '600',
+  },
   lastNumberContainer: {
     alignItems: "center",
     backgroundColor: "#F3F0FF",
@@ -1243,6 +1659,22 @@ const styles = StyleSheet.create({
   },
   latestChipText: {
     color: "#FFFFFF",
+  },
+  moreNumbersChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#40E0D0",
+    gap: 4,
+  },
+  moreNumbersText: {
+    fontSize: 12,
+    color: "#40E0D0",
+    fontWeight: "600",
   },
   // Waiting Section
   waitingSection: {
@@ -1527,25 +1959,25 @@ const styles = StyleSheet.create({
     color: "#6C757D",
     fontWeight: "500",
   },
-  // Add to the styles section:
-submitClaimButton: {
-  backgroundColor: "#FF6B35",
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 10,
-  paddingHorizontal: 16,
-  borderRadius: 8,
-  marginTop: 12,
-  gap: 8,
-  borderWidth: 1,
-  borderColor: '#FF6B35',
-},
-submitClaimButtonText: {
-  color: "#FFF",
-  fontSize: 14,
-  fontWeight: "600",
-},
+  // Submit Claim Button
+  submitClaimButton: {
+    backgroundColor: "#FF6B35",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+  },
+  submitClaimButtonText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 });
 
 export default UserGameRoom;

@@ -135,9 +135,16 @@ const HostClaimRequests = ({ navigation, route }) => {
   };
 
   const openRejectModal = (claimId) => {
-    setProcessingClaim(claimId);
+    const claim = claims.find(c => c.id === claimId);
+    setSelectedClaim(claim || null);
     setRejectReason("");
     setRejectModalVisible(true);
+  };
+
+  const closeRejectModal = () => {
+    setRejectModalVisible(false);
+    setRejectReason("");
+    setProcessingClaim(null);
   };
 
   const rejectClaim = async () => {
@@ -146,11 +153,19 @@ const HostClaimRequests = ({ navigation, route }) => {
       return;
     }
 
+    if (!selectedClaim) {
+      Alert.alert("Error", "No claim selected");
+      return;
+    }
+
+    const currentClaimId = selectedClaim.id;
+
     try {
+      setProcessingClaim(currentClaimId);
       const token = await AsyncStorage.getItem("hostToken");
       
       const response = await axios.post(
-        `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/claims/${processingClaim}/reject`,
+        `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/claims/${currentClaimId}/reject`,
         {
           host_response: rejectReason,
           reason: rejectReason
@@ -166,13 +181,13 @@ const HostClaimRequests = ({ navigation, route }) => {
       if (response.data.success) {
         Alert.alert("Success", "Claim rejected successfully!");
         // Remove the claim from the list
-        setClaims(prev => prev.filter(claim => claim.id !== processingClaim));
+        setClaims(prev => prev.filter(claim => claim.id !== currentClaimId));
         // Update summary
         setSummary(prev => ({
           ...prev,
           total_pending: prev.total_pending - 1
         }));
-        setRejectModalVisible(false);
+        closeRejectModal();
       }
     } catch (error) {
       console.log("Error rejecting claim:", error);
@@ -225,7 +240,10 @@ const HostClaimRequests = ({ navigation, route }) => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           {selectedClaim && (
-            <ScrollView style={styles.modalContent}>
+            <ScrollView 
+              style={styles.modalContent}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.modalHeader}>
                 <View style={styles.modalHeaderLeft}>
                   <Text style={styles.modalTitle}>Claim Details</Text>
@@ -233,8 +251,9 @@ const HostClaimRequests = ({ navigation, route }) => {
                 </View>
                 <TouchableOpacity
                   onPress={() => setDetailModalVisible(false)}
+                  disabled={!!processingClaim}
                 >
-                  <Ionicons name="close" size={24} color="#666" />
+                  <Ionicons name="close" size={24} color={!!processingClaim ? "#999" : "#666"} />
                 </TouchableOpacity>
               </View>
 
@@ -313,9 +332,9 @@ const HostClaimRequests = ({ navigation, route }) => {
                   style={[styles.actionButton, styles.rejectButton]}
                   onPress={() => {
                     setDetailModalVisible(false);
-                    openRejectModal(selectedClaim.id);
+                    setTimeout(() => openRejectModal(selectedClaim.id), 300);
                   }}
-                  disabled={!selectedClaim.can_process}
+                  disabled={!!processingClaim || !selectedClaim.can_process}
                 >
                   <Ionicons name="close-circle" size={20} color="#FFF" />
                   <Text style={styles.actionButtonText}>Reject</Text>
@@ -324,9 +343,9 @@ const HostClaimRequests = ({ navigation, route }) => {
                   style={[styles.actionButton, styles.approveButton]}
                   onPress={() => {
                     setDetailModalVisible(false);
-                    approveClaim(selectedClaim.id);
+                    setTimeout(() => approveClaim(selectedClaim.id), 300);
                   }}
-                  disabled={!selectedClaim.can_process}
+                  disabled={!!processingClaim || !selectedClaim.can_process}
                 >
                   <Ionicons name="checkmark-circle" size={20} color="#FFF" />
                   <Text style={styles.actionButtonText}>Approve</Text>
@@ -350,57 +369,71 @@ const HostClaimRequests = ({ navigation, route }) => {
       visible={rejectModalVisible}
       transparent={true}
       animationType="fade"
-      onRequestClose={() => setRejectModalVisible(false)}
+      onRequestClose={() => {
+        if (!processingClaim) {
+          closeRejectModal();
+        }
+      }}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+        <View style={styles.rejectModalWrapper}>
+          <View style={styles.rejectModalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reject Claim</Text>
               <TouchableOpacity
-                onPress={() => setRejectModalVisible(false)}
-                disabled={processingClaim}
+                onPress={closeRejectModal}
+                disabled={!!processingClaim}
               >
-                <Ionicons name="close" size={24} color="#666" />
+                <Ionicons name="close" size={24} color={!!processingClaim ? "#999" : "#666"} />
               </TouchableOpacity>
             </View>
             
-            <Text style={styles.rejectInstruction}>
-              Please provide a reason for rejecting this claim. This will be sent to the user.
-            </Text>
-            
-            <TextInput
-              style={styles.reasonInput}
-              placeholder="Enter rejection reason..."
-              multiline
-              numberOfLines={4}
-              value={rejectReason}
-              onChangeText={setRejectReason}
-              editable={!processingClaim}
-            />
-            
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.cancelButton]}
-                onPress={() => setRejectModalVisible(false)}
-                disabled={processingClaim}
-              >
-                <Text style={styles.actionButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.confirmRejectButton]}
-                onPress={rejectClaim}
-                disabled={processingClaim || !rejectReason.trim()}
-              >
-                {processingClaim ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <>
-                    <Ionicons name="close-circle" size={20} color="#FFF" />
-                    <Text style={styles.actionButtonText}>Reject Claim</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+            <View style={styles.rejectModalContent}>
+              <Text style={styles.rejectInstruction}>
+                Please provide a reason for rejecting this claim. This will be sent to the user.
+              </Text>
+              
+              <View style={styles.reasonInputContainer}>
+                <TextInput
+                  style={styles.reasonInput}
+                  placeholder="Enter rejection reason..."
+                  multiline
+                  numberOfLines={6}
+                  value={rejectReason}
+                  onChangeText={setRejectReason}
+                  editable={!processingClaim}
+                  returnKeyType="done"
+                  blurOnSubmit={true}
+                />
+              </View>
+              
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.cancelButton]}
+                  onPress={closeRejectModal}
+                  disabled={!!processingClaim}
+                >
+                  <Text style={styles.actionButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton, 
+                    styles.confirmRejectButton,
+                    (!rejectReason.trim() || !!processingClaim) && styles.disabledButton
+                  ]}
+                  onPress={rejectClaim}
+                  disabled={!!processingClaim || !rejectReason.trim()}
+                >
+                  {processingClaim ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="close-circle" size={20} color="#FFF" />
+                      <Text style={styles.actionButtonText}>Reject Claim</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -547,7 +580,7 @@ const HostClaimRequests = ({ navigation, route }) => {
                   <TouchableOpacity
                     style={[styles.quickActionButton, styles.rejectQuickButton]}
                     onPress={() => openRejectModal(claim.id)}
-                    disabled={processingClaim === claim.id || !claim.can_process}
+                    disabled={!!processingClaim || !claim.can_process}
                   >
                     {processingClaim === claim.id ? (
                       <ActivityIndicator size="small" color="#FFF" />
@@ -559,7 +592,7 @@ const HostClaimRequests = ({ navigation, route }) => {
                   <TouchableOpacity
                     style={[styles.quickActionButton, styles.approveQuickButton]}
                     onPress={() => approveClaim(claim.id)}
-                    disabled={processingClaim === claim.id || !claim.can_process}
+                    disabled={!!processingClaim || !claim.can_process}
                   >
                     {processingClaim === claim.id ? (
                       <ActivityIndicator size="small" color="#FFF" />
@@ -893,12 +926,25 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     width: "100%",
-    maxHeight: "90%",
-  },
-  modalContent: {
+    maxHeight: height * 0.85,
     backgroundColor: "#FFF",
     borderRadius: 20,
-    maxHeight: "90%",
+  },
+  modalContent: {
+    paddingBottom: 30,
+  },
+  rejectModalWrapper: {
+    width: "100%",
+    maxHeight: height * 0.6, // Fixed height for reject modal
+  },
+  rejectModalContainer: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    width: "100%",
+  },
+  rejectModalContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
   },
   modalHeader: {
     flexDirection: "row",
@@ -1076,16 +1122,15 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: "row",
     gap: 12,
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    marginTop: 20,
   },
   actionButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
     gap: 8,
   },
   rejectButton: {
@@ -1099,6 +1144,10 @@ const styles = StyleSheet.create({
   },
   confirmRejectButton: {
     backgroundColor: "#FF3B30",
+  },
+  disabledButton: {
+    backgroundColor: "#CCCCCC",
+    opacity: 0.6,
   },
   actionButtonText: {
     color: "#FFF",
@@ -1118,7 +1167,9 @@ const styles = StyleSheet.create({
     color: "#666",
     lineHeight: 20,
     marginBottom: 16,
-    paddingHorizontal: 20,
+  },
+  reasonInputContainer: {
+    marginBottom: 10,
   },
   reasonInput: {
     backgroundColor: "#F8FAFC",
@@ -1126,10 +1177,8 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     borderRadius: 8,
     padding: 12,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    minHeight: 100,
-    fontSize: 14,
+    minHeight: 120,
+    fontSize: 14, 
     textAlignVertical: "top",
   },
 });

@@ -12,14 +12,15 @@ import {
   RefreshControl,
   Dimensions,
   Modal,
+  StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
-const TICKET_WIDTH = width - 80;
-const CELL_SIZE = (TICKET_WIDTH - 30) / 9;
+const TICKET_WIDTH = width - 40;
+const CELL_SIZE = (TICKET_WIDTH - 60) / 9;
 
 const TicketsScreen = ({ route, navigation }) => {
   const { game } = route.params || {};
@@ -34,13 +35,27 @@ const TicketsScreen = ({ route, navigation }) => {
     sets: 0,
   });
 
-  const PRIMARY_COLOR = "#2D3748";
-  const SUCCESS_COLOR = "#10B981";
-  const WARNING_COLOR = "#F59E0B";
-  const DANGER_COLOR = "#EF4444";
-  const GRAY_COLOR = "#6B7280";
-  const LIGHT_GRAY = "#F3F4F6";
-  const BORDER_COLOR = "#E5E7EB";
+  // Color scheme from UserGameRoom
+  const PRIMARY_COLOR = "#40E0D0"; // Turquoise
+  const SUCCESS_COLOR = "#4CAF50"; // Green
+  const WARNING_COLOR = "#FFD700"; // Gold
+  const DANGER_COLOR = "#FF5252"; // Red
+  const GRAY_COLOR = "#6C757D"; // Gray
+  const LIGHT_GRAY = "#F8F9FA"; // Light gray
+  const BORDER_COLOR = "#E9ECEF"; // Border color
+  const BACKGROUND_COLOR = "#FFFFFF"; // White
+  const SECONDARY_COLOR = "#FF6B35"; // Orange
+
+  const GAME_IMAGES = {
+    ticket: "https://cdn-icons-png.flaticon.com/512/2589/2589909.png",
+    diamond: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+    celebrate: "https://cdn-icons-png.flaticon.com/512/3126/3126640.png",
+    empty: "https://cdn-icons-png.flaticon.com/512/4076/4076478.png",
+    pattern: "https://cdn-icons-png.flaticon.com/512/2097/2097069.png",
+    users: "https://cdn-icons-png.flaticon.com/512/1077/1077012.png",
+    megaphone: "https://cdn-icons-png.flaticon.com/512/2599/2599562.png",
+    trophy: "https://cdn-icons-png.flaticon.com/512/869/869869.png",
+  };
 
   useEffect(() => {
     fetchMyTickets();
@@ -136,10 +151,10 @@ const TicketsScreen = ({ route, navigation }) => {
     return (
       <View style={[styles.ticketGridContainer, isModal && styles.modalTicketGrid]}>
         {/* Column Headers */}
-        <View style={styles.columnHeaders}>
+        <View style={styles.columnNumbers}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-            <View key={`header-${num}`} style={[styles.columnHeaderCell, { width: cellSize }]}>
-              <Text style={styles.columnHeaderText}>{num}</Text>
+            <View key={`header-${num}`} style={[styles.columnNumberCell, { width: cellSize }]}>
+              <Text style={styles.columnNumberText}>{num}</Text>
             </View>
           ))}
         </View>
@@ -147,24 +162,29 @@ const TicketsScreen = ({ route, navigation }) => {
         {/* Ticket rows */}
         {processedData.map((row, rowIndex) => (
           <View key={`row-${rowIndex}`} style={styles.ticketRow}>
-            {row.map((cell, colIndex) => (
-              <View
-                key={`cell-${rowIndex}-${colIndex}`}
-                style={[
-                  styles.ticketCell,
-                  { width: cellSize, height: cellSize },
-                  cell !== null ? styles.filledCell : styles.emptyCell,
-                  rowIndex === 0 && styles.firstRowCell,
-                  rowIndex === 2 && styles.lastRowCell,
-                  colIndex === 0 && styles.firstColumnCell,
-                  colIndex === 8 && styles.lastColumnCell,
-                ]}
-              >
-                {cell !== null && (
-                  <Text style={styles.cellNumber}>{cell}</Text>
-                )}
-              </View>
-            ))}
+            {row.map((cell, colIndex) => {
+              const isEmpty = cell === null;
+              const cellBackgroundColor = isEmpty ? "#CCCCCC" : "#80CBC4"; // Turquoise for filled cells
+              
+              return (
+                <View
+                  key={`cell-${rowIndex}-${colIndex}`}
+                  style={[
+                    styles.ticketCell,
+                    { width: cellSize, height: cellSize, backgroundColor: cellBackgroundColor },
+                    isEmpty && styles.emptyCell,
+                    rowIndex === 0 && styles.firstRowCell,
+                    rowIndex === 2 && styles.lastRowCell,
+                    colIndex === 0 && styles.firstColumnCell,
+                    colIndex === 8 && styles.lastColumnCell,
+                  ]}
+                >
+                  {!isEmpty && (
+                    <Text style={styles.cellNumber}>{cell}</Text>
+                  )}
+                </View>
+              );
+            })}
           </View>
         ))}
       </View>
@@ -180,31 +200,32 @@ const TicketsScreen = ({ route, navigation }) => {
       }}
       activeOpacity={0.8}
     >
+      <View style={styles.cardPattern} />
+      
       {/* Status Badge */}
       <View style={[
         styles.statusBadge,
-        item.is_active ? styles.activeStatus : styles.inactiveStatus
+        { backgroundColor: item.is_active ? '#4CAF5020' : '#6C757D20' }
       ]}>
         <Ionicons
           name={item.is_active ? "checkmark-circle" : "close-circle"}
           size={12}
-          color="#FFF"
+          color={item.is_active ? SUCCESS_COLOR : GRAY_COLOR}
         />
-        <Text style={styles.statusText}>
+        <Text style={[styles.statusText, { color: item.is_active ? SUCCESS_COLOR : GRAY_COLOR }]}>
           {item.is_active ? "Active" : "Inactive"}
         </Text>
       </View>
 
       <View style={styles.ticketCardHeader}>
         <View style={styles.ticketNumberContainer}>
-          <View style={styles.ticketIconContainer}>
-            <MaterialIcons name="confirmation-number" size={20} color={PRIMARY_COLOR} />
-          </View>
-          <View>
-            <Text style={styles.ticketId}>Ticket #{item.ticket_number}</Text>
-            <Text style={styles.ticketSet}>
-              Set: {item.ticket_set_id?.split("_")[1] || "N/A"}
-            </Text>
+          <Image
+            source={{ uri: GAME_IMAGES.ticket }}
+            style={styles.ticketIcon}
+          />
+          <View style={styles.ticketInfo}>
+            <Text style={styles.ticketLabel}>Ticket Number</Text>
+            <Text style={styles.ticketNumber}>#{item.ticket_number}</Text>
           </View>
         </View>
       </View>
@@ -214,21 +235,24 @@ const TicketsScreen = ({ route, navigation }) => {
       </View>
 
       <View style={styles.ticketCardFooter}>
-        <View style={styles.ticketInfo}>
+        <View style={styles.ticketInfoRow}>
           <View style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <MaterialIcons name="date-range" size={12} color={PRIMARY_COLOR} />
-            </View>
-            <View>
-              <Text style={styles.infoLabel}>Allocated</Text>
-              <Text style={styles.infoText} numberOfLines={1}>
-                {new Date(item.allocated_at).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </Text>
-            </View>
+            <MaterialIcons name="collections" size={14} color={GRAY_COLOR} />
+            <Text style={styles.infoLabel}>Set</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {item.ticket_set_id?.split("_")[1] || "N/A"}
+            </Text>
+          </View>
+          <View style={styles.infoItem}>
+            <MaterialIcons name="date-range" size={14} color={GRAY_COLOR} />
+            <Text style={styles.infoLabel}>Allocated</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {new Date(item.allocated_at).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              })}
+            </Text>
           </View>
         </View>
         <TouchableOpacity
@@ -251,12 +275,12 @@ const TicketsScreen = ({ route, navigation }) => {
     return sets.size;
   };
 
-  const StatCard = ({ icon, value, label, color }) => (
+  const StatCard = ({ icon, value, label, color = PRIMARY_COLOR }) => (
     <View style={styles.statCard}>
-      <View style={[styles.statIconContainer, { backgroundColor: color }]}>
-        <MaterialIcons name={icon} size={18} color="#FFF" />
+      <View style={[styles.statIconContainer, { backgroundColor: color + '20' }]}>
+        <MaterialIcons name={icon} size={18} color={color} />
       </View>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={[styles.statValue, { color: PRIMARY_COLOR }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
@@ -278,6 +302,7 @@ const TicketsScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
       <ScrollView
         style={styles.container}
         refreshControl={
@@ -290,27 +315,40 @@ const TicketsScreen = ({ route, navigation }) => {
         }
         showsVerticalScrollIndicator={false}
       >
+        {/* Background Patterns */}
+        <View style={styles.backgroundPatterns}>
+          <View style={styles.patternCircle1} />
+          <View style={styles.patternCircle2} />
+        </View>
+
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerContent}>
+          <View style={styles.headerTop}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="arrow-back" size={22} color="#FFF" />
+              <Ionicons name="arrow-back" size={24} color={PRIMARY_COLOR} />
             </TouchableOpacity>
 
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerTitle}>My Tickets</Text>
               {game && (
                 <View style={styles.gameInfoContainer}>
-                  <Ionicons name="game-controller" size={16} color="rgba(255,255,255,0.8)" />
+                  <Ionicons name="game-controller" size={16} color={GRAY_COLOR} />
                   <Text style={styles.gameName} numberOfLines={1}>
                     {game.game_name || "Game"}
                   </Text>
                 </View>
               )}
             </View>
+
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={onRefresh}
+            >
+              <Ionicons name="refresh" size={20} color={PRIMARY_COLOR} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -342,14 +380,17 @@ const TicketsScreen = ({ route, navigation }) => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>🎫 Allocated Tickets</Text>
-              <Text style={styles.sectionCount}>{myTickets.length} Ticket{myTickets.length !== 1 ? 's' : ''}</Text>
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{myTickets.length}</Text>
+              </View>
             </View>
 
             {myTickets.length === 0 ? (
               <View style={styles.emptyState}>
-                <View style={styles.emptyIconWrapper}>
-                  <MaterialIcons name="confirmation-number" size={50} color={GRAY_COLOR} />
-                </View>
+                <Image
+                  source={{ uri: GAME_IMAGES.empty }}
+                  style={styles.emptyIcon}
+                />
                 <Text style={styles.emptyTitle}>No Tickets Found</Text>
                 <Text style={styles.emptySubtitle}>
                   {game
@@ -357,7 +398,7 @@ const TicketsScreen = ({ route, navigation }) => {
                     : "You haven't been allocated any tickets yet"}
                 </Text>
                 <TouchableOpacity
-                  style={styles.refreshButton}
+                  style={styles.refreshButtonLarge}
                   onPress={fetchMyTickets}
                 >
                   <Ionicons name="refresh" size={18} color="#FFF" />
@@ -378,7 +419,7 @@ const TicketsScreen = ({ route, navigation }) => {
           {/* Bottom Info */}
           <View style={styles.infoCard}>
             <Ionicons name="information-circle" size={18} color={PRIMARY_COLOR} />
-            <Text style={styles.infoText}>
+            <Text style={styles.infoCardText}>
               • Active tickets are eligible for game participation{'\n'}
               • Each ticket has a unique number and belongs to a set{'\n'}
               • Tickets are automatically allocated for approved requests
@@ -403,21 +444,24 @@ const TicketsScreen = ({ route, navigation }) => {
                 <View style={styles.modalHeader}>
                   <View style={styles.modalTitleContainer}>
                     <View style={styles.ticketNumberBadge}>
-                      <MaterialIcons name="confirmation-number" size={16} color="#FFF" />
+                      <Image
+                        source={{ uri: GAME_IMAGES.ticket }}
+                        style={styles.ticketNumberIcon}
+                      />
                       <Text style={styles.ticketNumberBadgeText}>
                         #{selectedTicket.ticket_number}
                       </Text>
                     </View>
                     <View style={[
                       styles.modalStatusBadge,
-                      selectedTicket.is_active ? styles.activeStatus : styles.inactiveStatus
+                      { backgroundColor: selectedTicket.is_active ? '#4CAF5020' : '#6C757D20' }
                     ]}>
                       <Ionicons
                         name={selectedTicket.is_active ? "checkmark-circle" : "close-circle"}
                         size={12}
-                        color="#FFF"
+                        color={selectedTicket.is_active ? SUCCESS_COLOR : GRAY_COLOR}
                       />
-                      <Text style={styles.modalStatusText}>
+                      <Text style={[styles.modalStatusText, { color: selectedTicket.is_active ? SUCCESS_COLOR : GRAY_COLOR }]}>
                         {selectedTicket.is_active ? "Active" : "Inactive"}
                       </Text>
                     </View>
@@ -431,7 +475,7 @@ const TicketsScreen = ({ route, navigation }) => {
                 </View>
 
                 <View style={styles.modalContent}>
-                  <View style={styles.modalInfoGrid}>
+                  {/* <View style={styles.modalInfoGrid}>
                     <View style={styles.modalInfoRow}>
                       <View style={styles.modalInfoItem}>
                         <View style={styles.modalInfoIcon}>
@@ -477,7 +521,7 @@ const TicketsScreen = ({ route, navigation }) => {
                         </Text>
                       </View>
                     </View>
-                  </View>
+                  </View> */}
 
                   {selectedTicket.game && (
                     <View style={styles.gameCard}>
@@ -535,17 +579,40 @@ const TicketsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F8F9FA",
   },
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+  },
+  backgroundPatterns: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    zIndex: 0,
+  },
+  patternCircle1: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(64, 224, 208, 0.05)',
+  },
+  patternCircle2: {
+    position: 'absolute',
+    bottom: 200,
+    left: -30,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 107, 53, 0.03)',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F8F9FA",
   },
   loadingContent: {
     alignItems: 'center',
@@ -554,7 +621,7 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#E9ECEF',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -564,37 +631,44 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#6B7280",
+    color: "#6C757D",
     fontWeight: "500",
     marginTop: 20,
   },
   header: {
-    backgroundColor: "#2D3748",
+    backgroundColor: "#FFFFFF",
     paddingTop: 50,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E9ECEF",
+    zIndex: 1,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
   },
   backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F8F9FA",
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
   },
   headerTextContainer: {
     flex: 1,
-    marginHorizontal: 12,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
-    color: "#FFF",
+    color: "#40E0D0",
+    letterSpacing: -0.5,
     marginBottom: 4,
   },
   gameInfoContainer: {
@@ -604,12 +678,23 @@ const styles = StyleSheet.create({
   },
   gameName: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
+    color: "#6C757D",
     fontWeight: "500",
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
   },
   content: {
     padding: 20,
-    paddingTop: 0,
+    zIndex: 1,
+    marginTop: 0,
   },
   statsOverview: {
     flexDirection: "row",
@@ -626,7 +711,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginHorizontal: 4,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E9ECEF",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -644,12 +729,11 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#111827",
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 11,
-    color: "#6B7280",
+    color: "#6C757D",
     fontWeight: "600",
     textAlign: 'center',
   },
@@ -665,131 +749,122 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: "#212529",
   },
-  sectionCount: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "600",
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 10,
+  countBadge: {
+    backgroundColor: "#40E0D0",
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
+    minWidth: 30,
+    alignItems: 'center',
+  },
+  countBadgeText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFF",
   },
   ticketsList: {
-    gap: 16,
+    gap: 12,
   },
   ticketWrapper: {
     marginBottom: 8,
   },
   ticketCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E9ECEF",
     position: 'relative',
     overflow: 'hidden',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+  },
+  cardPattern: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 50,
+    height: 50,
+    borderBottomLeftRadius: 12,
+    borderTopRightRadius: 25,
+    backgroundColor: 'rgba(64, 224, 208, 0.03)',
   },
   statusBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
     gap: 4,
-  },
-  activeStatus: {
-    backgroundColor: "#10B981",
-  },
-  inactiveStatus: {
-    backgroundColor: "#6B7280",
+    alignSelf: 'flex-end',
+    marginBottom: 8,
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: "#FFF",
+    fontWeight: "700",
   },
   ticketCardHeader: {
-    marginTop: 30,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   ticketNumberContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  ticketIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  ticketIcon: {
+    width: 24,
+    height: 24,
   },
-  ticketId: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#111827",
+  ticketInfo: {
+    flex: 1,
+  },
+  ticketLabel: {
+    fontSize: 10,
+    color: "#6C757D",
+    fontWeight: "500",
     marginBottom: 2,
   },
-  ticketSet: {
-    fontSize: 13,
-    color: "#6B7280",
-    fontWeight: "500",
+  ticketNumber: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#212529",
   },
   ticketPreview: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: 'center',
+    borderColor: "#E9ECEF",
   },
   ticketGridContainer: {
     alignItems: "center",
   },
-  columnHeaders: {
+  columnNumbers: {
     flexDirection: "row",
-    marginBottom: 8,
+    marginBottom: 2,
   },
-  columnHeaderCell: {
+  columnNumberCell: {
     justifyContent: "center",
     alignItems: "center",
-    marginHorizontal: 1,
   },
-  columnHeaderText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#374151",
+  columnNumberText: {
+    fontSize: 10,
+    color: "#6C757D",
+    fontWeight: "600",
   },
   ticketRow: {
     flexDirection: "row",
-    marginBottom: 2,
+    marginBottom: 1,
   },
   ticketCell: {
     justifyContent: "center",
     alignItems: "center",
-    marginHorizontal: 1,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderWidth: 0.5,
+    borderColor: "#FFFFFF",
   },
   emptyCell: {
-    backgroundColor: "#F9FAFB",
-  },
-  filledCell: {
-    backgroundColor: "#111827",
+    backgroundColor: "#CCCCCC",
   },
   firstRowCell: {
     borderTopWidth: 2,
@@ -810,49 +885,43 @@ const styles = StyleSheet.create({
   cellNumber: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#FFF",
+    color: "#FFFFFF",
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   ticketCardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  ticketInfo: {
+  ticketInfoRow: {
+    flexDirection: "row",
     flex: 1,
+    marginRight: 12,
   },
   infoItem: {
-    flexDirection: "row",
+    flex: 1,
     alignItems: "flex-start",
-    gap: 10,
-  },
-  infoIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
   },
   infoLabel: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "500",
+    fontSize: 10,
+    color: "#6C757D",
+    marginTop: 2,
     marginBottom: 2,
   },
-  infoText: {
-    fontSize: 13,
-    color: "#111827",
+  infoValue: {
+    fontSize: 12,
     fontWeight: "600",
+    color: "#212529",
   },
   viewButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2D3748",
+    backgroundColor: "#40E0D0",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 8,
     gap: 6,
   },
   viewButtonText: {
@@ -867,43 +936,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderColor: "#E9ECEF",
   },
-  emptyIconWrapper: {
+  emptyIcon: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 20,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+    opacity: 0.7,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: "#212529",
     marginBottom: 8,
     textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 14,
-    color: "#6B7280",
+    color: "#6C757D",
     textAlign: "center",
     lineHeight: 20,
     marginBottom: 24,
     paddingHorizontal: 20,
   },
-  refreshButton: {
+  refreshButtonLarge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2D3748",
+    backgroundColor: "#40E0D0",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 10,
@@ -922,18 +981,13 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E9ECEF",
     gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
   },
-  infoText: {
+  infoCardText: {
     flex: 1,
     fontSize: 13,
-    color: "#6B7280",
+    color: "#6C757D",
     lineHeight: 20,
   },
   bottomSpace: {
@@ -955,7 +1009,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     maxHeight: "85%",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E9ECEF",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,
@@ -969,7 +1023,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     paddingBottom: 16,
-    backgroundColor: "#2D3748",
+    backgroundColor: "#40E0D0",
   },
   modalTitleContainer: {
     flex: 1,
@@ -987,6 +1041,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 6,
   },
+  ticketNumberIcon: {
+    width: 16,
+    height: 16,
+    tintColor: "#FFF",
+  },
   ticketNumberBadgeText: {
     fontSize: 16,
     fontWeight: "700",
@@ -1003,7 +1062,6 @@ const styles = StyleSheet.create({
   modalStatusText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#FFF",
   },
   closeButton: {
     width: 36,
@@ -1017,12 +1075,12 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalInfoGrid: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F8F9FA",
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E9ECEF",
   },
   modalInfoRow: {
     flexDirection: "row",
@@ -1043,26 +1101,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E9ECEF",
   },
   modalInfoLabel: {
     fontSize: 12,
-    color: "#6B7280",
+    color: "#6C757D",
     fontWeight: "500",
     marginBottom: 2,
   },
   modalInfoValue: {
     fontSize: 14,
-    color: "#111827",
+    color: "#212529",
     fontWeight: "600",
   },
   gameCard: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F8F9FA",
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E9ECEF",
   },
   gameCardHeader: {
     flexDirection: "row",
@@ -1073,7 +1131,7 @@ const styles = StyleSheet.create({
   gameCardTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#111827",
+    color: "#212529",
   },
   gameCardContent: {
     gap: 8,
@@ -1081,7 +1139,7 @@ const styles = StyleSheet.create({
   gameNameText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#111827",
+    color: "#212529",
     lineHeight: 20,
   },
   gameDetailsRow: {
@@ -1097,12 +1155,12 @@ const styles = StyleSheet.create({
   },
   gameCodeText: {
     fontSize: 13,
-    color: "#6B7280",
+    color: "#6C757D",
     fontWeight: "500",
   },
   gameTimeText: {
     fontSize: 13,
-    color: "#6B7280",
+    color: "#6C757D",
     fontWeight: "500",
   },
   fullTicketContainer: {
@@ -1111,16 +1169,16 @@ const styles = StyleSheet.create({
   ticketGridTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: "#212529",
     marginBottom: 12,
     textAlign: 'center',
   },
   fullTicketGrid: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F8F9FA",
     borderRadius: 12,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E9ECEF",
     alignItems: "center",
   },
   modalTicketGrid: {
@@ -1130,10 +1188,10 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 0,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: "#E9ECEF",
   },
   closeModalButton: {
-    backgroundColor: "#2D3748",
+    backgroundColor: "#40E0D0",
     paddingHorizontal: 30,
     paddingVertical: 14,
     borderRadius: 10,

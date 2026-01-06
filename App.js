@@ -52,6 +52,8 @@ import HostLiveChat from "./pages/HostLiveChat";
 import HostClaimRequests from "./pages/HostClaimRequests";
 import UserGameClaim from "./pages/UserGameClaim";
 import HostGameWinners from "./pages/HostGameWinners";
+import UserGameWinners from "./pages/UserGameWinners";
+import UserCalledNumbers from "./pages/UserCalledNumbers";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -296,6 +298,16 @@ export default function App() {
                     <Stack.Screen 
                       name="UserGameClaim" 
                       component={UserGameClaim}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="UserGameWinners" 
+                      component={UserGameWinners}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="UserCalledNumbers" 
+                      component={UserCalledNumbers}
                       options={{ contentStyle: { paddingBottom: 20 } }}
                     />
                     <Stack.Screen 

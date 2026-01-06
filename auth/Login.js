@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,15 +8,46 @@ import {
   StyleSheet,
   Image,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Dimensions,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const Login = ({ navigation, onLoginSuccess }) => {
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [selectedRole, setSelectedRole] = useState("user"); // 'user' or 'host'
   const [isLoading, setIsLoading] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const scrollViewRef = useRef(null);
+  const passwordInputRef = useRef(null);
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      () => {
+        setKeyboardVisible(true);
+      }
+    );
+    
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
 
   const handleLogin = async () => {
     if (!mobile || !password) {
@@ -24,6 +55,7 @@ const Login = ({ navigation, onLoginSuccess }) => {
     }
 
     setIsLoading(true);
+    Keyboard.dismiss(); // Dismiss keyboard when login is pressed
 
     try {
       let loginUrl = "";
@@ -86,109 +118,165 @@ const Login = ({ navigation, onLoginSuccess }) => {
     }
   };
 
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* APP LOGO */}
-      <Image
-        source={{
-          uri: "https://cdn-icons-png.flaticon.com/512/5345/5345809.png",
-        }}
-        style={styles.logo}
-      />
-
-      {/* CARD */}
-      <View style={styles.card}>
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Login to continue</Text>
-
-        {/* ROLE TABS */}
-        <View style={styles.roleTabs}>
-          <TouchableOpacity
-            style={[
-              styles.roleTab,
-              selectedRole === "user" && styles.roleTabActive,
-            ]}
-            onPress={() => setSelectedRole("user")}
-          >
-            <Text
-              style={[
-                styles.roleTabText,
-                selectedRole === "user" && styles.roleTabTextActive,
-              ]}
-            >
-              User
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.roleTab,
-              selectedRole === "host" && styles.roleTabActive,
-            ]}
-            onPress={() => setSelectedRole("host")}
-          >
-            <Text
-              style={[
-                styles.roleTabText,
-                selectedRole === "host" && styles.roleTabTextActive,
-              ]}
-            >
-              Host
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Selected Role Indicator */}
-        <View style={styles.roleIndicator}>
-          <Text style={styles.roleIndicatorText}>
-            Logging in as {selectedRole === "user" ? "User" : "Host"}
-          </Text>
-        </View>
-
-        <TextInput
-          placeholder="Mobile Number"
-          keyboardType="number-pad"
-          style={styles.input}
-          value={mobile}
-          onChangeText={setMobile}
-          placeholderTextColor="#999"
-        />
-
-        <TextInput
-          placeholder="Password"
-          secureTextEntry
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          placeholderTextColor="#999"
-        />
-
-        <TouchableOpacity
-          style={[styles.btn, isLoading && styles.btnDisabled]}
-          onPress={handleLogin}
-          disabled={isLoading}
+    <TouchableWithoutFeedback onPress={dismissKeyboard}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.container,
+            keyboardVisible && styles.containerWithKeyboard
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
-          <Text style={styles.btnText}>
-            {isLoading ? "Logging in..." : "Login"}
-          </Text>
-        </TouchableOpacity>
+          {/* APP LOGO - Hide logo when keyboard is open on small screens */}
+          {(!keyboardVisible || SCREEN_HEIGHT > 700) && (
+            <Image
+              source={{
+                uri: "https://cdn-icons-png.flaticon.com/512/5345/5345809.png",
+              }}
+              style={[
+                styles.logo,
+                keyboardVisible && SCREEN_HEIGHT <= 700 && styles.logoHidden
+              ]}
+            />
+          )}
 
-        {/* Forgot Password Link */}
-        <TouchableOpacity
-          onPress={() =>
-            navigation.navigate("ForgotPassword", { role: selectedRole })
-          }
-        >
-          <Text style={styles.forgot}>Forgot Password?</Text>
-        </TouchableOpacity>
+          {/* CARD */}
+          <View style={[
+            styles.card,
+            keyboardVisible && styles.cardWithKeyboard
+          ]}>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Login to continue</Text>
 
-        <TouchableOpacity onPress={() => navigation.navigate("ChooseRole")}>
-          <Text style={styles.link}>
-            Not registered? <Text style={styles.signUp}>Sign Up</Text>
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+            {/* ROLE TABS */}
+            <View style={styles.roleTabs}>
+              <TouchableOpacity
+                style={[
+                  styles.roleTab,
+                  selectedRole === "user" && styles.roleTabActive,
+                ]}
+                onPress={() => setSelectedRole("user")}
+              >
+                <Text
+                  style={[
+                    styles.roleTabText,
+                    selectedRole === "user" && styles.roleTabTextActive,
+                  ]}
+                >
+                  User
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.roleTab,
+                  selectedRole === "host" && styles.roleTabActive,
+                ]}
+                onPress={() => setSelectedRole("host")}
+              >
+                <Text
+                  style={[
+                    styles.roleTabText,
+                    selectedRole === "host" && styles.roleTabTextActive,
+                  ]}
+                >
+                  Host
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Selected Role Indicator */}
+            <View style={styles.roleIndicator}>
+              <Text style={styles.roleIndicatorText}>
+                Logging in as {selectedRole === "user" ? "User" : "Host"}
+              </Text>
+            </View>
+
+            <TextInput
+              placeholder="Mobile Number"
+              keyboardType="number-pad"
+              style={styles.input}
+              value={mobile}
+              onChangeText={setMobile}
+              placeholderTextColor="#999"
+              color="#000"
+              returnKeyType="next"
+              onFocus={() => {
+                // Scroll when mobile input is focused
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollTo({ y: 50, animated: true });
+                }, 100);
+              }}
+              blurOnSubmit={false}
+            />
+
+            <TextInput
+              ref={passwordInputRef}
+              placeholder="Password"
+              secureTextEntry
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholderTextColor="#999"
+              color="#000"
+              returnKeyType="done"
+              onFocus={() => {
+                // Scroll when password input is focused
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollTo({ y: 100, animated: true });
+                }, 100);
+              }}
+              onSubmitEditing={handleLogin}
+            />
+
+            <TouchableOpacity
+              style={[styles.btn, isLoading && styles.btnDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              <Text style={styles.btnText}>
+                {isLoading ? "Logging in..." : "Login"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Forgot Password Link - Hide when keyboard is open on small screens */}
+            {(!keyboardVisible || SCREEN_HEIGHT > 700) && (
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate("ForgotPassword", { role: selectedRole })
+                }
+              >
+                <Text style={styles.forgot}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Sign up link - Hide when keyboard is open on small screens */}
+            {(!keyboardVisible || SCREEN_HEIGHT > 700) && (
+              <TouchableOpacity onPress={() => navigation.navigate("ChooseRole")}>
+                <Text style={styles.link}>
+                  Not registered? <Text style={styles.signUp}>Sign Up</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {/* Extra padding at bottom when keyboard is open */}
+          {keyboardVisible && <View style={styles.keyboardSpacer} />}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -201,12 +289,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
     paddingVertical: 40,
+    minHeight: SCREEN_HEIGHT,
+  },
+  containerWithKeyboard: {
+    paddingVertical: 20,
+    justifyContent: "flex-start",
   },
   logo: {
     width: 90,
     height: 90,
     alignSelf: "center",
     marginBottom: 20,
+  },
+  logoHidden: {
+    display: 'none',
   },
   card: {
     backgroundColor: "#fff",
@@ -218,11 +314,15 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
   },
+  cardWithKeyboard: {
+    marginTop: 20,
+  },
   title: {
     fontSize: 26,
     fontWeight: "800",
     textAlign: "center",
     marginBottom: 6,
+    color: "#333",
   },
   subtitle: {
     fontSize: 14,
@@ -271,12 +371,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 15,
     fontSize: 15,
+    color: "#000",
   },
   btn: {
     backgroundColor: "#FF7675",
     paddingVertical: 12,
     borderRadius: 12,
     marginTop: 10,
+    marginBottom: 10,
   },
   btnDisabled: {
     opacity: 0.7,
@@ -303,5 +405,8 @@ const styles = StyleSheet.create({
   signUp: {
     color: "#FF7675",
     fontWeight: "700",
+  },
+  keyboardSpacer: {
+    height: 100,
   },
 });

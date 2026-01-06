@@ -151,7 +151,7 @@ const getDynamicFontSize = (value, isPercentage = false) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3498db" />
+        <ActivityIndicator size="large" color="#FF7675" />
         <Text style={styles.loadingText}>Loading dashboard...</Text>
       </View>
     );
@@ -181,8 +181,8 @@ const getDynamicFontSize = (value, isPercentage = false) => {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor="#3498db"
-          colors={['#3498db']}
+          tintColor="#FF7675"
+          colors={['#FF7675']}
         />
       }
     >
@@ -218,16 +218,16 @@ const getDynamicFontSize = (value, isPercentage = false) => {
         </View>
         
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: '#E6F0FF' }]}>
-            <FontAwesome name="ticket" size={18} color="#2196F3" />
+          <View style={[styles.statIcon, { backgroundColor: '#FFEDED' }]}>
+            <FontAwesome name="ticket" size={18} color="#FF7675" />
           </View>
           <Text style={styles.statNumber}>{stats?.tickets?.total_generated || 0}</Text>
           <Text style={styles.statLabel}>Tickets</Text>
         </View>
         
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: '#E6F7E9' }]}>
-            <FontAwesome name="rupee" size={18} color="#4CAF50" />
+          <View style={[styles.statIcon, { backgroundColor: '#FFE6E6' }]}>
+            <FontAwesome name="rupee" size={18} color="#FF7675" />
           </View>
           <Text style={styles.statNumber}>{stats?.revenue?.total_revenue || 0}</Text>
           <Text style={styles.statLabel}>Revenue</Text>
@@ -307,7 +307,7 @@ const getDynamicFontSize = (value, isPercentage = false) => {
       
       <TouchableOpacity style={styles.ticketsViewBtn}>
         <Text style={styles.ticketsViewText}>View Detailed Report</Text>
-        <Ionicons name="arrow-forward" size={16} color="#3498db" />
+        <Ionicons name="arrow-forward" size={16} color="#FF7675" />
       </TouchableOpacity>
     </View>
     <Image
@@ -327,8 +327,8 @@ const getDynamicFontSize = (value, isPercentage = false) => {
       <View style={styles.gamesOverview}>
         <View style={styles.gameStatCard}>
           <View style={styles.gameStatHeader}>
-            <View style={[styles.gameStatIcon, { backgroundColor: '#FFF3E0' }]}>
-              <Ionicons name="today-outline" size={20} color="#FF9800" />
+            <View style={[styles.gameStatIcon, { backgroundColor: '#FFEDED' }]}>
+              <Ionicons name="today-outline" size={20} color="#FF7675" />
             </View>
             <View style={styles.gameStatTextContainer}>
               <Text style={styles.gameStatTitle}>Today's Games</Text>
@@ -340,8 +340,8 @@ const getDynamicFontSize = (value, isPercentage = false) => {
 
         <View style={styles.gameStatCard}>
           <View style={styles.gameStatHeader}>
-            <View style={[styles.gameStatIcon, { backgroundColor: '#E3F2FD' }]}>
-              <Ionicons name="calendar-outline" size={20} color="#2196F3" />
+            <View style={[styles.gameStatIcon, { backgroundColor: '#FFEDED' }]}>
+              <Ionicons name="calendar-outline" size={20} color="#FF7675" />
             </View>
             <View style={styles.gameStatTextContainer}>
               <Text style={styles.gameStatTitle}>Upcoming</Text>
@@ -359,8 +359,8 @@ const getDynamicFontSize = (value, isPercentage = false) => {
 
       <View style={styles.requestsCard}>
         <View style={styles.requestHeader}>
-          <View style={[styles.requestIcon, { backgroundColor: '#FFF3E0' }]}>
-            <Ionicons name="alert-circle-outline" size={24} color="#FF9800" />
+          <View style={[styles.requestIcon, { backgroundColor: '#FFEDED' }]}>
+            <Ionicons name="alert-circle-outline" size={24} color="#FF7675" />
           </View>
           <View style={styles.requestTextContainer}>
             <Text style={styles.requestTitle}>Action Required</Text>
@@ -371,7 +371,7 @@ const getDynamicFontSize = (value, isPercentage = false) => {
         </View>
         <TouchableOpacity style={styles.viewRequestsBtn}>
           <Text style={styles.viewRequestsText}>View All</Text>
-          <Ionicons name="arrow-forward" size={16} color="#3498db" />
+          <Ionicons name="arrow-forward" size={16} color="#FF7675" />
         </TouchableOpacity>
       </View>
 
@@ -466,22 +466,22 @@ const getDynamicFontSize = (value, isPercentage = false) => {
 
       <View style={styles.actionsContainer}>
         <TouchableOpacity style={styles.actionButton}>
-          <View style={[styles.actionIcon, { backgroundColor: '#FFE6E6' }]}>
+          <View style={[styles.actionIcon, { backgroundColor: '#FFEDED' }]}>
             <Ionicons name="add-circle-outline" size={24} color="#FF7675" />
           </View>
           <Text style={styles.actionText} numberOfLines={1}>New Game</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton}>
-          <View style={[styles.actionIcon, { backgroundColor: '#E6F0FF' }]}>
-            <Ionicons name="ticket-outline" size={24} color="#2196F3" />
+          <View style={[styles.actionIcon, { backgroundColor: '#FFEDED' }]}>
+            <Ionicons name="ticket-outline" size={24} color="#FF7675" />
           </View>
           <Text style={styles.actionText} numberOfLines={1}>Generate Tickets</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton}>
-          <View style={[styles.actionIcon, { backgroundColor: '#E6F7E9' }]}>
-            <Ionicons name="bar-chart-outline" size={24} color="#4CAF50" />
+          <View style={[styles.actionIcon, { backgroundColor: '#FFEDED' }]}>
+            <Ionicons name="bar-chart-outline" size={24} color="#FF7675" />
           </View>
           <Text style={styles.actionText} numberOfLines={1}>Analytics</Text>
         </TouchableOpacity>
@@ -502,7 +502,7 @@ const getDynamicFontSize = (value, isPercentage = false) => {
             </View>
 
             {loadingNotifications ? (
-              <ActivityIndicator size="large" color="#3498db" style={styles.loadingIndicator} />
+              <ActivityIndicator size="large" color="#FF7675" style={styles.loadingIndicator} />
             ) : (
               <FlatList
                 data={notifications}
@@ -510,7 +510,7 @@ const getDynamicFontSize = (value, isPercentage = false) => {
                 renderItem={({ item }) => (
                   <View style={styles.notificationItem}>
                     <View style={styles.notificationIcon}>
-                      <Ionicons name="notifications" size={20} color="#3498db" />
+                      <Ionicons name="notifications" size={20} color="#FF7675" />
                     </View>
                     <View style={styles.notificationContent}>
                       <Text style={styles.notificationTitle}>{item.title || "New Update"}</Text>
@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
   retryButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     paddingHorizontal: 25,
     paddingVertical: 12,
     borderRadius: 25,
@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     paddingHorizontal: 20,
     paddingBottom: 40,
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
   },
@@ -642,10 +642,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#3498db",
+    borderColor: "#FF7675",
   },
   badgeText: {
-    color: "#3498db",
+    color: "#FF7675",
     fontSize: 10,
     fontWeight: "700",
   },
@@ -679,9 +679,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   compactLabel: {
-  fontSize: 10, // Slightly smaller font for longer labels
-  letterSpacing: -0.2, // Tighter letter spacing
-  paddingHorizontal: 2, // Reduce side padding
+  fontSize: 10,
+  letterSpacing: -0.2,
+  paddingHorizontal: 2,
 },
   statNumber: {
     fontSize: 18,
@@ -709,12 +709,12 @@ const styles = StyleSheet.create({
   },
   seeAll: {
     fontSize: 14,
-    color: "#3498db",
+    color: "#FF7675",
     fontWeight: "600",
   },
   // TICKETS ANALYTICS BANNER
   ticketsBannerCard: {
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     marginHorizontal: 20,
     borderRadius: 16,
     overflow: "hidden",
@@ -743,32 +743,32 @@ const styles = StyleSheet.create({
   alignItems: "center",
   backgroundColor: "rgba(255,255,255,0.15)",
   borderRadius: 12,
-  paddingVertical: 12, // Separate vertical and horizontal padding
+  paddingVertical: 12,
   paddingHorizontal: 8,
   marginBottom: 16,
-  minHeight: 90, // Increase height slightly for better spacing
-  justifyContent: 'space-between', // Distribute space evenly
+  minHeight: 90,
+  justifyContent: 'space-between',
 },
   ticketStatMini: {
   flex: 1,
   alignItems: "center",
   minWidth: 0,
-  paddingHorizontal: 2, // Reduce padding
-  justifyContent: 'center', // Center content vertically
+  paddingHorizontal: 2,
+  justifyContent: 'center',
 },
   ticketStatMiniValue: {
   fontWeight: "800",
   color: "#FFF",
   marginBottom: 2,
   textAlign: 'center',
-  minHeight: 26, // Add this
+  minHeight: 26,
 },
   ticketStatMiniLabel: {
   fontSize: 12,
   color: "rgba(255,255,255,0.9)",
   textAlign: 'center',
   flexShrink: 1,
-  minHeight: 14, // Ensure consistent height
+  minHeight: 14,
 },
   ticketStatDivider: {
     width: 1,
@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   ticketsViewText: {
-    color: "#3498db",
+    color: "#FF7675",
     fontWeight: "700",
     fontSize: 14,
   },
@@ -857,7 +857,7 @@ const styles = StyleSheet.create({
   color: "#FFF",
   marginBottom: 2,
   textAlign: 'center',
-  minHeight: 26, // Ensure consistent height
+  minHeight: 26,
 },
   requestIcon: {
     width: 48,
@@ -884,12 +884,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E6F0FF",
+    backgroundColor: "#FFEDED",
     paddingVertical: 10,
     borderRadius: 12,
   },
   viewRequestsText: {
-    color: "#3498db",
+    color: "#FF7675",
     fontSize: 14,
     fontWeight: "600",
     marginRight: 8,
@@ -1007,7 +1007,7 @@ const styles = StyleSheet.create({
   createGameBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 25,
@@ -1117,7 +1117,7 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   closeBtn: {
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     padding: 12,
     borderRadius: 12,
     alignItems: "center",

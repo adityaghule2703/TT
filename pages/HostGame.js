@@ -247,7 +247,7 @@ const HostGame = ({ navigation }) => {
       case "cancelled":
         return "#F44336";
       case "live":
-        return "#2196F3";
+        return "#FF7675";
       default:
         return "#607D8B";
     }
@@ -353,7 +353,7 @@ const HostGame = ({ navigation }) => {
             <Text style={styles.viewDetailsText}>
               {game.status === "live" ? "Enter Game" : "View Details"}
             </Text>
-            <Ionicons name="chevron-forward" size={16} color="#3498db" />
+            <Ionicons name="chevron-forward" size={16} color="#FF7675" />
           </View>
         </View>
       </TouchableOpacity>
@@ -418,7 +418,7 @@ const HostGame = ({ navigation }) => {
 
                 {loadingGameDetails ? (
                   <View style={styles.modalLoadingContainer}>
-                    <ActivityIndicator size="large" color="#3498db" />
+                    <ActivityIndicator size="large" color="#FF7675" />
                     <Text style={styles.modalLoadingText}>
                       Loading game details...
                     </Text>
@@ -434,7 +434,7 @@ const HostGame = ({ navigation }) => {
                         <Ionicons
                           name="calendar-outline"
                           size={20}
-                          color="#3498db"
+                          color="#FF7675"
                         />
                         <Text style={styles.infoCardLabel}>Date</Text>
                         <Text style={styles.infoCardValue}>
@@ -454,7 +454,7 @@ const HostGame = ({ navigation }) => {
                         <Ionicons
                           name="time-outline"
                           size={20}
-                          color="#3498db"
+                          color="#FF7675"
                         />
                         <Text style={styles.infoCardLabel}>Time</Text>
                         <Text style={styles.infoCardValue}>
@@ -466,7 +466,7 @@ const HostGame = ({ navigation }) => {
                         <Ionicons
                           name="people-outline"
                           size={20}
-                          color="#3498db"
+                          color="#FF7675"
                         />
                         <Text style={styles.infoCardLabel}>Players</Text>
                         <Text style={styles.infoCardValue}>
@@ -480,7 +480,7 @@ const HostGame = ({ navigation }) => {
                             <Ionicons
                               name="cash-outline"
                               size={20}
-                              color="#3498db"
+                              color="#FF7675"
                             />
                             <Text style={styles.infoCardLabel}>Cost</Text>
                             <Text style={styles.infoCardValue}>
@@ -492,7 +492,7 @@ const HostGame = ({ navigation }) => {
                             <Ionicons
                               name="gift-outline"
                               size={20}
-                              color="#3498db"
+                              color="#FF7675"
                             />
                             <Text style={styles.infoCardLabel}>Type</Text>
                             <Text style={styles.infoCardValue}>Free</Text>
@@ -531,7 +531,7 @@ const HostGame = ({ navigation }) => {
                           <Ionicons
                             name="chatbubble-outline"
                             size={18}
-                            color="#3498db"
+                            color="#FF7675"
                           />
                           <Text style={styles.messageTitle}>Host Message</Text>
                         </View>
@@ -707,7 +707,7 @@ const HostGame = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3498db" />
+        <ActivityIndicator size="large" color="#FF7675" />
         <Text style={styles.loadingText}>Loading your games...</Text>
       </View>
     );
@@ -735,7 +735,7 @@ const HostGame = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#3498db" barStyle="light-content" />
+      <StatusBar backgroundColor="#FF7675" barStyle="light-content" />
 
       <View style={styles.header}>
         <View style={styles.headerContent}>
@@ -790,8 +790,8 @@ const HostGame = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#3498db"
-            colors={["#3498db"]}
+            tintColor="#FF7675"
+            colors={["#FF7675"]}
           />
         }
         contentContainerStyle={styles.scrollContent}
@@ -799,7 +799,7 @@ const HostGame = ({ navigation }) => {
         {filteredGames.length > 0 && (
           <View style={styles.statsContainer}>
             <View style={styles.statsCard}>
-              <Ionicons name="calendar-outline" size={24} color="#3498db" />
+              <Ionicons name="calendar-outline" size={24} color="#FF7675" />
               <Text style={styles.statsCount}>{filteredGames.length}</Text>
               <Text style={styles.statsLabel}>Total Games</Text>
             </View>
@@ -828,7 +828,7 @@ const HostGame = ({ navigation }) => {
             style={styles.patternsButton}
             onPress={() => navigation.navigate("HostGamePatterns")}
           >
-            <Ionicons name="grid-outline" size={16} color="#3498db" />
+            <Ionicons name="grid-outline" size={16} color="#FF7675" />
             <Text style={styles.patternsButtonText}>Patterns</Text>
           </TouchableOpacity>
         </View>
@@ -907,7 +907,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   header: {
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     paddingTop: 20,
     paddingBottom: 24,
     paddingHorizontal: 20,
@@ -984,7 +984,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -1043,7 +1043,7 @@ const styles = StyleSheet.create({
   patternsButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E6F0FF",
+    backgroundColor: "#FFEDED",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -1052,7 +1052,7 @@ const styles = StyleSheet.create({
   patternsButtonText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#3498db",
+    color: "#FF7675",
   },
   gameCard: {
     backgroundColor: "#FFF",
@@ -1164,7 +1164,7 @@ const styles = StyleSheet.create({
   viewDetailsText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#3498db",
+    color: "#FF7675",
   },
   emptyState: {
     alignItems: "center",
@@ -1207,12 +1207,12 @@ const styles = StyleSheet.create({
   emptyStateButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 16,
     gap: 8,
-    shadowColor: "#3498db",
+    shadowColor: "#FF7675",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -1275,12 +1275,12 @@ const styles = StyleSheet.create({
   retryButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 16,
     gap: 8,
-    shadowColor: "#3498db",
+    shadowColor: "#FF7675",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -1427,12 +1427,12 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   messageCard: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#FFEDED",
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "#FFD1D1",
   },
   messageHeader: {
     flexDirection: "row",
@@ -1443,7 +1443,7 @@ const styles = StyleSheet.create({
   messageTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#1E40AF",
+    color: "#FF7675",
   },
   messageText: {
     fontSize: 14,
@@ -1575,11 +1575,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#2196F3",
+    backgroundColor: "#FF7675",
     paddingVertical: 14,
     borderRadius: 12,
     gap: 8,
-    shadowColor: "#2196F3",
+    shadowColor: "#FF7675",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -1650,11 +1650,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#3498db",
+    backgroundColor: "#FF7675",
     paddingVertical: 14,
     borderRadius: 12,
     gap: 8,
-    shadowColor: "#3498db",
+    shadowColor: "#FF7675",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,

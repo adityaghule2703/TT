@@ -13,6 +13,7 @@ import {
   Modal,
   FlatList,
   Dimensions,
+  Alert,
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,9 +29,9 @@ const HostGameEdit = ({ navigation, route }) => {
   // Form States
   const [loading, setLoading] = useState(false);
   const [gameName, setGameName] = useState(game?.game_name || '');
-  const [gameDate, setGameDate] = useState(new Date(game?.game_date || new Date()));
+  const [gameDate, setGameDate] = useState(new Date());
   const [gameStartTime, setGameStartTime] = useState(new Date());
-  const [ticketRequestEndDate, setTicketRequestEndDate] = useState(new Date(game?.ticket_request_end_date || new Date()));
+  const [ticketRequestEndDate, setTicketRequestEndDate] = useState(new Date());
   const [ticketRequestEndTime, setTicketRequestEndTime] = useState(new Date());
   const [message, setMessage] = useState(game?.message || '');
   const [limitedTypeGame, setLimitedTypeGame] = useState(game?.limited_type_game || false);
@@ -61,24 +62,80 @@ const HostGameEdit = ({ navigation, route }) => {
   const [patternsModalType, setPatternsModalType] = useState('select');
   const [currentPatternForReward, setCurrentPatternForReward] = useState(null);
   const [editingReward, setEditingReward] = useState(null);
+  const [tempSelectedPatterns, setTempSelectedPatterns] = useState([]);
+  const [tempPatternRewards, setTempPatternRewards] = useState([]);
+  const [searchPatternTerm, setSearchPatternTerm] = useState('');
 
   // Toast Notification State
   const [toast, setToast] = useState({ visible: false, message: '', type: '' });
 
   // Parse time strings to Date objects
   useEffect(() => {
-    if (game?.game_start_time) {
-      const [hours, minutes] = game.game_start_time.split(':');
-      const timeDate = new Date();
-      timeDate.setHours(parseInt(hours), parseInt(minutes), 0);
-      setGameStartTime(timeDate);
-    }
-    
-    if (game?.ticket_request_end_time) {
-      const [hours, minutes] = game.ticket_request_end_time.split(':');
-      const timeDate = new Date();
-      timeDate.setHours(parseInt(hours), parseInt(minutes), 0);
-      setTicketRequestEndTime(timeDate);
+    if (game) {
+      // Parse game date
+      if (game.game_date) {
+        try {
+          // Handle different date formats
+          let parsedDate;
+          if (game.game_date.includes('-')) {
+            const [year, month, day] = game.game_date.split('-');
+            parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          } else if (game.game_date.includes('/')) {
+            const [day, month, year] = game.game_date.split('/');
+            parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          } else {
+            parsedDate = new Date(game.game_date);
+          }
+          setGameDate(parsedDate);
+        } catch (error) {
+          console.log('Error parsing game date:', error);
+          setGameDate(new Date());
+        }
+      }
+      
+      // Parse game start time
+      if (game.game_start_time) {
+        try {
+          const [hours, minutes] = game.game_start_time.split(':');
+          const timeDate = new Date();
+          timeDate.setHours(parseInt(hours), parseInt(minutes), 0);
+          setGameStartTime(timeDate);
+        } catch (error) {
+          console.log('Error parsing start time:', error);
+        }
+      }
+      
+      // Parse ticket request end date
+      if (game.ticket_request_end_date) {
+        try {
+          let parsedDate;
+          if (game.ticket_request_end_date.includes('-')) {
+            const [year, month, day] = game.ticket_request_end_date.split('-');
+            parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          } else if (game.ticket_request_end_date.includes('/')) {
+            const [day, month, year] = game.ticket_request_end_date.split('/');
+            parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          } else {
+            parsedDate = new Date(game.ticket_request_end_date);
+          }
+          setTicketRequestEndDate(parsedDate);
+        } catch (error) {
+          console.log('Error parsing end date:', error);
+          setTicketRequestEndDate(new Date());
+        }
+      }
+      
+      // Parse ticket request end time
+      if (game.ticket_request_end_time) {
+        try {
+          const [hours, minutes] = game.ticket_request_end_time.split(':');
+          const timeDate = new Date();
+          timeDate.setHours(parseInt(hours), parseInt(minutes), 0);
+          setTicketRequestEndTime(timeDate);
+        } catch (error) {
+          console.log('Error parsing end time:', error);
+        }
+      }
     }
 
     // Fetch available patterns
@@ -91,11 +148,13 @@ const HostGameEdit = ({ navigation, route }) => {
       // If patterns are already objects with full data
       if (Array.isArray(game.patterns) && game.patterns.length > 0) {
         setSelectedPatterns(game.patterns);
+        setTempSelectedPatterns(game.patterns);
       }
       
       // Load existing rewards
       if (Array.isArray(game.pattern_rewards) && game.pattern_rewards.length > 0) {
         setPatternRewards(game.pattern_rewards);
+        setTempPatternRewards(game.pattern_rewards);
       }
     }
   }, [game]);
@@ -168,6 +227,7 @@ const HostGameEdit = ({ navigation, route }) => {
             return pattern;
           });
           setSelectedPatterns(enhancedPatterns);
+          setTempSelectedPatterns(enhancedPatterns);
         }
         
         // Also try to load patterns from selected_patterns if patterns is not available
@@ -182,6 +242,13 @@ const HostGameEdit = ({ navigation, route }) => {
             .filter(pattern => pattern !== null);
           
           setSelectedPatterns(matchedPatterns);
+          setTempSelectedPatterns(matchedPatterns);
+        }
+        
+        // Load pattern rewards if available
+        if (game?.pattern_rewards && Array.isArray(game.pattern_rewards)) {
+          setPatternRewards(game.pattern_rewards);
+          setTempPatternRewards(game.pattern_rewards);
         }
       } else {
         throw new Error('Failed to fetch patterns');
@@ -195,6 +262,7 @@ const HostGameEdit = ({ navigation, route }) => {
   };
 
   const formatDate = (date) => {
+    if (!date) return 'Select date';
     return date.toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
@@ -202,11 +270,35 @@ const HostGameEdit = ({ navigation, route }) => {
   };
 
   const formatTime = (date) => {
+    if (!date) return 'Select time';
     return date.toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
     });
+  };
+
+  const validateDates = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // Create dates without time components for comparison
+    const selectedGameDate = new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate());
+    const requestEndDate = new Date(ticketRequestEndDate.getFullYear(), ticketRequestEndDate.getMonth(), ticketRequestEndDate.getDate());
+    
+    // Check if game date is in the past
+    if (selectedGameDate < today) {
+      showToast('Game date cannot be in the past', 'error');
+      return false;
+    }
+    
+    // Check if ticket request end date is after game date
+    if (requestEndDate > selectedGameDate) {
+      showToast('Ticket request end date should be before game date', 'error');
+      return false;
+    }
+    
+    return true;
   };
 
   const validateForm = () => {
@@ -263,7 +355,112 @@ const HostGameEdit = ({ navigation, route }) => {
     return true;
   };
 
+  // API calls for pattern management
+  const addPatternToGame = async (patternReward) => {
+    try {
+      const token = await AsyncStorage.getItem('hostToken');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.post(
+        `https://exilance.com/tambolatimez/public/api/host/patterns/game/${game.id}/add-single`,
+        {
+          pattern_id: patternReward.pattern_id,
+          reward_name: patternReward.reward_name,
+          description: patternReward.description || '',
+          amount: parseFloat(patternReward.amount),
+          reward_count: parseInt(patternReward.reward_count),
+          min_tickets_required: parseInt(patternReward.min_tickets_required)
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.log('Error adding pattern:', error);
+      throw error;
+    }
+  };
+
+  const updatePatternRewardsApi = async (patternRewardsToUpdate) => {
+    try {
+      const token = await AsyncStorage.getItem('hostToken');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.put(
+        `https://exilance.com/tambolatimez/public/api/host/patterns/game/${game.id}/update-rewards`,
+        {
+          pattern_rewards: patternRewardsToUpdate.map(reward => ({
+            pattern_id: reward.pattern_id,
+            reward_name: reward.reward_name,
+            description: reward.description || '',
+            amount: parseFloat(reward.amount),
+            reward_count: parseInt(reward.reward_count),
+            min_tickets_required: parseInt(reward.min_tickets_required)
+          }))
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.log('Error updating pattern rewards:', error);
+      throw error;
+    }
+  };
+
+  const removePatternFromGame = async (patternId) => {
+    try {
+      const token = await AsyncStorage.getItem('hostToken');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.delete(
+        `https://exilance.com/tambolatimez/public/api/host/patterns/game/${game.id}/remove`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          data: {
+            pattern_id: patternId
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.log('Error removing pattern:', error);
+      throw error;
+    }
+  };
+
   const updateGame = async () => {
+    // Validate dates first
+    if (!validateDates()) {
+      return;
+    }
+    
     if (!validateForm()) return;
 
     try {
@@ -274,12 +471,26 @@ const HostGameEdit = ({ navigation, route }) => {
         throw new Error('No authentication token found');
       }
 
+      // Format dates for API - use UTC to avoid timezone issues
+      const formatDateForAPI = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const formatTimeForAPI = (date) => {
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      };
+
       const gameData = {
         game_name: gameName.trim(),
-        game_date: gameDate.toISOString().split('T')[0],
-        game_start_time: gameStartTime.toTimeString().split(' ')[0].substring(0, 5),
-        ticket_request_end_date: ticketRequestEndDate.toISOString().split('T')[0],
-        ticket_request_end_time: ticketRequestEndTime.toTimeString().split(' ')[0].substring(0, 5),
+        game_date: formatDateForAPI(gameDate),
+        game_start_time: formatTimeForAPI(gameStartTime),
+        ticket_request_end_date: formatDateForAPI(ticketRequestEndDate),
+        ticket_request_end_time: formatTimeForAPI(ticketRequestEndTime),
         message: message.trim(),
         limited_type_game: limitedTypeGame,
         verified_phone_only: verifiedPhoneOnly,
@@ -293,16 +504,9 @@ const HostGameEdit = ({ navigation, route }) => {
         max_winners: parseInt(maxWinners),
         allow_sharing_claims: allowSharingClaims,
         set_reward_limit: setRewardLimit,
-        selected_patterns: selectedPatterns.map(p => p.id),
-        pattern_rewards: patternRewards.map(reward => ({
-          pattern_id: reward.pattern_id,
-          reward_name: reward.reward_name.trim(),
-          description: reward.description || reward.pattern_description || '',
-          amount: parseFloat(reward.amount),
-          reward_count: parseInt(reward.reward_count),
-          min_tickets_required: parseInt(reward.min_tickets_required)
-        })),
       };
+
+      console.log('Sending game data:', JSON.stringify(gameData, null, 2));
 
       const response = await axios.put(
         `https://exilance.com/tambolatimez/public/api/host/games/${game.id}`,
@@ -325,6 +529,9 @@ const HostGameEdit = ({ navigation, route }) => {
         response.data.data?.id;
 
       if (isSuccess) {
+        // Now handle pattern updates
+        await handlePatternUpdates();
+        
         // Show success toast
         showToast(response.data.message || 'Game updated successfully!', 'success');
         
@@ -340,13 +547,21 @@ const HostGameEdit = ({ navigation, route }) => {
       }
     } catch (error) {
       console.log('Error updating game:', error);
+      console.log('Error response data:', error.response?.data);
       
       let errorMessage = error.message || 'Failed to update game. Please try again.';
       
       if (error.response) {
-        errorMessage = error.response.data?.message || 
-                      error.response.data?.error || 
-                      `Server error: ${error.response.status}`;
+        // Handle specific field errors
+        if (error.response.data?.errors?.game_date) {
+          errorMessage = `Game date error: ${error.response.data.errors.game_date[0]}`;
+        } else if (error.response.data?.errors?.ticket_request_end_date) {
+          errorMessage = `End date error: ${error.response.data.errors.ticket_request_end_date[0]}`;
+        } else {
+          errorMessage = error.response.data?.message || 
+                        error.response.data?.error || 
+                        `Server error: ${error.response.status}`;
+        }
       } else if (error.request) {
         errorMessage = 'No response from server. Please check your connection.';
       }
@@ -357,46 +572,132 @@ const HostGameEdit = ({ navigation, route }) => {
     }
   };
 
-  // PATTERN FUNCTIONS
+  const handlePatternUpdates = async () => {
+    try {
+      // Find patterns to add (in temp but not in selected)
+      const patternsToAdd = tempSelectedPatterns.filter(tempPattern => 
+        !selectedPatterns.some(selectedPattern => selectedPattern.id === tempPattern.id)
+      );
+      
+      // Find patterns to remove (in selected but not in temp)
+      const patternsToRemove = selectedPatterns.filter(selectedPattern => 
+        !tempSelectedPatterns.some(tempPattern => tempPattern.id === selectedPattern.id)
+      );
+      
+      // Find patterns that exist in both (for updates)
+      const existingPatterns = selectedPatterns.filter(selectedPattern => 
+        tempSelectedPatterns.some(tempPattern => tempPattern.id === selectedPattern.id)
+      );
+
+      // For existing patterns, check if rewards changed
+      const patternsToUpdate = [];
+      for (const existingPattern of existingPatterns) {
+        const tempReward = tempPatternRewards.find(r => r.pattern_id === existingPattern.id);
+        const selectedReward = patternRewards.find(r => r.pattern_id === existingPattern.id);
+        
+        // If there's a reward in temp but not in selected, it's a new reward
+        if (tempReward && !selectedReward) {
+          patternsToUpdate.push(tempReward);
+        } 
+        // If there's a reward in both, check if it changed
+        else if (tempReward && selectedReward) {
+          const hasChanged = 
+            tempReward.reward_name !== selectedReward.reward_name ||
+            tempReward.description !== (selectedReward.description || '') ||
+            parseFloat(tempReward.amount) !== parseFloat(selectedReward.amount) ||
+            parseInt(tempReward.reward_count) !== parseInt(selectedReward.reward_count) ||
+            parseInt(tempReward.min_tickets_required) !== parseInt(selectedReward.min_tickets_required);
+          
+          if (hasChanged) {
+            patternsToUpdate.push(tempReward);
+          }
+        }
+      }
+
+      console.log('Patterns to add:', patternsToAdd);
+      console.log('Patterns to remove:', patternsToRemove);
+      console.log('Patterns to update:', patternsToUpdate);
+
+      // Add new patterns
+      for (const pattern of patternsToAdd) {
+        const reward = tempPatternRewards.find(r => r.pattern_id === pattern.id);
+        if (reward) {
+          const response = await addPatternToGame(reward);
+          console.log('Add pattern response:', response);
+          if (response.status || response.success) {
+            showToast(`Pattern "${pattern.pattern_name}" added successfully`, 'success');
+          } else {
+            throw new Error(response.message || `Failed to add pattern "${pattern.pattern_name}"`);
+          }
+        }
+      }
+      
+      // Update existing patterns if any changed
+      if (patternsToUpdate.length > 0) {
+        const response = await updatePatternRewardsApi(patternsToUpdate);
+        console.log('Update pattern rewards response:', response);
+        if (response.status || response.success) {
+          showToast('Pattern rewards updated successfully', 'success');
+        } else {
+          throw new Error(response.message || 'Failed to update pattern rewards');
+        }
+      }
+      
+      // Remove patterns
+      for (const pattern of patternsToRemove) {
+        const response = await removePatternFromGame(pattern.id);
+        console.log('Remove pattern response:', response);
+        if (response.status || response.success) {
+          showToast(`Pattern "${pattern.pattern_name}" removed successfully`, 'success');
+        } else {
+          throw new Error(response.message || `Failed to remove pattern "${pattern.pattern_name}"`);
+        }
+      }
+      
+      // Update local state
+      setSelectedPatterns([...tempSelectedPatterns]);
+      setPatternRewards([...tempPatternRewards]);
+      
+    } catch (error) {
+      console.log('Error updating patterns:', error);
+      showToast(error.message || 'Failed to update patterns', 'error');
+      throw error;
+    }
+  };
+
+  // PATTERN FUNCTIONS (using temp state for modal)
   const handlePatternSelect = (pattern) => {
-    setSelectedPatterns(prev => {
+    setTempSelectedPatterns(prev => {
       const isSelected = prev.some(p => p.id === pattern.id);
       
       if (isSelected) {
-        // Remove pattern
-        setPatternRewards(prevRewards => 
+        // Remove pattern and its reward
+        const updatedPatterns = prev.filter(p => p.id !== pattern.id);
+        setTempPatternRewards(prevRewards => 
           prevRewards.filter(reward => reward.pattern_id !== pattern.id)
         );
-        return prev.filter(p => p.id !== pattern.id);
+        return updatedPatterns;
       } else {
         // Add pattern with default reward
-        const existingReward = patternRewards.find(r => r.pattern_id === pattern.id);
+        const newReward = {
+          pattern_id: pattern.id,
+          pattern_name: pattern.pattern_name,
+          pattern_description: pattern.description,
+          reward_name: pattern.pattern_name.replace(/_/g, ' ') + ' Prize',
+          description: pattern.description || '',
+          amount: '100',
+          reward_count: '1',
+          min_tickets_required: '1'
+        };
         
-        if (existingReward) {
-          // Pattern already has a reward, keep it
-          return [...prev, pattern];
-        } else {
-          // Add new reward with defaults
-          const newReward = {
-            pattern_id: pattern.id,
-            pattern_name: pattern.pattern_name,
-            pattern_description: pattern.description,
-            reward_name: pattern.pattern_name.replace(/_/g, ' ') + ' Prize',
-            description: pattern.description,
-            amount: '100',
-            reward_count: '1',
-            min_tickets_required: '1'
-          };
-          
-          setPatternRewards(prev => [...prev, newReward]);
-          return [...prev, pattern];
-        }
+        setTempPatternRewards(prev => [...prev, newReward]);
+        return [...prev, pattern];
       }
     });
   };
 
   const updatePatternReward = (patternId, field, value) => {
-    setPatternRewards(prev => 
+    setTempPatternRewards(prev => 
       prev.map(reward => 
         reward.pattern_id === patternId 
           ? { ...reward, [field]: value }
@@ -408,7 +709,6 @@ const HostGameEdit = ({ navigation, route }) => {
   const openRewardModal = (pattern) => {
     setCurrentPatternForReward(pattern);
     setPatternsModalType('rewards');
-    setPatternsModalVisible(true);
   };
 
   const openInlineRewardEdit = (pattern) => {
@@ -419,8 +719,24 @@ const HostGameEdit = ({ navigation, route }) => {
     setEditingReward(null);
   };
 
+  const openPatternsModal = () => {
+    // Copy current state to temp state for modal
+    setTempSelectedPatterns([...selectedPatterns]);
+    setTempPatternRewards([...patternRewards]);
+    setPatternsModalType('select');
+    setPatternsModalVisible(true);
+  };
+
+  const savePatternChanges = () => {
+    // Save temp state to actual state
+    setSelectedPatterns(tempSelectedPatterns);
+    setPatternRewards(tempPatternRewards);
+    setPatternsModalVisible(false);
+    showToast('Pattern changes saved locally. Click "Update Game" to apply changes.', 'success');
+  };
+
   const renderPatternItem = ({ item }) => {
-    const isSelected = selectedPatterns.some(p => p.id === item.id);
+    const isSelected = tempSelectedPatterns.some(p => p.id === item.id);
     
     return (
       <TouchableOpacity
@@ -525,14 +841,35 @@ const HostGameEdit = ({ navigation, route }) => {
                 </TouchableOpacity>
               </View>
 
+              <View style={styles.searchContainer}>
+                <View style={styles.searchInputContainer}>
+                  <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search patterns..."
+                    value={searchPatternTerm}
+                    onChangeText={setSearchPatternTerm}
+                    placeholderTextColor="#999"
+                  />
+                  {searchPatternTerm.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchPatternTerm('')}>
+                      <Ionicons name="close-circle" size={20} color="#999" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
               {loadingPatterns ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#3498db" />
+                  <ActivityIndicator size="large" color="#FF7675" />
                   <Text style={styles.loadingText}>Loading patterns...</Text>
                 </View>
               ) : (
                 <FlatList
-                  data={patternsList}
+                  data={patternsList.filter(pattern => 
+                    pattern.pattern_name.toLowerCase().includes(searchPatternTerm.toLowerCase()) ||
+                    pattern.description.toLowerCase().includes(searchPatternTerm.toLowerCase())
+                  )}
                   renderItem={renderPatternItem}
                   keyExtractor={item => item.id.toString()}
                   contentContainerStyle={styles.patternsGrid}
@@ -541,7 +878,9 @@ const HostGameEdit = ({ navigation, route }) => {
                   ListEmptyComponent={
                     <View style={styles.emptyPatterns}>
                       <Ionicons name="grid-outline" size={60} color="#CCC" />
-                      <Text style={styles.emptyPatternsText}>No patterns available</Text>
+                      <Text style={styles.emptyPatternsText}>
+                        {searchPatternTerm ? 'No patterns match your search' : 'No patterns available'}
+                      </Text>
                     </View>
                   }
                 />
@@ -550,15 +889,26 @@ const HostGameEdit = ({ navigation, route }) => {
               <View style={styles.modalFooter}>
                 <View style={styles.selectionInfo}>
                   <Text style={styles.selectionCount}>
-                    {selectedPatterns.length} pattern(s) selected
+                    {tempSelectedPatterns.length} pattern(s) selected
+                  </Text>
+                  <Text style={styles.selectionNote}>
+                    Changes will be applied when you click "Update Game"
                   </Text>
                 </View>
-                <TouchableOpacity 
-                  style={styles.doneButton}
-                  onPress={() => setPatternsModalVisible(false)}
-                >
-                  <Text style={styles.doneButtonText}>Continue</Text>
-                </TouchableOpacity>
+                <View style={styles.modalFooterButtons}>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => setPatternsModalVisible(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.saveButton]}
+                    onPress={savePatternChanges}
+                  >
+                    <Text style={styles.saveButtonText}>Save Patterns</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </>
           ) : (
@@ -574,7 +924,6 @@ const HostGameEdit = ({ navigation, route }) => {
                   style={styles.closeButton}
                   onPress={() => {
                     setPatternsModalType('select');
-                    setPatternsModalVisible(false);
                   }}
                 >
                   <Ionicons name="close" size={24} color="#666" />
@@ -596,7 +945,7 @@ const HostGameEdit = ({ navigation, route }) => {
                         <TextInput
                           style={styles.input}
                           value={
-                            patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.reward_name || ''
+                            tempPatternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.reward_name || ''
                           }
                           onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'reward_name', value)}
                           placeholder="e.g., First Line Prize"
@@ -608,7 +957,7 @@ const HostGameEdit = ({ navigation, route }) => {
                         <TextInput
                           style={[styles.input, styles.textArea]}
                           value={
-                            patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.description || ''
+                            tempPatternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.description || ''
                           }
                           onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'description', value)}
                           placeholder="Describe this reward"
@@ -627,7 +976,7 @@ const HostGameEdit = ({ navigation, route }) => {
                           <TextInput
                             style={styles.input}
                             value={
-                              patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.amount || ''
+                              tempPatternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.amount || ''
                             }
                             onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'amount', value)}
                             keyboardType="numeric"
@@ -640,7 +989,7 @@ const HostGameEdit = ({ navigation, route }) => {
                           <TextInput
                             style={styles.input}
                             value={
-                              patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.reward_count || ''
+                              tempPatternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.reward_count || ''
                             }
                             onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'reward_count', value)}
                             keyboardType="numeric"
@@ -654,7 +1003,7 @@ const HostGameEdit = ({ navigation, route }) => {
                         <TextInput
                           style={styles.input}
                           value={
-                            patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.min_tickets_required || ''
+                            tempPatternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.min_tickets_required || ''
                           }
                           onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'min_tickets_required', value)}
                           keyboardType="numeric"
@@ -668,13 +1017,13 @@ const HostGameEdit = ({ navigation, route }) => {
 
               <View style={styles.modalFooter}>
                 <TouchableOpacity 
-                  style={[styles.doneButton, styles.saveButton]}
+                  style={[styles.modalButton, styles.saveButton]}
                   onPress={() => {
                     setPatternsModalType('select');
-                    setPatternsModalVisible(false);
+                    showToast('Reward configuration saved', 'success');
                   }}
                 >
-                  <Text style={styles.doneButtonText}>Save Reward</Text>
+                  <Text style={styles.saveButtonText}>Save Reward</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -683,6 +1032,35 @@ const HostGameEdit = ({ navigation, route }) => {
       </View>
     </Modal>
   );
+
+  // Handle date picker changes
+  const handleGameDateChange = (event, date) => {
+    setShowGameDatePicker(false);
+    if (date) {
+      setGameDate(date);
+    }
+  };
+
+  const handleGameTimeChange = (event, date) => {
+    setShowGameTimePicker(false);
+    if (date) {
+      setGameStartTime(date);
+    }
+  };
+
+  const handleEndDateChange = (event, date) => {
+    setShowEndDatePicker(false);
+    if (date) {
+      setTicketRequestEndDate(date);
+    }
+  };
+
+  const handleEndTimeChange = (event, date) => {
+    setShowEndTimePicker(false);
+    if (date) {
+      setTicketRequestEndTime(date);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -829,138 +1207,6 @@ const HostGameEdit = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Game Configuration Card */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIcon, { backgroundColor: '#E6F7E9' }]}>
-              <Ionicons name="settings" size={20} color="#4CAF50" />
-            </View>
-            <Text style={styles.sectionTitle}>Game Configuration</Text>
-          </View>
-          
-          <View style={styles.row}>
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Ticket Type *</Text>
-              <View style={styles.optionButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    ticketType === 'free' && styles.optionButtonActive
-                  ]}
-                  onPress={() => setTicketType('free')}
-                >
-                  <Ionicons 
-                    name="gift" 
-                    size={16} 
-                    color={ticketType === 'free' ? '#FFF' : '#666'} 
-                  />
-                  <Text style={[
-                    styles.optionButtonText,
-                    ticketType === 'free' && styles.optionButtonTextActive
-                  ]}>
-                    Free
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    ticketType === 'paid' && styles.optionButtonActive
-                  ]}
-                  onPress={() => setTicketType('paid')}
-                >
-                  <Ionicons 
-                    name="cash" 
-                    size={16} 
-                    color={ticketType === 'paid' ? '#FFF' : '#666'} 
-                  />
-                  <Text style={[
-                    styles.optionButtonText,
-                    ticketType === 'paid' && styles.optionButtonTextActive
-                  ]}>
-                    Paid
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Reward Type *</Text>
-              <TouchableOpacity
-                style={styles.fixedOptionButton}
-              >
-                <Ionicons name="trophy" size={16} color="#666" />
-                <Text style={styles.fixedOptionText}>
-                  Fixed
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          
-          {ticketType === 'paid' && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Ticket Cost (₹) *</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="logo-rupee" size={20} color="#666" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={ticketCost}
-                  onChangeText={setTicketCost}
-                  keyboardType="numeric"
-                  placeholder="Enter ticket price"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-          )}
-          
-          <View style={styles.row}>
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Max Players *</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="people" size={20} color="#666" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={maxPlayers}
-                  onChangeText={setMaxPlayers}
-                  keyboardType="numeric"
-                  placeholder="100"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-            
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Max Tickets *</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="ticket" size={20} color="#666" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={maxTickets}
-                  onChangeText={setMaxTickets}
-                  keyboardType="numeric"
-                  placeholder="200"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-          </View>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Max Winners *</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="trophy" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={maxWinners}
-                onChangeText={setMaxWinners}
-                keyboardType="numeric"
-                placeholder="10"
-                placeholderTextColor="#999"
-              />
-            </View>
-          </View>
-        </View>
-
         {/* Game Options Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -1005,12 +1251,9 @@ const HostGameEdit = ({ navigation, route }) => {
             </View>
             <TouchableOpacity
               style={styles.selectPatternsButton}
-              onPress={() => {
-                setPatternsModalType('select');
-                setPatternsModalVisible(true);
-              }}
+              onPress={openPatternsModal}
             >
-              <Ionicons name="add-circle" size={16} color="#3498db" />
+              <Ionicons name="add-circle" size={16} color="#FF7675" />
               <Text style={styles.selectPatternsText}>
                 {selectedPatterns.length > 0 ? 'Edit Patterns' : 'Select Patterns'}
               </Text>
@@ -1168,6 +1411,9 @@ const HostGameEdit = ({ navigation, route }) => {
                 <Text style={styles.selectionSummaryText}>
                   🎯 {selectedPatterns.length} pattern(s) selected
                 </Text>
+                <Text style={styles.selectionSummaryNote}>
+                  Edit patterns to add/remove or modify rewards
+                </Text>
               </View>
             </>
           ) : (
@@ -1206,10 +1452,8 @@ const HostGameEdit = ({ navigation, route }) => {
           value={gameDate}
           mode="date"
           display="default"
-          onChange={(event, date) => {
-            setShowGameDatePicker(false);
-            if (date) setGameDate(date);
-          }}
+          onChange={handleGameDateChange}
+          minimumDate={new Date()} // Prevent selecting past dates
         />
       )}
       
@@ -1218,10 +1462,7 @@ const HostGameEdit = ({ navigation, route }) => {
           value={gameStartTime}
           mode="time"
           display="default"
-          onChange={(event, date) => {
-            setShowGameTimePicker(false);
-            if (date) setGameStartTime(date);
-          }}
+          onChange={handleGameTimeChange}
         />
       )}
       
@@ -1230,10 +1471,9 @@ const HostGameEdit = ({ navigation, route }) => {
           value={ticketRequestEndDate}
           mode="date"
           display="default"
-          onChange={(event, date) => {
-            setShowEndDatePicker(false);
-            if (date) setTicketRequestEndDate(date);
-          }}
+          onChange={handleEndDateChange}
+          minimumDate={new Date()} // Prevent selecting past dates
+          maximumDate={gameDate} // End date can't be after game date
         />
       )}
       
@@ -1242,10 +1482,7 @@ const HostGameEdit = ({ navigation, route }) => {
           value={ticketRequestEndTime}
           mode="time"
           display="default"
-          onChange={(event, date) => {
-            setShowEndTimePicker(false);
-            if (date) setTicketRequestEndTime(date);
-          }}
+          onChange={handleEndTimeChange}
         />
       )}
 
@@ -1422,8 +1659,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   optionButtonActive: {
-    backgroundColor: '#3498db',
-    borderColor: '#3498db',
+    backgroundColor: '#FF7675',
+    borderColor: '#FF7675',
   },
   optionButtonText: {
     fontSize: 13,
@@ -1482,7 +1719,7 @@ const styles = StyleSheet.create({
   selectPatternsText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#3498db',
+    color: '#FF7675',
   },
   selectedPatternsList: {
     marginBottom: 16,
@@ -1591,7 +1828,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2196F3',
   },
-  // Inline Edit Styles
   inlineInputGroup: {
     marginBottom: 12,
   },
@@ -1650,7 +1886,13 @@ const styles = StyleSheet.create({
   selectionSummaryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3498db',
+    color: '#FF7675',
+  },
+  selectionSummaryNote: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    textAlign: 'center',
   },
   noPatterns: {
     alignItems: 'center',
@@ -1695,7 +1937,6 @@ const styles = StyleSheet.create({
   bottomSpace: {
     height: 20,
   },
-  // Toast Styles
   toast: {
     position: 'absolute',
     top: 50,
@@ -1719,7 +1960,6 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     flex: 1,
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1757,6 +1997,30 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: '#FFF',
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#333',
   },
   loadingContainer: {
     padding: 40,
@@ -1837,6 +2101,32 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
   },
+  modalFooterButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#E0E0E0',
+  },
+  saveButton: {
+    backgroundColor: '#4CAF50',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   selectionInfo: {
     alignItems: 'center',
     marginBottom: 12,
@@ -1846,19 +2136,11 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '600',
   },
-  doneButton: {
-    backgroundColor: '#3498db',
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButton: {
-    backgroundColor: '#4CAF50',
-  },
-  doneButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
+  selectionNote: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+    textAlign: 'center',
   },
   modalBody: {
     flex: 1,

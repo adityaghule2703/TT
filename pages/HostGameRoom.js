@@ -16,7 +16,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -31,15 +30,11 @@ const HostGameRoom = ({ navigation, route }) => {
   const [gameStatus, setGameStatus] = useState(null);
   const [calledNumbers, setCalledNumbers] = useState([]);
   const [numberCallingStatus, setNumberCallingStatus] = useState(null);
-  const [timer, setTimer] = useState(60);
-  const [nextCallTime, setNextCallTime] = useState(null);
   const [initializing, setInitializing] = useState(false);
   const [startingAutoMode, setStartingAutoMode] = useState(false);
   const [pausing, setPausing] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [callingManual, setCallingManual] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalNumber, setModalNumber] = useState(null);
   const [intervalModalVisible, setIntervalModalVisible] = useState(false);
   const [intervalSeconds, setIntervalSeconds] = useState("60");
   
@@ -47,18 +42,8 @@ const HostGameRoom = ({ navigation, route }) => {
   const [participantCount, setParticipantCount] = useState(0);
   const [isChatJoined, setIsChatJoined] = useState(false);
   
-  const timerInterval = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const numberAnim = useRef(new Animated.Value(0)).current;
   const manualButtonAnim = useRef(new Animated.Value(1)).current;
-  const lastFetchTime = useRef(null);
-
-  // Chat Icons
-  const CHAT_ICONS = {
-    chat: "https://cdn-icons-png.flaticon.com/512/1041/1041916.png",
-    users: "https://cdn-icons-png.flaticon.com/512/1077/1077114.png",
-    message: "https://cdn-icons-png.flaticon.com/512/134/134914.png",
-  };
 
   useEffect(() => {
     fetchGameStatus();
@@ -71,22 +56,8 @@ const HostGameRoom = ({ navigation, route }) => {
     return () => {
       clearInterval(statusInterval);
       clearInterval(chatStatusInterval);
-      if (timerInterval.current) {
-        clearInterval(timerInterval.current);
-      }
     };
   }, []);
-
-  useEffect(() => {
-    if (numberCallingStatus?.is_running && !numberCallingStatus?.is_paused) {
-      startTimer();
-    } else {
-      if (timerInterval.current) {
-        clearInterval(timerInterval.current);
-        timerInterval.current = null;
-      }
-    }
-  }, [numberCallingStatus]);
 
   const checkChatStatus = async () => {
     try {
@@ -140,7 +111,6 @@ const HostGameRoom = ({ navigation, route }) => {
       }
     } catch (error) {
       console.log("Error joining chat:", error);
-      alert("Failed to join chat");
     }
   };
 
@@ -189,24 +159,6 @@ const HostGameRoom = ({ navigation, route }) => {
     ]).start();
   };
 
-  const startTimer = () => {
-    if (timerInterval.current) {
-      clearInterval(timerInterval.current);
-    }
-
-    setTimer(60);
-
-    timerInterval.current = setInterval(() => {
-      setTimer((prevTimer) => {
-        if (prevTimer <= 1) {
-          fetchGameStatus();
-          return 60;
-        }
-        return prevTimer - 1;
-      });
-    }, 1000);
-  };
-
   const fetchGameStatus = async () => {
     try {
       const token = await AsyncStorage.getItem("hostToken");
@@ -226,17 +178,6 @@ const HostGameRoom = ({ navigation, route }) => {
         setGameStatus(data.game);
         setNumberCallingStatus(data.calling);
         setCalledNumbers(data.numbers.called_numbers || []);
-        
-        if (data.calling?.is_running && !data.calling?.is_paused) {
-          lastFetchTime.current = Date.now();
-          
-          if (!timerInterval.current) {
-            startTimer();
-          } else {
-            setTimer(60);
-          }
-        }
-        
         setLoading(false);
       }
     } catch (error) {
@@ -269,21 +210,6 @@ const HostGameRoom = ({ navigation, route }) => {
         
         // Update called numbers list
         setCalledNumbers(prev => [...prev, calledNumber]);
-        
-        // Show success message with the called number
-        Alert.alert(
-          "Number Called!",
-          `Number ${calledNumber} has been called successfully.`,
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                // Show the called number in modal
-                showNumberModal(calledNumber);
-              }
-            }
-          ]
-        );
         
         // Refresh game status to get updated data
         fetchGameStatus();
@@ -324,7 +250,6 @@ const HostGameRoom = ({ navigation, route }) => {
       );
 
       if (response.data.success) {
-        Alert.alert("Success", "Number calling initialized successfully!");
         setIntervalModalVisible(false);
         fetchGameStatus();
       } else {
@@ -363,7 +288,6 @@ const HostGameRoom = ({ navigation, route }) => {
       );
 
       if (response.data.success) {
-        Alert.alert("Success", "Auto number calling started!");
         fetchGameStatus();
       } else {
         throw new Error("Failed to start auto number calling");
@@ -396,13 +320,6 @@ const HostGameRoom = ({ navigation, route }) => {
       );
 
       if (response.data.success) {
-        Alert.alert("Success", "Number calling paused!");
-        
-        if (timerInterval.current) {
-          clearInterval(timerInterval.current);
-          timerInterval.current = null;
-        }
-        
         fetchGameStatus();
       } else {
         throw new Error("Failed to pause number calling");
@@ -435,12 +352,6 @@ const HostGameRoom = ({ navigation, route }) => {
       );
 
       if (response.data.success) {
-        Alert.alert("Success", "Number calling resumed!");
-        
-        if (numberCallingStatus?.is_initialized && !timerInterval.current) {
-          startTimer();
-        }
-        
         fetchGameStatus();
       } else {
         throw new Error("Failed to resume number calling");
@@ -456,24 +367,18 @@ const HostGameRoom = ({ navigation, route }) => {
     }
   };
 
-  const showNumberModal = (number) => {
-    setModalNumber(number);
-    setModalVisible(true);
-    
-    numberAnim.setValue(0);
-    Animated.spring(numberAnim, {
-      toValue: 1,
-      friction: 8,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
-  };
-
   const navigateToCalledNumbers = () => {
     navigation.navigate("HostCalledNumbers", {
       gameId: gameId,
       gameName: gameName,
       calledNumbers: calledNumbers,
+    });
+  };
+
+  const navigateToClaimRequests = () => {
+    navigation.navigate("HostClaimRequests", {
+      gameId: gameId,
+      gameName: gameName,
     });
   };
 
@@ -483,14 +388,12 @@ const HostGameRoom = ({ navigation, route }) => {
       const isCalled = calledNumbers.includes(i);
       
       numbers.push(
-        <TouchableOpacity
+        <View
           key={i}
           style={[
             styles.numberCell,
             isCalled && styles.calledNumberCell,
           ]}
-          onPress={() => showNumberModal(i)}
-          activeOpacity={0.7}
         >
           <Text style={[
             styles.numberText,
@@ -498,7 +401,7 @@ const HostGameRoom = ({ navigation, route }) => {
           ]}>
             {i}
           </Text>
-        </TouchableOpacity>
+        </View>
       );
     }
 
@@ -545,17 +448,6 @@ const HostGameRoom = ({ navigation, route }) => {
               />
             </View>
             
-            <Text style={styles.intervalHint}>
-              Note: Currently backend uses fixed 60 seconds interval regardless of input.
-            </Text>
-            
-            <View style={styles.intervalExamples}>
-              <View style={styles.intervalExample}>
-                <Ionicons name="time-outline" size={16} color="#FF9800" />
-                <Text style={styles.intervalExampleText}>Current: 60 seconds</Text>
-              </View>
-            </View>
-            
             <TouchableOpacity
               style={[
                 styles.modalButton,
@@ -578,71 +470,6 @@ const HostGameRoom = ({ navigation, route }) => {
           </View>
         </View>
       </KeyboardAvoidingView>
-    </Modal>
-  );
-
-  const NumberModal = () => (
-    <Modal
-      visible={modalVisible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={() => setModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <TouchableOpacity
-            style={styles.modalCloseArea}
-            onPress={() => setModalVisible(false)}
-            activeOpacity={1}
-          >
-            <View style={styles.modalContent}>
-              <Animated.View style={[
-                styles.modalNumberContainer,
-                {
-                  transform: [
-                    { scale: numberAnim },
-                    { rotate: numberAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0deg', '360deg']
-                    })}
-                  ]
-                }
-              ]}>
-                <Text style={styles.modalNumber}>
-                  {modalNumber}
-                </Text>
-              </Animated.View>
-              
-              <Text style={styles.modalTitle}>
-                {calledNumbers.includes(modalNumber) ? 'Called Number' : 'Available Number'}
-              </Text>
-              
-              <View style={styles.modalStats}>
-                <View style={styles.modalStat}>
-                  <Ionicons name="checkmark-circle" size={20} color={calledNumbers.includes(modalNumber) ? "#4CAF50" : "#9CA3AF"} />
-                  <Text style={styles.modalStatText}>
-                    {calledNumbers.includes(modalNumber) ? 'Called' : 'Not Called'}
-                  </Text>
-                </View>
-                
-                <View style={styles.modalStat}>
-                  <Ionicons name="time-outline" size={20} color="#FF9800" />
-                  <Text style={styles.modalStatText}>
-                    Position: {modalNumber}
-                  </Text>
-                </View>
-              </View>
-              
-              <TouchableOpacity
-                style={styles.modalCloseButton}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.modalCloseButtonText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
     </Modal>
   );
 
@@ -676,14 +503,12 @@ const HostGameRoom = ({ navigation, route }) => {
           <Text style={styles.headerSubtitle}>Game Room</Text>
         </View>
         
+        {/* Replace refresh button with claim requests button */}
         <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={() => {
-            fetchGameStatus();
-            checkChatStatus();
-          }}
+          style={styles.claimRequestsButton}
+          onPress={navigateToClaimRequests}
         >
-          <Ionicons name="refresh" size={20} color="#FFF" />
+          <Ionicons name="checkmark-done-outline" size={20} color="#FFF" />
         </TouchableOpacity>
       </View>
 
@@ -733,12 +558,6 @@ const HostGameRoom = ({ navigation, route }) => {
             </View>
             
             <View style={styles.statItem}>
-              <Ionicons name="time-outline" size={20} color="#FF9800" />
-              <Text style={styles.statValue}>{timer}s</Text>
-              <Text style={styles.statLabel}>Next Call</Text>
-            </View>
-            
-            <View style={styles.statItem}>
               <Ionicons name="chatbubble-outline" size={20} color="#25D366" />
               <Text style={styles.statValue}>{participantCount}</Text>
               <Text style={styles.statLabel}>In Chat</Text>
@@ -783,9 +602,9 @@ const HostGameRoom = ({ navigation, route }) => {
                 </Text>
               </View>
               <View style={styles.manualCallInfoItem}>
-                <Ionicons name="time-outline" size={16} color="#FF9800" />
+                <Ionicons name="power" size={16} color={isRunning && !isPaused ? "#4CAF50" : "#FF9800"} />
                 <Text style={styles.manualCallInfoText}>
-                  Auto Timer: {isRunning && !isPaused ? `${timer}s` : 'Paused'}
+                  Auto Mode: {isRunning && !isPaused ? 'Active' : 'Inactive'}
                 </Text>
               </View>
             </View>
@@ -827,7 +646,7 @@ const HostGameRoom = ({ navigation, route }) => {
               <Text style={styles.controlTitle}>Initialize Number Calling</Text>
             </View>
             <Text style={styles.controlDescription}>
-              Initialize the number calling system to start calling numbers automatically with 60 seconds interval.
+              Initialize the number calling system to start calling numbers automatically.
             </Text>
             <TouchableOpacity
               style={[
@@ -857,13 +676,8 @@ const HostGameRoom = ({ navigation, route }) => {
               <Text style={styles.controlTitle}>Auto Number Calling Active</Text>
             </View>
             <Text style={styles.controlDescription}>
-              Auto number calling is running. Next number in {timer} seconds.
-              {"\n"}Timer: {timer}s / 60s
+              Auto number calling is running. Numbers are being called automatically.
             </Text>
-            <View style={styles.timerDisplay}>
-              <Ionicons name="time" size={20} color="#FF9800" />
-              <Text style={styles.timerText}>{timer}s</Text>
-            </View>
             <TouchableOpacity
               style={[styles.controlButton, styles.pauseButton, pausing && styles.controlButtonDisabled]}
               onPress={pauseNumberCalling}
@@ -887,12 +701,7 @@ const HostGameRoom = ({ navigation, route }) => {
             </View>
             <Text style={styles.controlDescription}>
               Auto number calling is currently paused. Tap resume to continue calling numbers automatically.
-              {"\n"}Interval: 60 seconds
             </Text>
-            <View style={[styles.timerDisplay, styles.pausedTimerDisplay]}>
-              <Ionicons name="pause-circle" size={20} color="#FF5722" />
-              <Text style={[styles.timerText, styles.pausedTimerText]}>PAUSED</Text>
-            </View>
             <TouchableOpacity
               style={[styles.controlButton, styles.resumeButton, resuming && styles.controlButtonDisabled]}
               onPress={resumeNumberCalling}
@@ -915,7 +724,7 @@ const HostGameRoom = ({ navigation, route }) => {
               <Text style={styles.controlTitle}>Start Auto Number Calling</Text>
             </View>
             <Text style={styles.controlDescription}>
-              Start automatic number calling with 60 seconds intervals.
+              Start automatic number calling with configured intervals.
             </Text>
             <TouchableOpacity
               style={[
@@ -946,27 +755,22 @@ const HostGameRoom = ({ navigation, route }) => {
               <Text style={styles.lastCalledTitle}>Last Called Number</Text>
             </View>
             
-            <TouchableOpacity
-              style={styles.lastNumberContainer}
-              onPress={() => showNumberModal(calledNumbers[calledNumbers.length - 1])}
-              activeOpacity={0.8}
-            >
+            <View style={styles.lastNumberContainer}>
               <Text style={styles.lastNumber}>
                 {calledNumbers[calledNumbers.length - 1]}
               </Text>
-            </TouchableOpacity>
+            </View>
             
             <View style={styles.calledSequence}>
               <Text style={styles.calledSequenceTitle}>Recently Called:</Text>
               <View style={styles.calledSequenceNumbers}>
                 {calledNumbers.slice(-5).reverse().map((num, index) => (
-                  <TouchableOpacity
+                  <View
                     key={index}
                     style={styles.sequenceNumber}
-                    onPress={() => showNumberModal(num)}
                   >
                     <Text style={styles.sequenceNumberText}>{num}</Text>
-                  </TouchableOpacity>
+                  </View>
                 ))}
               </View>
               
@@ -996,7 +800,7 @@ const HostGameRoom = ({ navigation, route }) => {
           {renderNumberGrid()}
           
           <Text style={styles.numbersHint}>
-            Tap on any number to view details. Called numbers are highlighted in green.
+            Called numbers are highlighted in green.
           </Text>
         </View>
 
@@ -1031,18 +835,6 @@ const HostGameRoom = ({ navigation, route }) => {
             <Ionicons name="list-outline" size={20} color="#FFF" />
             <Text style={styles.actionButtonText}>Called Numbers</Text>
           </TouchableOpacity>
-          
-          {/* Add this new button for Claim Requests */}
-          <TouchableOpacity
-            style={[styles.actionButton, styles.quaternaryAction]}
-            onPress={() => navigation.navigate("HostClaimRequests", {
-              gameId: gameId,
-              gameName: gameName,
-            })}
-          >
-            <Ionicons name="checkmark-done-outline" size={20} color="#FFF" />
-            <Text style={styles.actionButtonText}>Claim Requests</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.refreshHint}>
@@ -1073,7 +865,6 @@ const HostGameRoom = ({ navigation, route }) => {
       </TouchableOpacity>
 
       <IntervalModal />
-      <NumberModal />
     </SafeAreaView>
   );
 };
@@ -1121,7 +912,7 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.9)",
     fontWeight: "500",
   },
-  refreshButton: {
+  claimRequestsButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -1185,7 +976,7 @@ const styles = StyleSheet.create({
   },
   statItem: {
     alignItems: "center",
-    width: "25%",
+    width: "33%",
     marginBottom: 10,
   },
   statValue: {
@@ -1367,30 +1158,6 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
-  },
-  timerDisplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFF3E0",
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-    borderWidth: 2,
-    borderColor: "#FF9800",
-    marginBottom: 16,
-  },
-  pausedTimerDisplay: {
-    backgroundColor: "#FFEBEE",
-    borderColor: "#FF5722",
-  },
-  timerText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FF9800",
-  },
-  pausedTimerText: {
-    color: "#FF5722",
   },
   lastCalledCard: {
     backgroundColor: "#FFF",
@@ -1586,9 +1353,6 @@ const styles = StyleSheet.create({
   tertiaryAction: {
     backgroundColor: "#2196F3",
   },
-  quaternaryAction: {
-    backgroundColor: "#4CAF50",
-  },
   actionButtonText: {
     color: "#FFF",
     fontSize: 14,
@@ -1691,52 +1455,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#333",
   },
-  modalCloseArea: {
-    width: "100%",
-  },
-  modalNumberContainer: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: "#7E57C2",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-    shadowColor: "#7E57C2",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 10,
-  },
-  modalNumber: {
-    fontSize: 64,
-    fontWeight: "900",
-    color: "#FFF",
-  },
-  modalStats: {
-    flexDirection: "row",
-    gap: 20,
-    marginBottom: 24,
-  },
-  modalStat: {
-    alignItems: "center",
-  },
-  modalStatText: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-  },
-  modalCloseButton: {
-    backgroundColor: "#3498db",
-    paddingHorizontal: 40,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  modalCloseButtonText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
   intervalInputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -1754,28 +1472,6 @@ const styles = StyleSheet.create({
     color: "#333",
     marginLeft: 12,
     paddingVertical: 4,
-  },
-  intervalHint: {
-    fontSize: 14,
-    color: "#666",
-    lineHeight: 20,
-    marginBottom: 16,
-    textAlign: "center",
-    fontStyle: "italic",
-    color: "#FF9800",
-  },
-  intervalExamples: {
-    marginBottom: 24,
-    gap: 8,
-  },
-  intervalExample: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  intervalExampleText: {
-    fontSize: 14,
-    color: "#666",
   },
   modalButton: {
     flexDirection: "row",

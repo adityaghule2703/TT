@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,12 +8,11 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
-  Image,
   KeyboardAvoidingView,
   Platform,
-  Keyboard,
   ActivityIndicator,
   Modal,
+  RefreshControl,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,9 +28,69 @@ const UserLiveChat = ({ navigation, route }) => {
   const [isConnected, setIsConnected] = useState(true);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
-  
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [newMessageCount, setNewMessageCount] = useState(0);
+ 
   const scrollViewRef = useRef(null);
   const messageInputRef = useRef(null);
+  const isMounted = useRef(true);
+  const pollingIntervalRef = useRef(null);
+  const initialLoadDoneRef = useRef(false);
+  const lastMessageCountRef = useRef(0);
+  const scrollOffsetRef = useRef(0);
+  const lastMessageIdRef = useRef(null);
+
+  // Track scroll position
+  const handleScroll = (event) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const contentHeight = event.nativeEvent.contentSize.height;
+    const layoutHeight = event.nativeEvent.layoutMeasurement.height;
+   
+    scrollOffsetRef.current = offsetY;
+   
+    // If user is near bottom (within 100 pixels), auto-scroll to bottom on new messages
+    const isNearBottom = contentHeight - offsetY - layoutHeight < 100;
+    setShouldScrollToBottom(isNearBottom);
+   
+    // Hide scroll to bottom button when near bottom
+    setShowScrollToBottom(!isNearBottom && newMessageCount > 0);
+  };
+
+  // Filter duplicate messages
+  const filterDuplicateMessages = useCallback((newMessages) => {
+    if (!newMessages || newMessages.length === 0) return newMessages;
+   
+    const seenKeys = new Set();
+    const filteredMessages = [];
+   
+    for (const message of newMessages) {
+      // Create a unique key for each message
+      const timestamp = message.timestamp || new Date().toISOString();
+      const messageId = message.id || `${timestamp}_${message.message?.substring(0, 20)}`;
+      const key = `${message.type}_${messageId}_${message.sender?.id || 'system'}`;
+     
+      if (seenKeys.has(key)) {
+        continue;
+      }
+     
+      seenKeys.add(key);
+      filteredMessages.push({
+        ...message,
+        _id: key, // Add unique identifier
+      });
+    }
+   
+    return filteredMessages;
+  }, []);
+
+  // Get the latest message ID
+  const getLatestMessageId = (messagesArray) => {
+    if (!messagesArray || messagesArray.length === 0) return null;
+    return messagesArray[messagesArray.length - 1]?._id ||
+           `${messagesArray[messagesArray.length - 1]?.timestamp}_${messagesArray[messagesArray.length - 1]?.message?.substring(0, 10)}`;
+  };
 
   // Fetch current user ID
   const getCurrentUserId = async () => {
@@ -49,7 +108,82 @@ const UserLiveChat = ({ navigation, route }) => {
     }
   };
 
-  // Fetch chat messages
+  // Fetch chat messages silently (without affecting scroll)
+  const fetchMessagesSilently = async (isManualRefresh = false) => {
+    if (!isMounted.current) return;
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const response = await axios.get(
+        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/messages`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success && isMounted.current) {
+        const newMessages = response.data.data || [];
+        const filteredMessages = filterDuplicateMessages(newMessages);
+        const currentLatestId = getLatestMessageId(messages);
+        const newLatestId = getLatestMessageId(filteredMessages);
+       
+        setMessages(prevMessages => {
+          // Check if messages actually changed
+          const prevString = JSON.stringify(prevMessages);
+          const newString = JSON.stringify(filteredMessages);
+         
+          if (prevString !== newString) {
+            // Calculate new messages count
+            if (!shouldScrollToBottom && currentLatestId !== newLatestId) {
+              const prevCount = prevMessages.length;
+              const newCount = filteredMessages.length;
+              const addedMessages = newCount - prevCount;
+             
+              if (addedMessages > 0 && !isManualRefresh) {
+                setNewMessageCount(prev => prev + addedMessages);
+                setShowScrollToBottom(true);
+              }
+            }
+           
+            // If user is near bottom or manual refresh, scroll to bottom
+            if ((shouldScrollToBottom || isManualRefresh) && filteredMessages.length > prevMessages.length) {
+              setTimeout(() => {
+                if (isMounted.current && scrollViewRef.current) {
+                  scrollViewRef.current.scrollToEnd({ animated: true });
+                }
+              }, 100);
+            }
+           
+            return filteredMessages;
+          }
+         
+          return prevMessages;
+        });
+      }
+    } catch (error) {
+      console.log("Error fetching messages silently:", error);
+    }
+  };
+
+  // Manual refresh
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchMessagesSilently(true);
+      await fetchParticipants();
+      setNewMessageCount(0);
+      setShowScrollToBottom(false);
+    } catch (error) {
+      console.log("Error refreshing:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Initial fetch with loading state
   const fetchMessages = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
@@ -64,7 +198,19 @@ const UserLiveChat = ({ navigation, route }) => {
       );
 
       if (response.data.success) {
-        setMessages(response.data.data || []);
+        const filteredMessages = filterDuplicateMessages(response.data.data || []);
+        setMessages(filteredMessages);
+        lastMessageIdRef.current = getLatestMessageId(filteredMessages);
+       
+        // Scroll to bottom only on initial load
+        if (!initialLoadDoneRef.current) {
+          initialLoadDoneRef.current = true;
+          setTimeout(() => {
+            if (scrollViewRef.current) {
+              scrollViewRef.current.scrollToEnd({ animated: false });
+            }
+          }, 100);
+        }
       }
       setLoading(false);
     } catch (error) {
@@ -121,7 +267,10 @@ const UserLiveChat = ({ navigation, route }) => {
         // Add the sent message to local state immediately
         const tokenData = await AsyncStorage.getItem("user");
         const user = tokenData ? JSON.parse(tokenData) : null;
-        
+       
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const messageId = `${timestamp}_${newMessage.trim().substring(0, 10)}`;
+       
         const newMsg = {
           type: "chat",
           sender: {
@@ -130,17 +279,25 @@ const UserLiveChat = ({ navigation, route }) => {
             name: user?.name || "You",
           },
           message: newMessage.trim(),
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: timestamp,
           is_muted: false,
+          _id: messageId,
         };
-        
+       
         setMessages(prev => [...prev, newMsg]);
+        setShouldScrollToBottom(true);
+        setNewMessageCount(0);
+        setShowScrollToBottom(false);
+       
+        // Scroll to bottom immediately after sending
         setTimeout(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-        
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        }, 50);
+       
         // Fetch updated messages after a delay
-        setTimeout(fetchMessages, 500);
+        setTimeout(() => fetchMessagesSilently(), 1000);
       }
     } catch (error) {
       console.log("Error sending message:", error);
@@ -150,8 +307,38 @@ const UserLiveChat = ({ navigation, route }) => {
     }
   };
 
+  // Start silent polling
+  const startSilentPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+   
+    pollingIntervalRef.current = setInterval(() => {
+      fetchMessagesSilently();
+    }, 5000);
+  }, []);
+
+  // Stop polling
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+
+  // Scroll to bottom function
+  const scrollToBottom = () => {
+    setShouldScrollToBottom(true);
+    setNewMessageCount(0);
+    setShowScrollToBottom(false);
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollToEnd({ animated: true });
+    }
+  };
+
   // Leave chat
   const leaveChat = async () => {
+    stopPolling();
     try {
       const token = await AsyncStorage.getItem("token");
       await axios.post(
@@ -167,35 +354,44 @@ const UserLiveChat = ({ navigation, route }) => {
       navigation.goBack();
     } catch (error) {
       console.log("Error leaving chat:", error);
+      navigation.goBack();
     }
   };
 
   useEffect(() => {
-    getCurrentUserId();
-    fetchMessages();
-    fetchParticipants();
-    
-    // Set up polling for new messages every 5 seconds
-    const messageInterval = setInterval(fetchMessages, 5000);
-    const participantInterval = setInterval(fetchParticipants, 10000);
+    isMounted.current = true;
+   
+    const initializeChat = async () => {
+      await getCurrentUserId();
+      await fetchMessages();
+      await fetchParticipants();
+     
+      // Start silent polling
+      startSilentPolling();
+    };
+   
+    initializeChat();
 
     return () => {
-      clearInterval(messageInterval);
-      clearInterval(participantInterval);
+      isMounted.current = false;
+      stopPolling();
     };
   }, []);
 
-  useEffect(() => {
-    // Scroll to bottom when messages change
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  }, [messages]);
+  // Add refresh control to ScrollView
+  const refreshControl = (
+    <RefreshControl
+      refreshing={isRefreshing}
+      onRefresh={handleManualRefresh}
+      colors={["#25D366"]}
+      tintColor="#25D366"
+    />
+  );
 
   const renderMessage = (message, index) => {
     if (message.type === "system") {
       return (
-        <View key={index} style={styles.systemMessageContainer}>
+        <View key={message._id || index} style={styles.systemMessageContainer}>
           <View style={styles.systemMessage}>
             <Ionicons name="information-circle" size={14} color="#666" />
             <Text style={styles.systemMessageText}>{message.message}</Text>
@@ -210,7 +406,7 @@ const UserLiveChat = ({ navigation, route }) => {
     if (isOwnMessage) {
       // Own message - aligned to right
       return (
-        <View key={index} style={styles.ownMessageContainer}>
+        <View key={message._id || index} style={styles.ownMessageContainer}>
           <View style={styles.ownMessageBubble}>
             <Text style={styles.ownMessageText}>
               {message.message}
@@ -219,10 +415,10 @@ const UserLiveChat = ({ navigation, route }) => {
               <Text style={styles.ownTimestamp}>
                 {message.timestamp}
               </Text>
-              <Ionicons 
-                name="checkmark-done" 
-                size={12} 
-                color={message.is_muted ? "#666" : "#34B7F1"} 
+              <Ionicons
+                name="checkmark-done"
+                size={12}
+                color={message.is_muted ? "#666" : "#34B7F1"}
                 style={styles.messageStatusIcon}
               />
             </View>
@@ -232,7 +428,7 @@ const UserLiveChat = ({ navigation, route }) => {
     } else {
       // Other person's message - aligned to left
       return (
-        <View key={index} style={styles.otherMessageContainer}>
+        <View key={message._id || index} style={styles.otherMessageContainer}>
           <View style={styles.otherMessageBubble}>
             <Text style={styles.senderName}>
               {message.sender?.name || "User"}
@@ -266,7 +462,7 @@ const UserLiveChat = ({ navigation, route }) => {
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
           </View>
-          
+         
           <ScrollView style={styles.participantsList}>
             {participants.map((participant, index) => (
               <View key={index} style={styles.participantItem}>
@@ -296,7 +492,7 @@ const UserLiveChat = ({ navigation, route }) => {
               </View>
             ))}
           </ScrollView>
-          
+         
           <View style={styles.modalFooter}>
             <Text style={styles.totalParticipants}>
               Total: {participants.length} participant{participants.length !== 1 ? 's' : ''}
@@ -319,7 +515,7 @@ const UserLiveChat = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor="#075E54" barStyle="light-content" />
-      
+     
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -328,7 +524,7 @@ const UserLiveChat = ({ navigation, route }) => {
         >
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
-        
+       
         <TouchableOpacity
           style={styles.headerContent}
           onPress={() => setShowParticipantsModal(true)}
@@ -347,14 +543,14 @@ const UserLiveChat = ({ navigation, route }) => {
           </View>
           <Text style={styles.headerSubtitle}>Game Chat</Text>
         </TouchableOpacity>
-        
+       
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => setShowParticipantsModal(true)}
         >
           <Ionicons name="people" size={22} color="#FFF" />
         </TouchableOpacity>
-        
+       
         <TouchableOpacity
           style={styles.headerButton}
           onPress={leaveChat}
@@ -370,6 +566,9 @@ const UserLiveChat = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.messagesContent}
         keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        refreshControl={refreshControl}
       >
         {/* Welcome message */}
         <View style={styles.welcomeContainer}>
@@ -409,9 +608,24 @@ const UserLiveChat = ({ navigation, route }) => {
         ) : (
           messages.map((message, index) => renderMessage(message, index))
         )}
-        
+       
         <View style={styles.messagesSpacer} />
       </ScrollView>
+
+      {/* Scroll to Bottom Button */}
+      {showScrollToBottom && (
+        <TouchableOpacity
+          style={styles.scrollToBottomButton}
+          onPress={scrollToBottom}
+        >
+          <View style={styles.scrollToBottomContent}>
+            <Ionicons name="arrow-down" size={18} color="#FFF" />
+            <Text style={styles.scrollToBottomText}>
+              {newMessageCount} new message{newMessageCount !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Message Input */}
       <KeyboardAvoidingView
@@ -423,7 +637,7 @@ const UserLiveChat = ({ navigation, route }) => {
           <TouchableOpacity style={styles.emojiButton}>
             <Ionicons name="happy-outline" size={24} color="#666" />
           </TouchableOpacity>
-          
+         
           <TextInput
             ref={messageInputRef}
             style={styles.textInput}
@@ -435,7 +649,7 @@ const UserLiveChat = ({ navigation, route }) => {
             maxLength={500}
             onSubmitEditing={sendMessage}
           />
-          
+         
           {newMessage.trim() ? (
             <TouchableOpacity
               style={styles.sendButton}
@@ -454,7 +668,7 @@ const UserLiveChat = ({ navigation, route }) => {
             </TouchableOpacity>
           )}
         </View>
-        
+       
         <View style={styles.inputFooter}>
           <Text style={styles.charCount}>
             {newMessage.length}/500
@@ -889,6 +1103,32 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
     fontWeight: "600",
+  },
+  scrollToBottomButton: {
+    position: 'absolute',
+    bottom: 100,
+    alignSelf: 'center',
+    backgroundColor: '#25D366',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 100,
+  },
+  scrollToBottomContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollToBottomText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
 

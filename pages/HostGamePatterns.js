@@ -300,7 +300,7 @@ const HostGamePatterns = () => {
             <Ionicons 
               name={getPatternIcon(pattern.logic_type)} 
               size={24} 
-              color="#3498db" 
+              color="#FF7675" 
             />
           </View>
           <View style={styles.patternInfo}>

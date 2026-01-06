@@ -31,18 +31,12 @@ const HostGameCreation = ({ navigation, route }) => {
   const [ticketRequestEndDate, setTicketRequestEndDate] = useState(new Date());
   const [ticketRequestEndTime, setTicketRequestEndTime] = useState(new Date());
   const [message, setMessage] = useState('');
-  const [limitedTypeGame, setLimitedTypeGame] = useState(false);
-  const [verifiedPhoneOnly, setVerifiedPhoneOnly] = useState(true);
-  const [allowLateClaims, setAllowLateClaims] = useState(false);
-  const [promoteBrand, setPromoteBrand] = useState(true);
   const [ticketType, setTicketType] = useState('paid');
   const [rewardType, setRewardType] = useState('fixed');
   const [ticketCost, setTicketCost] = useState('50');
   const [maxPlayers, setMaxPlayers] = useState('100');
   const [maxTickets, setMaxTickets] = useState('200');
   const [maxWinners, setMaxWinners] = useState('10');
-  const [allowSharingClaims, setAllowSharingClaims] = useState(true);
-  const [setRewardLimit, setSetRewardLimit] = useState(false);
   
   // Date/Time Picker States
   const [showGameDatePicker, setShowGameDatePicker] = useState(false);
@@ -186,18 +180,12 @@ const HostGameCreation = ({ navigation, route }) => {
         ticket_request_end_date: ticketRequestEndDate.toISOString().split('T')[0],
         ticket_request_end_time: ticketRequestEndTime.toTimeString().split(' ')[0].substring(0, 5),
         message: message.trim(),
-        limited_type_game: limitedTypeGame,
-        verified_phone_only: verifiedPhoneOnly,
-        allow_late_claims: allowLateClaims,
-        promote_brand: promoteBrand,
         ticket_type: ticketType,
         reward_type: rewardType,
         ticket_cost: ticketType === 'paid' ? parseFloat(ticketCost) : 0,
         max_players: parseInt(maxPlayers),
         max_tickets: parseInt(maxTickets),
         max_winners: parseInt(maxWinners),
-        allow_sharing_claims: allowSharingClaims,
-        set_reward_limit: setRewardLimit,
         selected_patterns: selectedPatterns.map(p => p.id),
         pattern_rewards: patternRewards.map(reward => ({
           pattern_id: reward.pattern_id,
@@ -234,9 +222,9 @@ const HostGameCreation = ({ navigation, route }) => {
         showToast(response.data.message || 'Game created successfully!', 'success');
         
         // Navigate to HostGames screen after a short delay
-       setTimeout(() => {
-  navigation.goBack();
-}, 1500);
+        setTimeout(() => {
+          navigation.goBack();
+        }, 1500);
       } else {
         // Handle API error response
         const errorMessage = response.data.message || 
@@ -458,7 +446,7 @@ const HostGameCreation = ({ navigation, route }) => {
 
               {loadingPatterns ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#3498db" />
+                  <ActivityIndicator size="large" color="#FF7675" />
                   <Text style={styles.loadingText}>Loading patterns...</Text>
                 </View>
               ) : (
@@ -617,7 +605,7 @@ const HostGameCreation = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#3498db" barStyle="light-content" />
+      <StatusBar backgroundColor="#FF7675" barStyle="light-content" />
       
       {/* Toast Notification */}
       <Toast />
@@ -890,38 +878,6 @@ const HostGameCreation = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Game Options Card */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIcon, { backgroundColor: '#FFF3E0' }]}>
-              <Ionicons name="options" size={20} color="#FF9800" />
-            </View>
-            <Text style={styles.sectionTitle}>Game Options</Text>
-          </View>
-          
-          {[
-            { label: 'Limited Type Game', value: limitedTypeGame, setter: setLimitedTypeGame, description: 'Limit game to specific criteria' },
-            { label: 'Verified Phone Only', value: verifiedPhoneOnly, setter: setVerifiedPhoneOnly, description: 'Require verified phone numbers' },
-            { label: 'Allow Late Claims', value: allowLateClaims, setter: setAllowLateClaims, description: 'Allow claims after game ends' },
-            { label: 'Promote Brand', value: promoteBrand, setter: setPromoteBrand, description: 'Show brand promotion' },
-            { label: 'Allow Sharing Claims', value: allowSharingClaims, setter: setAllowSharingClaims, description: 'Allow players to share claims' },
-            { label: 'Set Reward Limit', value: setRewardLimit, setter: setSetRewardLimit, description: 'Limit total rewards' },
-          ].map((option, index) => (
-            <View key={index} style={styles.optionRow}>
-              <View style={styles.optionText}>
-                <Text style={styles.optionLabel}>{option.label}</Text>
-                <Text style={styles.optionDescription}>{option.description}</Text>
-              </View>
-              <Switch
-                value={option.value}
-                onValueChange={option.setter}
-                trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
-                thumbColor="#FFF"
-              />
-            </View>
-          ))}
-        </View>
-
         {/* Pattern Selection Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -939,7 +895,7 @@ const HostGameCreation = ({ navigation, route }) => {
                 setPatternsModalVisible(true);
               }}
             >
-              <Ionicons name="add-circle" size={16} color="#3498db" />
+              <Ionicons name="add-circle" size={16} color="#FF7675" />
               <Text style={styles.selectPatternsText}>
                 {selectedPatterns.length > 0 ? 'Edit Patterns' : 'Select Patterns'}
               </Text>
@@ -1199,7 +1155,7 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     paddingHorizontal: 20,
     paddingBottom: 20,
-    backgroundColor: '#3498db',
+    backgroundColor: '#FF7675',
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
   },
@@ -1351,8 +1307,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   optionButtonActive: {
-    backgroundColor: '#3498db',
-    borderColor: '#3498db',
+    backgroundColor: '#FF7675',
+    borderColor: '#FF7675',
   },
   optionButtonText: {
     fontSize: 13,
@@ -1378,27 +1334,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#666',
   },
-  optionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
-  },
-  optionText: {
-    flex: 1,
-  },
-  optionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
-  },
-  optionDescription: {
-    fontSize: 12,
-    color: '#666',
-  },
   selectPatternsButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1411,7 +1346,7 @@ const styles = StyleSheet.create({
   selectPatternsText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#3498db',
+    color: '#FF7675',
   },
   selectedPatternsList: {
     marginBottom: 16,
@@ -1579,7 +1514,7 @@ const styles = StyleSheet.create({
   selectionSummaryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3498db',
+    color: '#FF7675',
   },
   noPatterns: {
     alignItems: 'center',
@@ -1776,7 +1711,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   doneButton: {
-    backgroundColor: '#3498db',
+    backgroundColor: '#FF7675',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
