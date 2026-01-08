@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,7 +11,6 @@ import {
   TextInput,
   Switch,
   Alert,
-  Modal,
   FlatList,
   Dimensions,
 } from 'react-native';
@@ -23,6 +22,10 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 const { width } = Dimensions.get('window');
 
 const HostGameCreation = ({ navigation, route }) => {
+  // Step Management
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 4;
+  
   // Form States
   const [loading, setLoading] = useState(false);
   const [gameName, setGameName] = useState('');
@@ -48,18 +51,17 @@ const HostGameCreation = ({ navigation, route }) => {
   const [selectedPatterns, setSelectedPatterns] = useState([]);
   const [patternRewards, setPatternRewards] = useState([]);
   const [patternsList, setPatternsList] = useState([]);
-  const [patternsModalVisible, setPatternsModalVisible] = useState(false);
   const [loadingPatterns, setLoadingPatterns] = useState(false);
-  const [patternsModalType, setPatternsModalType] = useState('select');
-  const [currentPatternForReward, setCurrentPatternForReward] = useState(null);
   const [editingReward, setEditingReward] = useState(null);
 
   // Toast Notification State
   const [toast, setToast] = useState({ visible: false, message: '', type: '' });
 
   useEffect(() => {
-    fetchPatterns();
-  }, []);
+    if (currentStep === 4) {
+      fetchPatterns();
+    }
+  }, [currentStep]);
 
   const fetchPatterns = async () => {
     try {
@@ -108,62 +110,89 @@ const HostGameCreation = ({ navigation, route }) => {
     });
   };
 
-  const validateForm = () => {
-    if (!gameName.trim()) {
-      showToast('Please enter a game name', 'error');
-      return false;
+  const validateStep = (step) => {
+    switch (step) {
+      case 1:
+        if (!gameName.trim()) {
+          showToast('Please enter a game name', 'error');
+          return false;
+        }
+        return true;
+      
+      case 2:
+        // Basic schedule validation
+        return true;
+      
+      case 3:
+        if (ticketType === 'paid' && (!ticketCost || parseFloat(ticketCost) <= 0)) {
+          showToast('Please enter a valid ticket cost', 'error');
+          return false;
+        }
+        
+        if (!maxPlayers || parseInt(maxPlayers) <= 0) {
+          showToast('Please enter a valid max players count', 'error');
+          return false;
+        }
+        
+        if (!maxTickets || parseInt(maxTickets) <= 0) {
+          showToast('Please enter a valid max tickets count', 'error');
+          return false;
+        }
+        
+        if (!maxWinners || parseInt(maxWinners) <= 0) {
+          showToast('Please enter a valid max winners count', 'error');
+          return false;
+        }
+        return true;
+      
+      case 4:
+        if (selectedPatterns.length === 0) {
+          showToast('Please select at least one pattern', 'error');
+          return false;
+        }
+        
+        // Validate pattern rewards
+        for (const reward of patternRewards) {
+          if (!reward.amount || parseFloat(reward.amount) <= 0) {
+            showToast(`Please enter a valid reward amount for ${reward.pattern_name}`, 'error');
+            return false;
+          }
+          if (!reward.reward_count || parseInt(reward.reward_count) <= 0) {
+            showToast(`Please enter a valid reward count for ${reward.pattern_name}`, 'error');
+            return false;
+          }
+          if (!reward.min_tickets_required || parseInt(reward.min_tickets_required) <= 0) {
+            showToast(`Please enter valid minimum tickets for ${reward.pattern_name}`, 'error');
+            return false;
+          }
+          if (!reward.reward_name || !reward.reward_name.trim()) {
+            showToast(`Please enter a reward name for ${reward.pattern_name}`, 'error');
+            return false;
+          }
+        }
+        return true;
+      
+      default:
+        return true;
     }
-    
-    if (selectedPatterns.length === 0) {
-      showToast('Please select at least one pattern', 'error');
-      return false;
-    }
-    
-    if (ticketType === 'paid' && (!ticketCost || parseFloat(ticketCost) <= 0)) {
-      showToast('Please enter a valid ticket cost', 'error');
-      return false;
-    }
-    
-    if (!maxPlayers || parseInt(maxPlayers) <= 0) {
-      showToast('Please enter a valid max players count', 'error');
-      return false;
-    }
-    
-    if (!maxTickets || parseInt(maxTickets) <= 0) {
-      showToast('Please enter a valid max tickets count', 'error');
-      return false;
-    }
-    
-    if (!maxWinners || parseInt(maxWinners) <= 0) {
-      showToast('Please enter a valid max winners count', 'error');
-      return false;
-    }
-    
-    // Validate pattern rewards
-    for (const reward of patternRewards) {
-      if (!reward.amount || parseFloat(reward.amount) <= 0) {
-        showToast(`Please enter a valid reward amount for ${reward.pattern_name}`, 'error');
-        return false;
+  };
+
+  const nextStep = () => {
+    if (validateStep(currentStep)) {
+      if (currentStep < totalSteps) {
+        setCurrentStep(currentStep + 1);
       }
-      if (!reward.reward_count || parseInt(reward.reward_count) <= 0) {
-        showToast(`Please enter a valid reward count for ${reward.pattern_name}`, 'error');
-        return false;
-      }
-      if (!reward.min_tickets_required || parseInt(reward.min_tickets_required) <= 0) {
-        showToast(`Please enter valid minimum tickets for ${reward.pattern_name}`, 'error');
-        return false;
-      }
-      if (!reward.reward_name || !reward.reward_name.trim()) {
-        showToast(`Please enter a reward name for ${reward.pattern_name}`, 'error');
-        return false;
-      }
     }
-    
-    return true;
+  };
+
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
   };
 
   const createGame = async () => {
-    if (!validateForm()) return;
+    if (!validateStep(4)) return;
 
     try {
       setLoading(true);
@@ -210,7 +239,6 @@ const HostGameCreation = ({ navigation, route }) => {
         }
       );
 
-      // Check for success - handle different possible response structures
       const isSuccess = 
         response.data.success === true || 
         response.data.status === true || 
@@ -218,15 +246,12 @@ const HostGameCreation = ({ navigation, route }) => {
         response.data.data?.id;
 
       if (isSuccess) {
-        // Show success toast
         showToast(response.data.message || 'Game created successfully!', 'success');
         
-        // Navigate to HostGames screen after a short delay
         setTimeout(() => {
           navigation.goBack();
         }, 1500);
       } else {
-        // Handle API error response
         const errorMessage = response.data.message || 
                             response.data.error || 
                             'Failed to create game. Please try again.';
@@ -251,18 +276,16 @@ const HostGameCreation = ({ navigation, route }) => {
     }
   };
 
-  const handlePatternSelect = (pattern) => {
+  const handlePatternSelect = useCallback((pattern) => {
     setSelectedPatterns(prev => {
       const isSelected = prev.some(p => p.id === pattern.id);
       
       if (isSelected) {
-        // Remove pattern
         setPatternRewards(prevRewards => 
           prevRewards.filter(reward => reward.pattern_id !== pattern.id)
         );
         return prev.filter(p => p.id !== pattern.id);
       } else {
-        // Add pattern with default reward
         const newReward = {
           pattern_id: pattern.id,
           pattern_name: pattern.pattern_name,
@@ -278,9 +301,9 @@ const HostGameCreation = ({ navigation, route }) => {
         return [...prev, pattern];
       }
     });
-  };
+  }, []);
 
-  const updatePatternReward = (patternId, field, value) => {
+  const updatePatternReward = useCallback((patternId, field, value) => {
     setPatternRewards(prev => 
       prev.map(reward => 
         reward.pattern_id === patternId 
@@ -288,21 +311,15 @@ const HostGameCreation = ({ navigation, route }) => {
           : reward
       )
     );
-  };
+  }, []);
 
-  const openRewardModal = (pattern) => {
-    setCurrentPatternForReward(pattern);
-    setPatternsModalType('rewards');
-    setPatternsModalVisible(true);
-  };
-
-  const openInlineRewardEdit = (pattern) => {
+  const openInlineRewardEdit = useCallback((pattern) => {
     setEditingReward(pattern.id);
-  };
+  }, []);
 
-  const saveInlineReward = () => {
+  const saveInlineReward = useCallback(() => {
     setEditingReward(null);
-  };
+  }, []);
 
   // Toast Functions
   const showToast = (message, type = 'success') => {
@@ -338,13 +355,14 @@ const HostGameCreation = ({ navigation, route }) => {
     );
   };
 
-  const renderPatternItem = ({ item }) => {
+  const renderPatternItem = useCallback(({ item }) => {
     const isSelected = selectedPatterns.some(p => p.id === item.id);
     
     return (
       <TouchableOpacity
         style={[styles.patternCard, isSelected && styles.patternCardSelected]}
         onPress={() => handlePatternSelect(item)}
+        activeOpacity={0.7}
       >
         <View style={styles.patternCardContent}>
           <View style={styles.patternCardHeader}>
@@ -375,9 +393,9 @@ const HostGameCreation = ({ navigation, route }) => {
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [selectedPatterns, handlePatternSelect]);
 
-  const getPatternIcon = (logicType) => {
+  const getPatternIcon = useCallback((logicType) => {
     switch (logicType) {
       case 'position_based':
         return '🎯';
@@ -394,9 +412,9 @@ const HostGameCreation = ({ navigation, route }) => {
       default:
         return '🎮';
     }
-  };
+  }, []);
 
-  const getPatternColor = (logicType) => {
+  const getPatternColor = useCallback((logicType) => {
     switch (logicType) {
       case 'position_based':
         return '#FF6B6B';
@@ -413,194 +431,525 @@ const HostGameCreation = ({ navigation, route }) => {
       default:
         return '#666';
     }
+  }, []);
+
+  // Render Step Content
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return renderStep1();
+      case 2:
+        return renderStep2();
+      case 3:
+        return renderStep3();
+      case 4:
+        return renderStep4();
+      default:
+        return null;
+    }
   };
 
-  const PatternsModal = () => (
-    <Modal
-      visible={patternsModalVisible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => {
-        setPatternsModalVisible(false);
-        setPatternsModalType('select');
-      }}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          {patternsModalType === 'select' ? (
-            <>
-              <View style={styles.modalHeader}>
-                <View style={styles.modalHeaderContent}>
-                  <Text style={styles.modalTitle}>🎯 Select Game Patterns</Text>
-                  <Text style={styles.modalSubtitle}>
-                    Choose patterns to include in your game
-                  </Text>
-                </View>
-                <TouchableOpacity 
-                  style={styles.closeButton}
-                  onPress={() => setPatternsModalVisible(false)}
-                >
-                  <Ionicons name="close" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-
-              {loadingPatterns ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#FF7675" />
-                  <Text style={styles.loadingText}>Loading patterns...</Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={patternsList}
-                  renderItem={renderPatternItem}
-                  keyExtractor={item => item.id.toString()}
-                  contentContainerStyle={styles.patternsGrid}
-                  numColumns={2}
-                  showsVerticalScrollIndicator={false}
-                  ListEmptyComponent={
-                    <View style={styles.emptyPatterns}>
-                      <Ionicons name="grid-outline" size={60} color="#CCC" />
-                      <Text style={styles.emptyPatternsText}>No patterns available</Text>
-                    </View>
-                  }
-                />
-              )}
-
-              <View style={styles.modalFooter}>
-                <View style={styles.selectionInfo}>
-                  <Text style={styles.selectionCount}>
-                    {selectedPatterns.length} pattern(s) selected
-                  </Text>
-                </View>
-                <TouchableOpacity 
-                  style={styles.doneButton}
-                  onPress={() => setPatternsModalVisible(false)}
-                >
-                  <Text style={styles.doneButtonText}>Continue</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.modalHeader}>
-                <View style={styles.modalHeaderContent}>
-                  <Text style={styles.modalTitle}>💰 Set Reward</Text>
-                  <Text style={styles.modalSubtitle}>
-                    Configure reward for {currentPatternForReward?.pattern_name.replace(/_/g, ' ')}
-                  </Text>
-                </View>
-                <TouchableOpacity 
-                  style={styles.closeButton}
-                  onPress={() => {
-                    setPatternsModalType('select');
-                    setPatternsModalVisible(false);
-                  }}
-                >
-                  <Ionicons name="close" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView 
-                style={styles.modalBody}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.modalScrollContent}
-              >
-                {currentPatternForReward && (
-                  <View style={styles.rewardFormCard}>
-                    <View style={styles.rewardFormSection}>
-                      <Text style={styles.sectionLabel}>Reward Details</Text>
-                      
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Reward Name *</Text>
-                        <TextInput
-                          style={styles.input}
-                          value={
-                            patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.reward_name || ''
-                          }
-                          onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'reward_name', value)}
-                          placeholder="e.g., First Line Prize"
-                        />
-                      </View>
-                      
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Description</Text>
-                        <TextInput
-                          style={[styles.input, styles.textArea]}
-                          value={
-                            patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.description || ''
-                          }
-                          onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'description', value)}
-                          placeholder="Describe this reward"
-                          multiline
-                          numberOfLines={3}
-                        />
-                      </View>
-                    </View>
-                    
-                    <View style={styles.rewardFormSection}>
-                      <Text style={styles.sectionLabel}>Reward Configuration</Text>
-                      
-                      <View style={styles.row}>
-                        <View style={styles.halfInput}>
-                          <Text style={styles.inputLabel}>Amount (₹) *</Text>
-                          <TextInput
-                            style={styles.input}
-                            value={
-                              patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.amount || ''
-                            }
-                            onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'amount', value)}
-                            keyboardType="numeric"
-                            placeholder="500"
-                          />
-                        </View>
-                        
-                        <View style={styles.halfInput}>
-                          <Text style={styles.inputLabel}>Reward Count *</Text>
-                          <TextInput
-                            style={styles.input}
-                            value={
-                              patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.reward_count || ''
-                            }
-                            onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'reward_count', value)}
-                            keyboardType="numeric"
-                            placeholder="1"
-                          />
-                        </View>
-                      </View>
-                      
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Min Tickets Required *</Text>
-                        <TextInput
-                          style={styles.input}
-                          value={
-                            patternRewards.find(r => r.pattern_id === currentPatternForReward.id)?.min_tickets_required || ''
-                          }
-                          onChangeText={(value) => updatePatternReward(currentPatternForReward.id, 'min_tickets_required', value)}
-                          keyboardType="numeric"
-                          placeholder="1"
-                        />
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </ScrollView>
-
-              <View style={styles.modalFooter}>
-                <TouchableOpacity 
-                  style={[styles.doneButton, styles.saveButton]}
-                  onPress={() => {
-                    setPatternsModalType('select');
-                    setPatternsModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.doneButtonText}>Save Reward</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
+  const renderStep1 = () => (
+    <View style={styles.stepContent}>
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionIcon, { backgroundColor: '#FFE6E6' }]}>
+            <Ionicons name="information-circle" size={20} color="#FF7675" />
+          </View>
+          <Text style={styles.sectionTitle}>Basic Information</Text>
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Game Name *</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="game-controller" size={20} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              value={gameName}
+              onChangeText={setGameName}
+              placeholder="Enter game name"
+              placeholderTextColor="#999"
+            />
+          </View>
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Game Message (Optional)</Text>
+          <View style={[styles.inputContainer, styles.messageInputContainer]}>
+            <Ionicons 
+              name="chatbubble" 
+              size={20} 
+              color="#666" 
+              style={styles.messageInputIcon} 
+            />
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={message}
+              onChangeText={setMessage}
+              placeholder="Enter a message for players..."
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={3}
+            />
+          </View>
         </View>
       </View>
-    </Modal>
+    </View>
+  );
+
+  const renderStep2 = () => (
+    <View style={styles.stepContent}>
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionIcon, { backgroundColor: '#E6F0FF' }]}>
+            <Ionicons name="time" size={20} color="#2196F3" />
+          </View>
+          <Text style={styles.sectionTitle}>Schedule</Text>
+        </View>
+        
+        <View style={styles.row}>
+          <View style={styles.halfInput}>
+            <Text style={styles.inputLabel}>Game Date *</Text>
+            <TouchableOpacity 
+              style={styles.dateButton}
+              onPress={() => setShowGameDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={16} color="#666" />
+              <Text style={styles.dateButtonText} numberOfLines={1}>
+                {formatDate(gameDate)}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.halfInput}>
+            <Text style={styles.inputLabel}>Start Time *</Text>
+            <TouchableOpacity 
+              style={styles.dateButton}
+              onPress={() => setShowGameTimePicker(true)}
+            >
+              <Ionicons name="time-outline" size={16} color="#666" />
+              <Text style={styles.dateButtonText} numberOfLines={1}>
+                {formatTime(gameStartTime)}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        <View style={styles.row}>
+          <View style={styles.halfInput}>
+            <Text style={styles.inputLabel}>Ticket Request End *</Text>
+            <TouchableOpacity 
+              style={styles.dateButton}
+              onPress={() => setShowEndDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={16} color="#666" />
+              <Text style={styles.dateButtonText} numberOfLines={1}>
+                {formatDate(ticketRequestEndDate)}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.halfInput}>
+            <Text style={styles.inputLabel}>End Time *</Text>
+            <TouchableOpacity 
+              style={styles.dateButton}
+              onPress={() => setShowEndTimePicker(true)}
+            >
+              <Ionicons name="time-outline" size={16} color="#666" />
+              <Text style={styles.dateButtonText} numberOfLines={1}>
+                {formatTime(ticketRequestEndTime)}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderStep3 = () => (
+    <View style={styles.stepContent}>
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionIcon, { backgroundColor: '#E6F7E9' }]}>
+            <Ionicons name="settings" size={20} color="#4CAF50" />
+          </View>
+          <Text style={styles.sectionTitle}>Game Configuration</Text>
+        </View>
+        
+        <View style={styles.row}>
+          <View style={styles.halfInput}>
+            <Text style={styles.inputLabel}>Ticket Type *</Text>
+            <View style={styles.optionButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.optionButton,
+                  ticketType === 'free' && styles.optionButtonActive
+                ]}
+                onPress={() => setTicketType('free')}
+              >
+                <Ionicons 
+                  name="gift" 
+                  size={16} 
+                  color={ticketType === 'free' ? '#FFF' : '#666'} 
+                />
+                <Text style={[
+                  styles.optionButtonText,
+                  ticketType === 'free' && styles.optionButtonTextActive
+                ]}>
+                  Free
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.optionButton,
+                  ticketType === 'paid' && styles.optionButtonActive
+                ]}
+                onPress={() => setTicketType('paid')}
+              >
+                <Ionicons 
+                  name="cash" 
+                  size={16} 
+                  color={ticketType === 'paid' ? '#FFF' : '#666'} 
+                />
+                <Text style={[
+                  styles.optionButtonText,
+                  ticketType === 'paid' && styles.optionButtonTextActive
+                ]}>
+                  Paid
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          <View style={styles.halfInput}>
+            <Text style={styles.inputLabel}>Reward Type *</Text>
+            <TouchableOpacity
+              style={styles.fixedOptionButton}
+            >
+              <Ionicons name="trophy" size={16} color="#666" />
+              <Text style={styles.fixedOptionText}>
+                Fixed
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {ticketType === 'paid' && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Ticket Cost (₹) *</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="logo-rupee" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                value={ticketCost}
+                onChangeText={setTicketCost}
+                keyboardType="numeric"
+                placeholder="Enter ticket price"
+                placeholderTextColor="#999"
+              />
+            </View>
+          </View>
+        )}
+        
+        <View style={styles.row}>
+          <View style={styles.halfInput}>
+            <Text style={styles.inputLabel}>Max Players *</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="people" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                value={maxPlayers}
+                onChangeText={setMaxPlayers}
+                keyboardType="numeric"
+                placeholder="100"
+                placeholderTextColor="#999"
+              />
+            </View>
+          </View>
+          
+          <View style={styles.halfInput}>
+            <Text style={styles.inputLabel}>Max Tickets *</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="ticket" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                value={maxTickets}
+                onChangeText={setMaxTickets}
+                keyboardType="numeric"
+                placeholder="200"
+                placeholderTextColor="#999"
+              />
+            </View>
+          </View>
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Max Winners *</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="trophy" size={20} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              value={maxWinners}
+              onChangeText={setMaxWinners}
+              keyboardType="numeric"
+              placeholder="10"
+              placeholderTextColor="#999"
+            />
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderStep4 = () => (
+    <View style={styles.stepContent}>
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionIcon, { backgroundColor: '#F3E5F5' }]}>
+            <Ionicons name="grid" size={20} color="#9C27B0" />
+          </View>
+          <View style={styles.sectionTitleContainer}>
+            <Text style={styles.sectionTitle}>Pattern Selection</Text>
+            <Text style={styles.requiredText}>*</Text>
+          </View>
+          <View style={styles.selectionCountBadge}>
+            <Text style={styles.selectionCountText}>
+              {selectedPatterns.length} selected
+            </Text>
+          </View>
+        </View>
+        
+        <Text style={styles.stepDescription}>
+          Select game patterns and configure their rewards
+        </Text>
+        
+        {loadingPatterns ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#FF7675" />
+            <Text style={styles.loadingText}>Loading patterns...</Text>
+          </View>
+        ) : patternsList.length > 0 ? (
+          <>
+            <FlatList
+              data={patternsList}
+              renderItem={renderPatternItem}
+              keyExtractor={item => item.id.toString()}
+              contentContainerStyle={styles.patternsGrid}
+              numColumns={2}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
+              columnWrapperStyle={styles.columnWrapper}
+            />
+            
+            {selectedPatterns.length > 0 && (
+              <View style={styles.selectedPatternsSection}>
+                <Text style={styles.sectionTitle}>Configure Rewards for Selected Patterns</Text>
+                
+                <View style={styles.selectedPatternsList}>
+                  {selectedPatterns.map((pattern) => {
+                    const reward = patternRewards.find(r => r.pattern_id === pattern.id);
+                    const isEditing = editingReward === pattern.id;
+                    
+                    return (
+                      <View key={pattern.id} style={styles.selectedPatternCard}>
+                        <View style={styles.selectedPatternHeader}>
+                          <View style={styles.patternInfo}>
+                            <View style={[
+                              styles.patternIcon,
+                              { backgroundColor: getPatternColor(pattern.logic_type) + '20' }
+                            ]}>
+                              <Text style={{ color: getPatternColor(pattern.logic_type) }}>
+                                {getPatternIcon(pattern.logic_type)}
+                              </Text>
+                            </View>
+                            <View style={styles.patternText}>
+                              <Text style={styles.selectedPatternName} numberOfLines={1}>
+                                {pattern.pattern_name.replace(/_/g, ' ')}
+                              </Text>
+                              <Text style={styles.patternType} numberOfLines={1}>
+                                {pattern.logic_type.replace(/_/g, ' ')}
+                              </Text>
+                            </View>
+                          </View>
+                          {!isEditing ? (
+                            <TouchableOpacity
+                              style={styles.configureRewardButton}
+                              onPress={() => openInlineRewardEdit(pattern)}
+                            >
+                              <Ionicons name="pencil" size={14} color="#4CAF50" />
+                              <Text style={styles.configureRewardText}>
+                                {reward?.amount ? `₹${reward.amount}` : 'Set'}
+                              </Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <TouchableOpacity
+                              style={[styles.configureRewardButton, styles.saveRewardButton]}
+                              onPress={saveInlineReward}
+                            >
+                              <Ionicons name="checkmark" size={14} color="#FFF" />
+                              <Text style={[styles.configureRewardText, styles.saveRewardText]}>
+                                Save
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        
+                        {reward && reward.reward_name && (
+                          <View style={styles.rewardInfo}>
+                            {isEditing ? (
+                              <>
+                                {/* Editable Reward Name */}
+                                <View style={styles.inlineInputGroup}>
+                                  <Text style={styles.inlineInputLabel}>Reward Name</Text>
+                                  <TextInput
+                                    style={styles.inlineInput}
+                                    value={reward.reward_name}
+                                    onChangeText={(value) => updatePatternReward(pattern.id, 'reward_name', value)}
+                                    placeholder="Reward name"
+                                  />
+                                </View>
+                                
+                                {/* Editable Reward Details */}
+                                <View style={styles.inlineRewardDetails}>
+                                  <View style={styles.inlineRewardDetail}>
+                                    <Text style={styles.inlineRewardLabel}>Amount (₹)</Text>
+                                    <TextInput
+                                      style={styles.inlineRewardInput}
+                                      value={reward.amount}
+                                      onChangeText={(value) => updatePatternReward(pattern.id, 'amount', value)}
+                                      keyboardType="numeric"
+                                      placeholder="Amount"
+                                    />
+                                  </View>
+                                  
+                                  <View style={styles.inlineRewardDetail}>
+                                    <Text style={styles.inlineRewardLabel}>Reward Count</Text>
+                                    <TextInput
+                                      style={styles.inlineRewardInput}
+                                      value={reward.reward_count}
+                                      onChangeText={(value) => updatePatternReward(pattern.id, 'reward_count', value)}
+                                      keyboardType="numeric"
+                                      placeholder="Count"
+                                    />
+                                  </View>
+                                  
+                                  <View style={styles.inlineRewardDetail}>
+                                    <Text style={styles.inlineRewardLabel}>Min Tickets</Text>
+                                    <TextInput
+                                      style={styles.inlineRewardInput}
+                                      value={reward.min_tickets_required}
+                                      onChangeText={(value) => updatePatternReward(pattern.id, 'min_tickets_required', value)}
+                                      keyboardType="numeric"
+                                      placeholder="Min tickets"
+                                    />
+                                  </View>
+                                </View>
+                                
+                                {/* Editable Description */}
+                                <View style={styles.inlineInputGroup}>
+                                  <Text style={styles.inlineInputLabel}>Description</Text>
+                                  <TextInput
+                                    style={[styles.inlineInput, styles.inlineTextArea]}
+                                    value={reward.description}
+                                    onChangeText={(value) => updatePatternReward(pattern.id, 'description', value)}
+                                    placeholder="Description"
+                                    multiline
+                                    numberOfLines={2}
+                                  />
+                                </View>
+                              </>
+                            ) : (
+                              <>
+                                {/* Non-editable view */}
+                                <Text style={styles.rewardName}>{reward.reward_name}</Text>
+                                {reward.description && (
+                                  <Text style={styles.rewardDescription}>{reward.description}</Text>
+                                )}
+                                <View style={styles.rewardDetails}>
+                                  <View style={styles.rewardDetail}>
+                                    <Ionicons name="cash" size={12} color="#4CAF50" />
+                                    <Text style={styles.rewardAmount}>₹{reward.amount}</Text>
+                                  </View>
+                                  <View style={styles.rewardDetail}>
+                                    <Ionicons name="trophy" size={12} color="#FF9800" />
+                                    <Text style={styles.rewardCount}>×{reward.reward_count}</Text>
+                                  </View>
+                                  <View style={styles.rewardDetail}>
+                                    <Ionicons name="ticket" size={12} color="#2196F3" />
+                                    <Text style={styles.rewardMinTickets}>
+                                      Min: {reward.min_tickets_required}
+                                    </Text>
+                                  </View>
+                                </View>
+                              </>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={styles.emptyPatterns}>
+            <Ionicons name="grid-outline" size={60} color="#CCC" />
+            <Text style={styles.emptyPatternsText}>No patterns available</Text>
+            <Text style={styles.emptyPatternsSubtext}>
+              Please check your connection or contact support
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  // Step Progress Bar - Fixed layout
+  const StepProgress = () => (
+    <View style={styles.stepProgressContainer}>
+      <View style={styles.stepRow}>
+        {[1, 2, 3, 4].map((step) => (
+          <View key={step} style={styles.stepColumn}>
+            <View style={[
+              styles.stepCircle,
+              currentStep >= step ? styles.stepCircleActive : styles.stepCircleInactive
+            ]}>
+              <Text style={[
+                styles.stepNumber,
+                currentStep >= step ? styles.stepNumberActive : styles.stepNumberInactive
+              ]}>
+                {step}
+              </Text>
+            </View>
+            <Text style={[
+              styles.stepLabel,
+              currentStep >= step ? styles.stepLabelActive : styles.stepLabelInactive
+            ]} numberOfLines={1}>
+              {step === 1 ? 'Basic' : 
+               step === 2 ? 'Schedule' : 
+               step === 3 ? 'Config' : 
+               'Patterns'}
+            </Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.stepConnectorContainer}>
+        {[1, 2, 3].map((connector) => (
+          <View 
+            key={connector} 
+            style={[
+              styles.stepConnector,
+              currentStep > connector ? styles.stepConnectorActive : styles.stepConnectorInactive
+            ]} 
+          />
+        ))}
+      </View>
+    </View>
   );
 
   return (
@@ -615,15 +964,25 @@ const HostGameCreation = ({ navigation, route }) => {
         <View style={styles.headerTop}>
           <TouchableOpacity 
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (currentStep === 1) {
+                navigation.goBack();
+              } else {
+                prevStep();
+              }
+            }}
           >
             <Ionicons name="arrow-back" size={24} color="#FFF" />
           </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Create New Game</Text>
-            <Text style={styles.headerSubtitle}>Fill in the game details below</Text>
+            <Text style={styles.headerSubtitle}>
+              Step {currentStep} of {totalSteps}
+            </Text>
           </View>
         </View>
+        
+        <StepProgress />
       </View>
 
       <ScrollView
@@ -631,456 +990,44 @@ const HostGameCreation = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Game Info Card */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIcon, { backgroundColor: '#FFE6E6' }]}>
-              <Ionicons name="information-circle" size={20} color="#FF7675" />
-            </View>
-            <Text style={styles.sectionTitle}>Basic Information</Text>
-          </View>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Game Name *</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="game-controller" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={gameName}
-                onChangeText={setGameName}
-                placeholder="Enter game name"
-                placeholderTextColor="#999"
-              />
-            </View>
-          </View>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Game Message (Optional)</Text>
-            <View style={[styles.inputContainer, styles.messageInputContainer]}>
-              <Ionicons 
-                name="chatbubble" 
-                size={20} 
-                color="#666" 
-                style={styles.messageInputIcon} 
-              />
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={message}
-                onChangeText={setMessage}
-                placeholder="Enter a message for players..."
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Schedule Card */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIcon, { backgroundColor: '#E6F0FF' }]}>
-              <Ionicons name="time" size={20} color="#2196F3" />
-            </View>
-            <Text style={styles.sectionTitle}>Schedule</Text>
-          </View>
-          
-          <View style={styles.row}>
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Game Date *</Text>
-              <TouchableOpacity 
-                style={styles.dateButton}
-                onPress={() => setShowGameDatePicker(true)}
-              >
-                <Ionicons name="calendar-outline" size={16} color="#666" />
-                <Text style={styles.dateButtonText} numberOfLines={1}>
-                  {formatDate(gameDate)}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color="#666" />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Start Time *</Text>
-              <TouchableOpacity 
-                style={styles.dateButton}
-                onPress={() => setShowGameTimePicker(true)}
-              >
-                <Ionicons name="time-outline" size={16} color="#666" />
-                <Text style={styles.dateButtonText} numberOfLines={1}>
-                  {formatTime(gameStartTime)}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color="#666" />
-              </TouchableOpacity>
-            </View>
-          </View>
-          
-          <View style={styles.row}>
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Ticket Request End *</Text>
-              <TouchableOpacity 
-                style={styles.dateButton}
-                onPress={() => setShowEndDatePicker(true)}
-              >
-                <Ionicons name="calendar-outline" size={16} color="#666" />
-                <Text style={styles.dateButtonText} numberOfLines={1}>
-                  {formatDate(ticketRequestEndDate)}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color="#666" />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>End Time *</Text>
-              <TouchableOpacity 
-                style={styles.dateButton}
-                onPress={() => setShowEndTimePicker(true)}
-              >
-                <Ionicons name="time-outline" size={16} color="#666" />
-                <Text style={styles.dateButtonText} numberOfLines={1}>
-                  {formatTime(ticketRequestEndTime)}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color="#666" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* Game Configuration Card */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIcon, { backgroundColor: '#E6F7E9' }]}>
-              <Ionicons name="settings" size={20} color="#4CAF50" />
-            </View>
-            <Text style={styles.sectionTitle}>Game Configuration</Text>
-          </View>
-          
-          <View style={styles.row}>
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Ticket Type *</Text>
-              <View style={styles.optionButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    ticketType === 'free' && styles.optionButtonActive
-                  ]}
-                  onPress={() => setTicketType('free')}
-                >
-                  <Ionicons 
-                    name="gift" 
-                    size={16} 
-                    color={ticketType === 'free' ? '#FFF' : '#666'} 
-                  />
-                  <Text style={[
-                    styles.optionButtonText,
-                    ticketType === 'free' && styles.optionButtonTextActive
-                  ]}>
-                    Free
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    ticketType === 'paid' && styles.optionButtonActive
-                  ]}
-                  onPress={() => setTicketType('paid')}
-                >
-                  <Ionicons 
-                    name="cash" 
-                    size={16} 
-                    color={ticketType === 'paid' ? '#FFF' : '#666'} 
-                  />
-                  <Text style={[
-                    styles.optionButtonText,
-                    ticketType === 'paid' && styles.optionButtonTextActive
-                  ]}>
-                    Paid
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Reward Type *</Text>
-              <TouchableOpacity
-                style={styles.fixedOptionButton}
-              >
-                <Ionicons name="trophy" size={16} color="#666" />
-                <Text style={styles.fixedOptionText}>
-                  Fixed
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          
-          {ticketType === 'paid' && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Ticket Cost (₹) *</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="logo-rupee" size={20} color="#666" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={ticketCost}
-                  onChangeText={setTicketCost}
-                  keyboardType="numeric"
-                  placeholder="Enter ticket price"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-          )}
-          
-          <View style={styles.row}>
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Max Players *</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="people" size={20} color="#666" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={maxPlayers}
-                  onChangeText={setMaxPlayers}
-                  keyboardType="numeric"
-                  placeholder="100"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-            
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Max Tickets *</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="ticket" size={20} color="#666" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={maxTickets}
-                  onChangeText={setMaxTickets}
-                  keyboardType="numeric"
-                  placeholder="200"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-          </View>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Max Winners *</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="trophy" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={maxWinners}
-                onChangeText={setMaxWinners}
-                keyboardType="numeric"
-                placeholder="10"
-                placeholderTextColor="#999"
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Pattern Selection Card */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIcon, { backgroundColor: '#F3E5F5' }]}>
-              <Ionicons name="grid" size={20} color="#9C27B0" />
-            </View>
-            <View style={styles.sectionTitleContainer}>
-              <Text style={styles.sectionTitle}>Pattern Selection</Text>
-              <Text style={styles.requiredText}>*</Text>
-            </View>
+        {renderStepContent()}
+        
+        <View style={styles.buttonContainer}>
+          {currentStep > 1 && (
             <TouchableOpacity
-              style={styles.selectPatternsButton}
-              onPress={() => {
-                setPatternsModalType('select');
-                setPatternsModalVisible(true);
-              }}
+              style={styles.prevButton}
+              onPress={prevStep}
             >
-              <Ionicons name="add-circle" size={16} color="#FF7675" />
-              <Text style={styles.selectPatternsText}>
-                {selectedPatterns.length > 0 ? 'Edit Patterns' : 'Select Patterns'}
-              </Text>
+              <Ionicons name="arrow-back" size={18} color="#FF7675" />
+              <Text style={styles.prevButtonText}>Previous</Text>
             </TouchableOpacity>
-          </View>
+          )}
           
-          {selectedPatterns.length > 0 ? (
-            <>
-              <View style={styles.selectedPatternsList}>
-                {selectedPatterns.map((pattern, index) => {
-                  const reward = patternRewards.find(r => r.pattern_id === pattern.id);
-                  const isEditing = editingReward === pattern.id;
-                  
-                  return (
-                    <View key={pattern.id} style={styles.selectedPatternCard}>
-                      <View style={styles.selectedPatternHeader}>
-                        <View style={styles.patternInfo}>
-                          <View style={[
-                            styles.patternIcon,
-                            { backgroundColor: getPatternColor(pattern.logic_type) + '20' }
-                          ]}>
-                            <Text style={{ color: getPatternColor(pattern.logic_type) }}>
-                              {getPatternIcon(pattern.logic_type)}
-                            </Text>
-                          </View>
-                          <View style={styles.patternText}>
-                            <Text style={styles.selectedPatternName} numberOfLines={1}>
-                              {pattern.pattern_name.replace(/_/g, ' ')}
-                            </Text>
-                            <Text style={styles.patternType} numberOfLines={1}>
-                              {pattern.logic_type.replace(/_/g, ' ')}
-                            </Text>
-                          </View>
-                        </View>
-                        {!isEditing ? (
-                          <TouchableOpacity
-                            style={styles.configureRewardButton}
-                            onPress={() => openInlineRewardEdit(pattern)}
-                          >
-                            <Ionicons name="pencil" size={14} color="#4CAF50" />
-                            <Text style={styles.configureRewardText}>
-                              {reward?.amount ? `₹${reward.amount}` : 'Set'}
-                            </Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <TouchableOpacity
-                            style={[styles.configureRewardButton, styles.saveRewardButton]}
-                            onPress={saveInlineReward}
-                          >
-                            <Ionicons name="checkmark" size={14} color="#FFF" />
-                            <Text style={[styles.configureRewardText, styles.saveRewardText]}>
-                              Save
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      
-                      {reward && reward.reward_name && (
-                        <View style={styles.rewardInfo}>
-                          {isEditing ? (
-                            <>
-                              {/* Editable Reward Name */}
-                              <View style={styles.inlineInputGroup}>
-                                <Text style={styles.inlineInputLabel}>Reward Name</Text>
-                                <TextInput
-                                  style={styles.inlineInput}
-                                  value={reward.reward_name}
-                                  onChangeText={(value) => updatePatternReward(pattern.id, 'reward_name', value)}
-                                  placeholder="Reward name"
-                                />
-                              </View>
-                              
-                              {/* Editable Reward Details */}
-                              <View style={styles.inlineRewardDetails}>
-                                <View style={styles.inlineRewardDetail}>
-                                  <Text style={styles.inlineRewardLabel}>Amount (₹)</Text>
-                                  <TextInput
-                                    style={styles.inlineRewardInput}
-                                    value={reward.amount}
-                                    onChangeText={(value) => updatePatternReward(pattern.id, 'amount', value)}
-                                    keyboardType="numeric"
-                                    placeholder="Amount"
-                                  />
-                                </View>
-                                
-                                <View style={styles.inlineRewardDetail}>
-                                  <Text style={styles.inlineRewardLabel}>Reward Count</Text>
-                                  <TextInput
-                                    style={styles.inlineRewardInput}
-                                    value={reward.reward_count}
-                                    onChangeText={(value) => updatePatternReward(pattern.id, 'reward_count', value)}
-                                    keyboardType="numeric"
-                                    placeholder="Count"
-                                  />
-                                </View>
-                                
-                                <View style={styles.inlineRewardDetail}>
-                                  <Text style={styles.inlineRewardLabel}>Min Tickets</Text>
-                                  <TextInput
-                                    style={styles.inlineRewardInput}
-                                    value={reward.min_tickets_required}
-                                    onChangeText={(value) => updatePatternReward(pattern.id, 'min_tickets_required', value)}
-                                    keyboardType="numeric"
-                                    placeholder="Min tickets"
-                                  />
-                                </View>
-                              </View>
-                              
-                              {/* Editable Description */}
-                              <View style={styles.inlineInputGroup}>
-                                <Text style={styles.inlineInputLabel}>Description</Text>
-                                <TextInput
-                                  style={[styles.inlineInput, styles.inlineTextArea]}
-                                  value={reward.description}
-                                  onChangeText={(value) => updatePatternReward(pattern.id, 'description', value)}
-                                  placeholder="Description"
-                                  multiline
-                                  numberOfLines={2}
-                                />
-                              </View>
-                            </>
-                          ) : (
-                            <>
-                              {/* Non-editable view */}
-                              <Text style={styles.rewardName}>{reward.reward_name}</Text>
-                              {reward.description && (
-                                <Text style={styles.rewardDescription}>{reward.description}</Text>
-                              )}
-                              <View style={styles.rewardDetails}>
-                                <View style={styles.rewardDetail}>
-                                  <Ionicons name="cash" size={12} color="#4CAF50" />
-                                  <Text style={styles.rewardAmount}>₹{reward.amount}</Text>
-                                </View>
-                                <View style={styles.rewardDetail}>
-                                  <Ionicons name="trophy" size={12} color="#FF9800" />
-                                  <Text style={styles.rewardCount}>×{reward.reward_count}</Text>
-                                </View>
-                                <View style={styles.rewardDetail}>
-                                  <Ionicons name="ticket" size={12} color="#2196F3" />
-                                  <Text style={styles.rewardMinTickets}>
-                                    Min: {reward.min_tickets_required}
-                                  </Text>
-                                </View>
-                              </View>
-                            </>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-              
-              <View style={styles.selectionSummary}>
-                <Text style={styles.selectionSummaryText}>
-                  🎯 {selectedPatterns.length} pattern(s) selected
-                </Text>
-              </View>
-            </>
+          {currentStep < totalSteps ? (
+            <TouchableOpacity
+              style={[styles.nextButton, currentStep === 1 && styles.nextButtonFull]}
+              onPress={nextStep}
+            >
+              <Text style={styles.nextButtonText}>Next</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFF" />
+            </TouchableOpacity>
           ) : (
-            <View style={styles.noPatterns}>
-              <Ionicons name="grid-outline" size={50} color="#CCC" />
-              <Text style={styles.noPatternsText}>No patterns selected</Text>
-              <Text style={styles.noPatternsSubtext}>
-                Click "Select Patterns" to choose game patterns
-              </Text>
-            </View>
+            <TouchableOpacity
+              style={[styles.createButton, loading && styles.createButtonDisabled]}
+              onPress={createGame}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name="rocket" size={20} color="#FFF" />
+                  <Text style={styles.createButtonText}>Launch Game</Text>
+                </>
+              )}
+            </TouchableOpacity>
           )}
         </View>
-
-        {/* Create Game Button */}
-        <TouchableOpacity
-          style={[styles.createButton, loading && styles.createButtonDisabled]}
-          onPress={createGame}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <>
-              <Ionicons name="rocket" size={20} color="#FFF" />
-              <Text style={styles.createButtonText}>Launch Game</Text>
-            </>
-          )}
-        </TouchableOpacity>
 
         <View style={styles.bottomSpace} />
       </ScrollView>
@@ -1133,9 +1080,6 @@ const HostGameCreation = ({ navigation, route }) => {
           }}
         />
       )}
-
-      {/* Patterns Modal */}
-      <PatternsModal />
     </SafeAreaView>
   );
 };
@@ -1154,7 +1098,7 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 40,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 25,
     backgroundColor: '#FF7675',
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
@@ -1162,6 +1106,7 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 25,
   },
   backButton: {
     marginRight: 15,
@@ -1179,9 +1124,96 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
   },
+  // Step Progress Styles - Fixed
+  stepProgressContainer: {
+    position: 'relative',
+    height: 60,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+  },
+  stepColumn: {
+    alignItems: 'center',
+    width: (width - 40) / 4, // Divide by number of steps
+  },
+  stepConnectorContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    position: 'absolute',
+    top: 18, // Half of circle height (36/2)
+    left: (width - 40) / 8 + 18, // Half of column width + half circle radius
+    right: (width - 40) / 8 + 18,
+    zIndex: 1,
+  },
+  stepCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    marginBottom: 5,
+  },
+  stepCircleActive: {
+    backgroundColor: '#FFF',
+    borderColor: '#FFF',
+  },
+  stepCircleInactive: {
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  stepNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  stepNumberActive: {
+    color: '#FF7675',
+  },
+  stepNumberInactive: {
+    color: 'rgba(255,255,255,0.5)',
+  },
+  stepLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+    maxWidth: 60,
+  },
+  stepLabelActive: {
+    color: '#FFF',
+  },
+  stepLabelInactive: {
+    color: 'rgba(255,255,255,0.5)',
+  },
+  stepConnector: {
+    flex: 1,
+    height: 2,
+    marginHorizontal: 2,
+  },
+  stepConnectorActive: {
+    backgroundColor: '#FFF',
+  },
+  stepConnectorInactive: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  // Step Content
+  stepContent: {
+    paddingHorizontal: 20,
+  },
+  stepDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
   sectionCard: {
     backgroundColor: '#FFF',
-    marginHorizontal: 20,
     marginTop: 20,
     padding: 20,
     borderRadius: 16,
@@ -1221,6 +1253,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FF6B6B',
     marginLeft: 4,
+  },
+  selectionCountBadge: {
+    backgroundColor: '#E6F0FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  selectionCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF7675',
   },
   inputGroup: {
     marginBottom: 16,
@@ -1334,22 +1377,73 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#666',
   },
-  selectPatternsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E6F0FF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
+  // Pattern Selection Styles - Fixed
+  patternsGrid: {
+    paddingBottom: 15,
   },
-  selectPatternsText: {
-    fontSize: 12,
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  patternCard: {
+    width: (width - 60) / 2, // Account for padding (20+20) and gap (10)
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  patternCardSelected: {
+    backgroundColor: '#F0F9F0',
+    borderColor: '#4CAF50',
+    borderWidth: 2,
+  },
+  patternCardContent: {
+    flex: 1,
+  },
+  patternCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  patternTypeBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  patternTypeText: {
+    fontSize: 18,
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#999',
+  },
+  patternName: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#FF7675',
+    color: '#333',
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  patternDescription: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 16,
+  },
+  selectedPatternsSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
   },
   selectedPatternsList: {
-    marginBottom: 16,
+    marginTop: 10,
   },
   selectedPatternCard: {
     backgroundColor: '#F8FAFC',
@@ -1504,44 +1598,87 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     textAlign: 'center',
   },
-  selectionSummary: {
-    backgroundColor: '#E6F0FF',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+  loadingContainer: {
+    padding: 40,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  selectionSummaryText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF7675',
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#666',
   },
-  noPatterns: {
+  emptyPatterns: {
     alignItems: 'center',
     paddingVertical: 30,
   },
-  noPatternsText: {
+  emptyPatternsText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#666',
     marginTop: 12,
     marginBottom: 6,
   },
-  noPatternsSubtext: {
+  emptyPatternsSubtext: {
     fontSize: 12,
     color: '#999',
     textAlign: 'center',
+  },
+  // Button Container - Fixed
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 30,
+    gap: 12,
+  },
+  prevButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#FF7675',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    flex: 1,
+  },
+  prevButtonText: {
+    color: '#FF7675',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF7675',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+  },
+  nextButtonFull: {
+    flex: 1,
+  },
+  nextButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   createButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#4CAF50',
-    marginHorizontal: 20,
-    marginTop: 30,
     paddingVertical: 16,
+    paddingHorizontal: 24,
     borderRadius: 12,
     gap: 10,
+    width: '100%',
     shadowColor: '#4CAF50',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -1582,171 +1719,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 10,
     flex: 1,
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '90%',
-    height: '85%',
-    backgroundColor: '#FFF',
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  modalHeaderContent: {
-    flex: 1,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#333',
-    marginBottom: 4,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#666',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  loadingContainer: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    marginTop: 15,
-    fontSize: 16,
-    color: '#666',
-  },
-  patternsGrid: {
-    padding: 15,
-  },
-  patternCard: {
-    width: (width * 0.9 - 50) / 2,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 16,
-    margin: 5,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  patternCardSelected: {
-    backgroundColor: '#F0F9F0',
-    borderColor: '#4CAF50',
-    borderWidth: 2,
-  },
-  patternCardContent: {
-    flex: 1,
-  },
-  patternCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  patternTypeBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  patternTypeText: {
-    fontSize: 18,
-  },
-  radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#999',
-  },
-  patternName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 6,
-    lineHeight: 18,
-  },
-  patternDescription: {
-    fontSize: 12,
-    color: '#666',
-    lineHeight: 16,
-  },
-  emptyPatterns: {
-    alignItems: 'center',
-    padding: 40,
-  },
-  emptyPatternsText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 12,
-  },
-  modalFooter: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  selectionInfo: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  selectionCount: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
-  },
-  doneButton: {
-    backgroundColor: '#FF7675',
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButton: {
-    backgroundColor: '#4CAF50',
-  },
-  doneButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalBody: {
-    flex: 1,
-  },
-  modalScrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
-  },
-  rewardFormCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  rewardFormSection: {
-    marginBottom: 20,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
   },
 });
 
