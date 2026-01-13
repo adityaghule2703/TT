@@ -12,8 +12,6 @@ import {
   Alert,
   Modal,
   RefreshControl,
-  Image,
-  TextInput,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -31,15 +29,36 @@ const HostClaimRequests = ({ navigation, route }) => {
   const [summary, setSummary] = useState({ total_pending: 0, average_waiting_minutes: 0 });
   const [selectedClaim, setSelectedClaim] = useState(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [processingClaim, setProcessingClaim] = useState(null);
-  const [rejectReason, setRejectReason] = useState("");
+  const [calledNumbers, setCalledNumbers] = useState([]);
   const [pagination, setPagination] = useState({
     current_page: 1,
     last_page: 1,
     per_page: 20,
     total: 0
   });
+  
+  const fetchCalledNumbers = async () => {
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      const response = await axios.get(
+        `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/number-calling/status`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        const data = response.data.data;
+        setCalledNumbers(data.numbers?.called_numbers || []);
+      }
+    } catch (error) {
+      console.log("Error fetching called numbers:", error);
+    }
+  };
 
   const fetchClaims = useCallback(async () => {
     try {
@@ -54,12 +73,13 @@ const HostClaimRequests = ({ navigation, route }) => {
           },
         }
       );
-
+      
       if (response.data.success) {
         setGameInfo(response.data.data.game);
         setSummary(response.data.data.summary);
         setClaims(response.data.data.claims);
         setPagination(response.data.data.pagination);
+        await fetchCalledNumbers();
       }
     } catch (error) {
       console.log("Error fetching claims:", error);
@@ -84,120 +104,175 @@ const HostClaimRequests = ({ navigation, route }) => {
     setDetailModalVisible(true);
   };
 
-  const approveClaim = async (claimId) => {
-    Alert.alert(
-      "Approve Claim",
-      "Are you sure you want to approve this claim? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Approve",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setProcessingClaim(claimId);
-              const token = await AsyncStorage.getItem("hostToken");
-              
-              const response = await axios.post(
-                `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/claims/${claimId}/approve`,
-                { host_response: "Claim verified and approved" },
-                {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: "application/json",
-                  },
-                }
-              );
+  // Function to render all called numbers in a compact grid
+  const renderAllCalledNumbers = () => {
+    if (calledNumbers.length === 0) {
+      return (
+        <View style={styles.noCalledNumbers}>
+          <Ionicons name="megaphone-outline" size={24} color="#9CA3AF" />
+          <Text style={styles.noCalledNumbersText}>No numbers called yet</Text>
+        </View>
+      );
+    }
 
-              if (response.data.success) {
-                Alert.alert("Success", "Claim approved successfully!");
-                // Remove the claim from the list
-                setClaims(prev => prev.filter(claim => claim.id !== claimId));
-                // Update summary
-                setSummary(prev => ({
-                  ...prev,
-                  total_pending: prev.total_pending - 1
-                }));
-              }
-            } catch (error) {
-              console.log("Error approving claim:", error);
-              Alert.alert(
-                "Error",
-                error.response?.data?.message || "Failed to approve claim"
-              );
-            } finally {
-              setProcessingClaim(null);
-            }
-          }
-        }
-      ]
+    // Calculate cell size to fit all numbers in the modal
+    const cellSize = Math.min(28, (width - 60) / 10); // Compact size, max 10 per row
+    
+    return (
+      <View style={styles.allNumbersContainer}>
+        <Text style={styles.calledNumbersTitle}>
+          All Called Numbers ({calledNumbers.length}/90)
+        </Text>
+        
+        <View style={styles.calledNumbersGrid}>
+          {Array.from({ length: 90 }, (_, i) => i + 1).map((number) => {
+            const isCalled = calledNumbers.includes(number);
+            
+            return (
+              <View key={number} style={[styles.numberCell, { width: cellSize, height: cellSize }]}>
+                <View style={[
+                  styles.numberCellInner,
+                  isCalled && styles.calledNumberCell
+                ]}>
+                  <Text style={[
+                    styles.numberText,
+                    isCalled && styles.calledNumberText
+                  ]}>
+                    {number}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+        
+        <View style={styles.calledNumbersSummary}>
+          <View style={styles.summaryItem}>
+            <View style={styles.calledIndicator} />
+            <Text style={styles.summaryText}>
+              Called ({calledNumbers.length})
+            </Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <View style={styles.uncalledIndicator} />
+            <Text style={styles.summaryText}>
+              Remaining ({90 - calledNumbers.length})
+            </Text>
+          </View>
+        </View>
+      </View>
     );
   };
 
-  const openRejectModal = (claimId) => {
-    const claim = claims.find(c => c.id === claimId);
-    setSelectedClaim(claim || null);
-    setRejectReason("");
-    setRejectModalVisible(true);
-  };
+  const ClaimDetailModal = () => {
+    if (!selectedClaim) return null;
+    
+    return (
+      <Modal
+        visible={detailModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setDetailModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Simplified Header with Player Name */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Text style={styles.modalTitle}>Claim Verification</Text>
+                <Text style={styles.playerName}>
+                  Player: {selectedClaim.user_name}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setDetailModalVisible(false)}
+                disabled={!!processingClaim}
+              >
+                <Ionicons name="close" size={24} color={!!processingClaim ? "#999" : "#666"} />
+              </TouchableOpacity>
+            </View>
 
-  const closeRejectModal = () => {
-    setRejectModalVisible(false);
-    setRejectReason("");
-    setProcessingClaim(null);
-  };
+            {/* Scrollable Content */}
+            <View style={styles.modalScrollContainer}>
+              <ScrollView 
+                showsVerticalScrollIndicator={true}
+                contentContainerStyle={styles.modalScrollContent}
+              >
+                {/* Pattern and Prize Info */}
+                <View style={styles.claimInfoCard}>
+                  <View style={styles.claimInfoRow}>
+                    <View style={styles.infoItem}>
+                      <MaterialIcons name="pattern" size={16} color="#25D366" />
+                      <Text style={styles.infoLabel}>Pattern:</Text>
+                      <Text style={styles.infoValue}>{selectedClaim.pattern_name}</Text>
+                    </View>
+                    <View style={styles.infoItem}>
+                      <FontAwesome name="rupee" size={16} color="#25D366" />
+                      <Text style={styles.infoLabel}>Prize:</Text>
+                      <Text style={styles.infoValue}>₹{selectedClaim.winning_amount}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.claimInfoRow}>
+                    <View style={styles.infoItem}>
+                      <Ionicons name="time-outline" size={16} color="#FF9800" />
+                      <Text style={styles.infoLabel}>Submitted:</Text>
+                      <Text style={styles.infoValue}>{selectedClaim.waiting_time_minutes} min ago</Text>
+                    </View>
+                    <View style={styles.infoItem}>
+                      <Ionicons name="ticket-outline" size={16} color="#2196F3" />
+                      <Text style={styles.infoLabel}>Ticket:</Text>
+                      <Text style={styles.infoValue}>#{selectedClaim.ticket_number}</Text>
+                    </View>
+                  </View>
+                </View>
 
-  const rejectClaim = async () => {
-    if (!rejectReason.trim()) {
-      Alert.alert("Error", "Please provide a reason for rejection");
-      return;
-    }
+                {/* All Called Numbers Grid */}
+                <View style={styles.calledNumbersSection}>
+                  {renderAllCalledNumbers()}
+                </View>
 
-    if (!selectedClaim) {
-      Alert.alert("Error", "No claim selected");
-      return;
-    }
+                {/* Ticket Grid */}
+                <View style={styles.ticketSection}>
+                  <Text style={styles.sectionTitle}>
+                    Player's Ticket
+                  </Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Green cells are marked numbers for {selectedClaim.pattern_name} pattern
+                  </Text>
+                  {selectedClaim.ticket_data && renderTicketGrid(selectedClaim.ticket_data)}
+                </View>
+              </ScrollView>
+            </View>
 
-    const currentClaimId = selectedClaim.id;
-
-    try {
-      setProcessingClaim(currentClaimId);
-      const token = await AsyncStorage.getItem("hostToken");
-      
-      const response = await axios.post(
-        `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/claims/${currentClaimId}/reject`,
-        {
-          host_response: rejectReason,
-          reason: rejectReason
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
-      );
-
-      if (response.data.success) {
-        Alert.alert("Success", "Claim rejected successfully!");
-        // Remove the claim from the list
-        setClaims(prev => prev.filter(claim => claim.id !== currentClaimId));
-        // Update summary
-        setSummary(prev => ({
-          ...prev,
-          total_pending: prev.total_pending - 1
-        }));
-        closeRejectModal();
-      }
-    } catch (error) {
-      console.log("Error rejecting claim:", error);
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Failed to reject claim"
-      );
-    } finally {
-      setProcessingClaim(null);
-    }
+            {/* Fixed Footer with Action Buttons */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.rejectButton]}
+                onPress={() => {
+                  setDetailModalVisible(false);
+                  setTimeout(() => rejectClaim(selectedClaim.id), 300);
+                }}
+                disabled={!!processingClaim || !selectedClaim.can_process}
+              >
+                <Ionicons name="close-circle" size={20} color="#FFF" />
+                <Text style={styles.actionButtonText}>Reject</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.approveButton]}
+                onPress={() => {
+                  setDetailModalVisible(false);
+                  setTimeout(() => approveClaim(selectedClaim.id), 300);
+                }}
+                disabled={!!processingClaim || !selectedClaim.can_process}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                <Text style={styles.actionButtonText}>Approve</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
   };
 
   const renderTicketGrid = (ticketData) => {
@@ -230,221 +305,145 @@ const HostClaimRequests = ({ navigation, route }) => {
     );
   };
 
-  const ClaimDetailModal = () => (
-    <Modal
-      visible={detailModalVisible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => setDetailModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          {selectedClaim && (
-            <ScrollView 
-              style={styles.modalContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.modalHeader}>
-                <View style={styles.modalHeaderLeft}>
-                  <Text style={styles.modalTitle}>Claim Details</Text>
-                  <Text style={styles.modalSubtitle}>Ticket #{selectedClaim.ticket_number}</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setDetailModalVisible(false)}
-                  disabled={!!processingClaim}
-                >
-                  <Ionicons name="close" size={24} color={!!processingClaim ? "#999" : "#666"} />
-                </TouchableOpacity>
-              </View>
+  const approveClaim = async (claimId) => {
+    Alert.alert(
+      "Approve Claim",
+      "Are you sure you want to approve this claim? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Approve",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setProcessingClaim(claimId);
+              const token = await AsyncStorage.getItem("hostToken");
+              
+              const response = await axios.post(
+                `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/claims/${claimId}/approve`,
+                { host_response: "Claim verified and approved" },
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                  },
+                }
+              );
 
-              {/* User Info */}
-              <View style={styles.userInfoCard}>
-                <View style={styles.userAvatarContainer}>
-                  {selectedClaim.profile_image ? (
-                    <Image
-                      source={{ uri: selectedClaim.profile_image }}
-                      style={styles.userAvatar}
-                    />
-                  ) : (
-                    <View style={styles.userAvatarPlaceholder}>
-                      <Text style={styles.userAvatarText}>
-                        {selectedClaim.user_name?.charAt(0) || "U"}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{selectedClaim.user_name}</Text>
-                  <Text style={styles.username}>@{selectedClaim.username}</Text>
-                </View>
-              </View>
-
-              {/* Claim Info */}
-              <View style={styles.infoGrid}>
-                <View style={styles.infoItem}>
-                  <Ionicons name="ticket-outline" size={16} color="#666" />
-                  <Text style={styles.infoLabel}>Ticket</Text>
-                  <Text style={styles.infoValue}>#{selectedClaim.ticket_number}</Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <MaterialIcons name="pattern" size={16} color="#666" />
-                  <Text style={styles.infoLabel}>Pattern</Text>
-                  <Text style={styles.infoValue}>{selectedClaim.pattern_name}</Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <Ionicons name="trophy-outline" size={16} color="#666" />
-                  <Text style={styles.infoLabel}>Prize</Text>
-                  <Text style={styles.infoValue}>{selectedClaim.reward_name}</Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <FontAwesome name="rupee" size={16} color="#666" />
-                  <Text style={styles.infoLabel}>Amount</Text>
-                  <Text style={styles.infoValue}>₹{selectedClaim.winning_amount}</Text>
-                </View>
-              </View>
-
-              {/* Ticket Grid */}
-              <View style={styles.ticketSection}>
-                <Text style={styles.sectionTitle}>Ticket Pattern</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Green cells are marked numbers for this pattern
-                </Text>
-                {renderTicketGrid(selectedClaim.ticket_data)}
-              </View>
-
-              {/* Time Info */}
-              <View style={styles.timeInfo}>
-                <View style={styles.timeItem}>
-                  <Ionicons name="time-outline" size={16} color="#FF9800" />
-                  <Text style={styles.timeLabel}>Claimed</Text>
-                  <Text style={styles.timeValue}>{selectedClaim.time_since_claim}</Text>
-                </View>
-                <View style={styles.timeItem}>
-                  <Ionicons name="hourglass-outline" size={16} color="#2196F3" />
-                  <Text style={styles.timeLabel}>Waiting Time</Text>
-                  <Text style={styles.timeValue}>{selectedClaim.waiting_time_minutes} min</Text>
-                </View>
-              </View>
-
-              {/* Action Buttons */}
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.rejectButton]}
-                  onPress={() => {
-                    setDetailModalVisible(false);
-                    setTimeout(() => openRejectModal(selectedClaim.id), 300);
-                  }}
-                  disabled={!!processingClaim || !selectedClaim.can_process}
-                >
-                  <Ionicons name="close-circle" size={20} color="#FFF" />
-                  <Text style={styles.actionButtonText}>Reject</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.approveButton]}
-                  onPress={() => {
-                    setDetailModalVisible(false);
-                    setTimeout(() => approveClaim(selectedClaim.id), 300);
-                  }}
-                  disabled={!!processingClaim || !selectedClaim.can_process}
-                >
-                  <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-                  <Text style={styles.actionButtonText}>Approve</Text>
-                </TouchableOpacity>
-              </View>
-
-              {!selectedClaim.can_process && (
-                <Text style={styles.warningText}>
-                  This claim cannot be processed at the moment
-                </Text>
-              )}
-            </ScrollView>
-          )}
-        </View>
-      </View>
-    </Modal>
-  );
-
-  const RejectModal = () => (
-    <Modal
-      visible={rejectModalVisible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={() => {
-        if (!processingClaim) {
-          closeRejectModal();
+              if (response.data.success) {
+                Alert.alert(
+                  "Success", 
+                  "Claim approved successfully!",
+                  [
+                    { 
+                      text: "OK", 
+                      onPress: () => {
+                        navigation.navigate('HostGameRoom', { 
+                          gameId, 
+                          gameName 
+                        });
+                      }
+                    }
+                  ]
+                );
+                
+                setClaims(prev => prev.filter(claim => claim.id !== claimId));
+                setSummary(prev => ({
+                  ...prev,
+                  total_pending: prev.total_pending - 1
+                }));
+                
+                fetchClaims();
+              }
+            } catch (error) {
+              console.log("Error approving claim:", error);
+              Alert.alert(
+                "Error",
+                error.response?.data?.message || "Failed to approve claim"
+              );
+            } finally {
+              setProcessingClaim(null);
+            }
+          }
         }
-      }}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.rejectModalWrapper}>
-          <View style={styles.rejectModalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reject Claim</Text>
-              <TouchableOpacity
-                onPress={closeRejectModal}
-                disabled={!!processingClaim}
-              >
-                <Ionicons name="close" size={24} color={!!processingClaim ? "#999" : "#666"} />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.rejectModalContent}>
-              <Text style={styles.rejectInstruction}>
-                Please provide a reason for rejecting this claim. This will be sent to the user.
-              </Text>
+      ]
+    );
+  };
+
+  const rejectClaim = async (claimId) => {
+    const claim = claims.find(c => c.id === claimId);
+    
+    Alert.alert(
+      "Reject Claim",
+      "Are you sure you want to reject this claim? This action cannot be undone.\n\nReason: Pattern doesn't match or numbers not called",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setProcessingClaim(claimId);
+              const token = await AsyncStorage.getItem("hostToken");
               
-              <View style={styles.reasonInputContainer}>
-                <TextInput
-                  style={styles.reasonInput}
-                  placeholder="Enter rejection reason..."
-                  multiline
-                  numberOfLines={6}
-                  value={rejectReason}
-                  onChangeText={setRejectReason}
-                  editable={!processingClaim}
-                  returnKeyType="done"
-                  blurOnSubmit={true}
-                />
-              </View>
-              
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.cancelButton]}
-                  onPress={closeRejectModal}
-                  disabled={!!processingClaim}
-                >
-                  <Text style={styles.actionButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton, 
-                    styles.confirmRejectButton,
-                    (!rejectReason.trim() || !!processingClaim) && styles.disabledButton
-                  ]}
-                  onPress={rejectClaim}
-                  disabled={!!processingClaim || !rejectReason.trim()}
-                >
-                  {processingClaim ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <>
-                      <Ionicons name="close-circle" size={20} color="#FFF" />
-                      <Text style={styles.actionButtonText}>Reject Claim</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
+              const response = await axios.post(
+                `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/claims/${claimId}/reject`,
+                {
+                  host_response: "Pattern doesn't match or numbers not called",
+                  reason: "Pattern doesn't match or numbers not called"
+                },
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                  },
+                }
+              );
+
+              if (response.data.success) {
+                Alert.alert(
+                  "Success", 
+                  "Claim rejected successfully!",
+                  [
+                    { 
+                      text: "OK", 
+                      onPress: () => {
+                        navigation.navigate('HostGameRoom', { 
+                          gameId, 
+                          gameName 
+                        });
+                      }
+                    }
+                  ]
+                );
+                
+                setClaims(prev => prev.filter(claim => claim.id !== claimId));
+                setSummary(prev => ({
+                  ...prev,
+                  total_pending: prev.total_pending - 1
+                }));
+                
+                fetchClaims();
+              }
+            } catch (error) {
+              console.log("Error rejecting claim:", error);
+              Alert.alert(
+                "Error",
+                error.response?.data?.message || "Failed to reject claim"
+              );
+            } finally {
+              setProcessingClaim(null);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3498db" />
+        <ActivityIndicator size="large" color="#25D366" />
         <Text style={styles.loadingText}>Loading Claim Requests...</Text>
       </View>
     );
@@ -536,21 +535,13 @@ const HostClaimRequests = ({ navigation, route }) => {
               >
                 <View style={styles.claimHeader}>
                   <View style={styles.userInfo}>
-                    {claim.profile_image ? (
-                      <Image
-                        source={{ uri: claim.profile_image }}
-                        style={styles.avatar}
-                      />
-                    ) : (
-                      <View style={styles.avatarPlaceholder}>
-                        <Text style={styles.avatarText}>
-                          {claim.user_name?.charAt(0) || "U"}
-                        </Text>
-                      </View>
-                    )}
-                    <View>
+                    <View style={styles.userInfoText}>
                       <Text style={styles.userName}>{claim.user_name}</Text>
                       <Text style={styles.username}>@{claim.username}</Text>
+                      <View style={styles.patternContainer}>
+                        <MaterialIcons name="pattern" size={12} color="#25D366" />
+                        <Text style={styles.patternName}>{claim.pattern_name}</Text>
+                      </View>
                     </View>
                   </View>
                   
@@ -558,28 +549,17 @@ const HostClaimRequests = ({ navigation, route }) => {
                     <Text style={styles.waitingTime}>
                       {claim.waiting_time_minutes} min ago
                     </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.claimDetails}>
-                  <View style={styles.detailRow}>
-                    <Ionicons name="ticket-outline" size={14} color="#666" />
-                    <Text style={styles.detailText}>Ticket #{claim.ticket_number}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <MaterialIcons name="pattern" size={14} color="#666" />
-                    <Text style={styles.detailText}>{claim.pattern_name}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <FontAwesome name="rupee" size={14} color="#666" />
-                    <Text style={styles.detailText}>₹{claim.winning_amount}</Text>
+                    <View style={styles.amountContainer}>
+                      <FontAwesome name="rupee" size={14} color="#25D366" />
+                      <Text style={styles.winningAmount}>₹{claim.winning_amount}</Text>
+                    </View>
                   </View>
                 </View>
                 
                 <View style={styles.claimActions}>
                   <TouchableOpacity
                     style={[styles.quickActionButton, styles.rejectQuickButton]}
-                    onPress={() => openRejectModal(claim.id)}
+                    onPress={() => rejectClaim(claim.id)}
                     disabled={!!processingClaim || !claim.can_process}
                   >
                     {processingClaim === claim.id ? (
@@ -605,7 +585,7 @@ const HostClaimRequests = ({ navigation, route }) => {
                     style={styles.detailsButton}
                     onPress={() => showClaimDetails(claim)}
                   >
-                    <Text style={styles.detailsButtonText}>View Details</Text>
+                    <Text style={styles.detailsButtonText}>Verify Claim</Text>
                     <Ionicons name="chevron-forward" size={16} color="#25D366" />
                   </TouchableOpacity>
                 </View>
@@ -620,7 +600,6 @@ const HostClaimRequests = ({ navigation, route }) => {
       </ScrollView>
 
       <ClaimDetailModal />
-      <RejectModal />
     </SafeAreaView>
   );
 };
@@ -726,13 +705,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   summaryStatValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "800",
     color: "#333",
     marginTop: 8,
   },
   summaryStatLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#666",
     fontWeight: "500",
     marginTop: 4,
@@ -743,6 +722,7 @@ const styles = StyleSheet.create({
     color: "#333",
     marginHorizontal: 20,
     marginBottom: 12,
+    marginTop: 8,
   },
   claimCard: {
     backgroundColor: "#FFF",
@@ -770,25 +750,8 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: "#E8F5E9",
-  },
-  avatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#25D366",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
+  userInfoText: {
+    flex: 1,
   },
   userName: {
     fontSize: 16,
@@ -799,6 +762,22 @@ const styles = StyleSheet.create({
   username: {
     fontSize: 13,
     color: "#666",
+    marginBottom: 4,
+  },
+  patternContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    gap: 4,
+  },
+  patternName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#25D366",
   },
   claimStatus: {
     alignItems: "flex-end",
@@ -811,26 +790,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    marginBottom: 4,
   },
-  claimDetails: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 16,
-  },
-  detailRow: {
+  amountContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 6,
+    gap: 4,
   },
-  detailText: {
-    fontSize: 13,
-    color: "#666",
-    fontWeight: "500",
+  winningAmount: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#25D366",
   },
   claimActions: {
     flexDirection: "row",
@@ -926,31 +896,16 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     width: "100%",
-    maxHeight: height * 0.85,
+    height: height * 0.85,
     backgroundColor: "#FFF",
     borderRadius: 20,
-  },
-  modalContent: {
-    paddingBottom: 30,
-  },
-  rejectModalWrapper: {
-    width: "100%",
-    maxHeight: height * 0.6, // Fixed height for reject modal
-  },
-  rejectModalContainer: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    width: "100%",
-  },
-  rejectModalContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 25,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
+    alignItems: "flex-start",
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
   },
@@ -961,76 +916,50 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#333",
+    marginBottom: 6,
   },
-  modalSubtitle: {
+  playerName: {
     fontSize: 14,
     color: "#666",
-    marginTop: 2,
+    fontWeight: "500",
   },
-  userInfoCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: "#F8FAFC",
-    marginHorizontal: 20,
-    marginVertical: 16,
-    borderRadius: 12,
-    gap: 16,
-  },
-  userAvatarContainer: {
-    position: "relative",
-  },
-  userAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 3,
-    borderColor: "#FFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  userAvatarPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#25D366",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#FFF",
-  },
-  userAvatarText: {
-    color: "#FFF",
-    fontSize: 24,
-    fontWeight: "600",
-  },
-  userInfo: {
+  modalScrollContainer: {
     flex: 1,
   },
-  userName: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 4,
+  modalScrollContent: {
+    paddingBottom: 30,
   },
-  username: {
-    fontSize: 14,
-    color: "#666",
-  },
-  infoGrid: {
+  modalFooter: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 20,
-    marginBottom: 20,
     gap: 12,
+    padding: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F0F0",
+    backgroundColor: "#FFF",
+  },
+  // Claim Info Card
+  claimInfoCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  claimInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  claimInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   infoItem: {
-    width: "48%",
-    backgroundColor: "#F8FAFC",
-    padding: 12,
-    borderRadius: 8,
+    flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
@@ -1040,25 +969,118 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   infoValue: {
-    fontSize: 14,
+    fontSize: 13,
+    color: "#333",
+    fontWeight: "600",
+  },
+  // Called Numbers Section
+  calledNumbersSection: {
+    paddingHorizontal: 16,
+    marginVertical: 16,
+  },
+  allNumbersContainer: {
+    marginBottom: 8,
+  },
+  calledNumbersTitle: {
+    fontSize: 15,
     fontWeight: "600",
     color: "#333",
+    marginBottom: 12,
     textAlign: "center",
   },
+  calledNumbersGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 4,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  numberCell: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  numberCellInner: {
+    width: '100%',
+    height: '100%',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F0F0F0",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  calledNumberCell: {
+    backgroundColor: "#4CAF50",
+    borderColor: "#388E3C",
+  },
+  numberText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#666",
+  },
+  calledNumberText: {
+    color: "#FFF",
+    fontWeight: "700",
+  },
+  calledNumbersSummary: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#E0E0E0",
+  },
+  summaryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  calledIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#4CAF50",
+  },
+  uncalledIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#F0F0F0",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  summaryText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  noCalledNumbers: {
+    padding: 16,
+    backgroundColor: "#F5F5F5",
+    borderRadius: 8,
+    alignItems: "center",
+    gap: 6,
+  },
+  noCalledNumbersText: {
+    fontSize: 13,
+    color: "#999",
+    fontStyle: "italic",
+  },
+  // Ticket Section
   ticketSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   sectionSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#666",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   ticketContainer: {
     backgroundColor: "#FFF",
@@ -1073,8 +1095,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   ticketCell: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#F8FAFC",
@@ -1088,50 +1110,27 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   ticketNumber: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     color: "#333",
   },
   markedNumber: {
     color: "#FFF",
   },
-  timeInfo: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  timeItem: {
-    alignItems: "center",
-    padding: 12,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 8,
-    width: "48%",
-  },
-  timeLabel: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-  },
-  timeValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginTop: 2,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 20,
-  },
+  // Modal Actions
   actionButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 10,
     gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   rejectButton: {
     backgroundColor: "#FF3B30",
@@ -1139,47 +1138,10 @@ const styles = StyleSheet.create({
   approveButton: {
     backgroundColor: "#25D366",
   },
-  cancelButton: {
-    backgroundColor: "#666",
-  },
-  confirmRejectButton: {
-    backgroundColor: "#FF3B30",
-  },
-  disabledButton: {
-    backgroundColor: "#CCCCCC",
-    opacity: 0.6,
-  },
   actionButtonText: {
     color: "#FFF",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
-  },
-  warningText: {
-    fontSize: 12,
-    color: "#FF9800",
-    textAlign: "center",
-    marginTop: 8,
-    marginBottom: 20,
-    fontStyle: "italic",
-  },
-  rejectInstruction: {
-    fontSize: 14,
-    color: "#666",
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  reasonInputContainer: {
-    marginBottom: 10,
-  },
-  reasonInput: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    padding: 12,
-    minHeight: 120,
-    fontSize: 14, 
-    textAlignVertical: "top",
   },
 });
 

@@ -13,7 +13,6 @@ import {
   Dimensions,
   Image,
   Alert,
-  TextInput,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -32,11 +31,6 @@ const HostTicketRequests = ({ navigation, route }) => {
   const [loadingActions, setLoadingActions] = useState({});
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedRequests, setSelectedRequests] = useState([]);
-  const [actionModalVisible, setActionModalVisible] = useState(false);
-  const [selectedAction, setSelectedAction] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [allocateQuantity, setAllocateQuantity] = useState("");
-  const [note, setNote] = useState("");
 
   useEffect(() => {
     fetchTicketRequests();
@@ -133,38 +127,32 @@ const HostTicketRequests = ({ navigation, route }) => {
     }
   };
 
-  const handleRequestAction = async (requestId, action) => {
+  const handleApproveRequest = async (requestId) => {
     try {
-      setLoadingActions(prev => ({ ...prev, [requestId]: true }));
+      setLoadingActions(prev => ({ ...prev, [`approve_${requestId}`]: true }));
       const token = await AsyncStorage.getItem("hostToken");
 
-      let url, body;
-      
-      if (action === "approve") {
-        url = `https://exilance.com/tambolatimez/public/api/host/ticket-requests/${requestId}/approve`;
-        body = {
-          allocate_quantity: allocateQuantity || 2,
-          note: note || "Request approved. Tickets allocated successfully."
-        };
-      } else {
-        url = `https://exilance.com/tambolatimez/public/api/host/ticket-requests/${requestId}/reject`;
-        body = {
-          rejection_reason: rejectionReason || "Not enough tickets available for allocation."
-        };
-      }
+      const body = {
+        allocate_quantity: selectedRequest?.ticket_quantity || 2,
+        note: "Request approved. Tickets allocated successfully."
+      };
 
-      const response = await axios.put(url, body, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await axios.put(
+        `https://exilance.com/tambolatimez/public/api/host/ticket-requests/${requestId}/approve`,
+        body,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (response.data.success) {
         Alert.alert(
           "Success",
-          `Request ${action === "approve" ? "approved" : "rejected"} successfully`,
+          "Request approved successfully",
           [{ text: "OK" }]
         );
         
@@ -174,8 +162,8 @@ const HostTicketRequests = ({ navigation, route }) => {
             req.id === requestId 
               ? { 
                 ...req, 
-                status: action === "approve" ? "approved" : "rejected",
-                payment_status: action === "approve" ? "paid" : req.payment_status
+                status: "approved",
+                payment_status: "paid"
               }
               : req
           )
@@ -185,51 +173,95 @@ const HostTicketRequests = ({ navigation, route }) => {
         if (selectedRequest?.id === requestId) {
           setSelectedRequest(prev => ({ 
             ...prev, 
-            status: action === "approve" ? "approved" : "rejected",
-            payment_status: action === "approve" ? "paid" : prev.payment_status
+            status: "approved",
+            payment_status: "paid"
           }));
         }
-        
-        // Reset form fields
-        setAllocateQuantity("");
-        setNote("");
-        setRejectionReason("");
-        setActionModalVisible(false);
       }
     } catch (error) {
-      console.log(`Error ${action}ing request:`, error);
+      console.log("Error approving request:", error);
       Alert.alert(
         "Error",
-        `Failed to ${action} request: ${error.response?.data?.message || error.message}`
+        `Failed to approve request: ${error.response?.data?.message || error.message}`
       );
     } finally {
-      setLoadingActions(prev => ({ ...prev, [requestId]: false }));
+      setLoadingActions(prev => ({ ...prev, [`approve_${requestId}`]: false }));
     }
   };
 
-  const handleBulkProcess = async () => {
+  const handleRejectRequest = async (requestId) => {
+    try {
+      setLoadingActions(prev => ({ ...prev, [`reject_${requestId}`]: true }));
+      const token = await AsyncStorage.getItem("hostToken");
+
+      const body = {
+        rejection_reason: "Not enough tickets available for allocation."
+      };
+
+      const response = await axios.put(
+        `https://exilance.com/tambolatimez/public/api/host/ticket-requests/${requestId}/reject`,
+        body,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        Alert.alert(
+          "Success",
+          "Request rejected successfully",
+          [{ text: "OK" }]
+        );
+        
+        // Update the request in the list
+        setTicketRequests(prev => 
+          prev.map(req => 
+            req.id === requestId 
+              ? { 
+                ...req, 
+                status: "rejected"
+              }
+              : req
+          )
+        );
+        
+        // Update modal if it's open
+        if (selectedRequest?.id === requestId) {
+          setSelectedRequest(prev => ({ 
+            ...prev, 
+            status: "rejected"
+          }));
+        }
+      }
+    } catch (error) {
+      console.log("Error rejecting request:", error);
+      Alert.alert(
+        "Error",
+        `Failed to reject request: ${error.response?.data?.message || error.message}`
+      );
+    } finally {
+      setLoadingActions(prev => ({ ...prev, [`reject_${requestId}`]: false }));
+    }
+  };
+
+  const handleBulkApprove = async () => {
     if (selectedRequests.length === 0) {
       Alert.alert("Error", "Please select at least one request");
       return;
     }
 
-    if (!selectedAction) {
-      Alert.alert("Error", "Please select an action (Approve or Reject)");
-      return;
-    }
-
     try {
-      setLoadingActions(prev => ({ ...prev, bulk: true }));
+      setLoadingActions(prev => ({ ...prev, bulk_approve: true }));
       const token = await AsyncStorage.getItem("hostToken");
 
       const body = {
         request_ids: selectedRequests,
-        action: selectedAction,
+        action: "approve",
       };
-
-      if (selectedAction === "reject" && rejectionReason) {
-        body.rejection_reason = rejectionReason;
-      }
 
       const response = await axios.post(
         "https://exilance.com/tambolatimez/public/api/host/ticket-requests/bulk-process",
@@ -246,26 +278,86 @@ const HostTicketRequests = ({ navigation, route }) => {
       if (response.data.success) {
         Alert.alert(
           "Success",
-          `${selectedRequests.length} requests ${selectedAction}ed successfully`,
+          `${selectedRequests.length} requests approved successfully`,
           [{ text: "OK", onPress: () => {
             fetchTicketRequests();
             setBulkSelectMode(false);
             setSelectedRequests([]);
-            setSelectedAction(null);
-            setRejectionReason("");
-            setActionModalVisible(false);
           }}]
         );
       }
     } catch (error) {
-      console.log("Error bulk processing requests:", error);
+      console.log("Error bulk approving requests:", error);
       Alert.alert(
         "Error",
-        `Failed to process requests: ${error.response?.data?.message || error.message}`
+        `Failed to approve requests: ${error.response?.data?.message || error.message}`
       );
     } finally {
-      setLoadingActions(prev => ({ ...prev, bulk: false }));
+      setLoadingActions(prev => ({ ...prev, bulk_approve: false }));
     }
+  };
+
+  const handleBulkReject = async () => {
+    if (selectedRequests.length === 0) {
+      Alert.alert("Error", "Please select at least one request");
+      return;
+    }
+
+    Alert.alert(
+      "Reject Requests",
+      `Are you sure you want to reject ${selectedRequests.length} request(s)?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Reject", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoadingActions(prev => ({ ...prev, bulk_reject: true }));
+              const token = await AsyncStorage.getItem("hostToken");
+
+              const body = {
+                request_ids: selectedRequests,
+                action: "reject",
+                rejection_reason: "Not enough tickets available for allocation."
+              };
+
+              const response = await axios.post(
+                "https://exilance.com/tambolatimez/public/api/host/ticket-requests/bulk-process",
+                body,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+
+              if (response.data.success) {
+                Alert.alert(
+                  "Success",
+                  `${selectedRequests.length} requests rejected successfully`,
+                  [{ text: "OK", onPress: () => {
+                    fetchTicketRequests();
+                    setBulkSelectMode(false);
+                    setSelectedRequests([]);
+                  }}]
+                );
+              }
+            } catch (error) {
+              console.log("Error bulk rejecting requests:", error);
+              Alert.alert(
+                "Error",
+                `Failed to reject requests: ${error.response?.data?.message || error.message}`
+              );
+            } finally {
+              setLoadingActions(prev => ({ ...prev, bulk_reject: false }));
+            }
+          }
+        }
+      ]
+    );
   };
 
   const getStatusColor = (status) => {
@@ -497,13 +589,22 @@ const HostTicketRequests = ({ navigation, route }) => {
           <TouchableOpacity
             style={[styles.actionButton, styles.rejectButton]}
             onPress={() => {
-              setSelectedRequest(request);
-              setSelectedAction("reject");
-              setActionModalVisible(true);
+              Alert.alert(
+                "Reject Request",
+                `Are you sure you want to reject ${request.user?.name}'s request for ${request.ticket_quantity} ticket(s)?`,
+                [
+                  { text: "Cancel", style: "cancel" },
+                  { 
+                    text: "Reject", 
+                    style: "destructive",
+                    onPress: () => handleRejectRequest(request.id)
+                  }
+                ]
+              );
             }}
-            disabled={loadingActions[request.id]}
+            disabled={loadingActions[`reject_${request.id}`]}
           >
-            {loadingActions[request.id] ? (
+            {loadingActions[`reject_${request.id}`] ? (
               <ActivityIndicator size="small" color="#FFF" />
             ) : (
               <>
@@ -521,10 +622,17 @@ const HostTicketRequests = ({ navigation, route }) => {
             ]}
             onPress={() => {
               if (request.payment_status === "paid") {
-                setSelectedRequest(request);
-                setSelectedAction("approve");
-                setAllocateQuantity(request.ticket_quantity.toString());
-                setActionModalVisible(true);
+                Alert.alert(
+                  "Approve Request",
+                  `Are you sure you want to approve ${request.user?.name}'s request for ${request.ticket_quantity} ticket(s)?`,
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    { 
+                      text: "Approve", 
+                      onPress: () => handleApproveRequest(request.id)
+                    }
+                  ]
+                );
               } else {
                 Alert.alert(
                   "Payment Required",
@@ -539,9 +647,9 @@ const HostTicketRequests = ({ navigation, route }) => {
                 );
               }
             }}
-            disabled={loadingActions[request.id] || request.payment_status !== "paid"}
+            disabled={loadingActions[`approve_${request.id}`] || request.payment_status !== "paid"}
           >
-            {loadingActions[request.id] ? (
+            {loadingActions[`approve_${request.id}`] ? (
               <ActivityIndicator size="small" color="#FFF" />
             ) : (
               <>
@@ -553,232 +661,6 @@ const HostTicketRequests = ({ navigation, route }) => {
         </View>
       )}
     </TouchableOpacity>
-  );
-
-  const ActionModal = () => (
-    <Modal
-      visible={actionModalVisible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => {
-        setActionModalVisible(false);
-        setSelectedAction(null);
-        setRejectionReason("");
-        setAllocateQuantity("");
-        setNote("");
-      }}
-    >
-      <View style={styles.actionModalOverlay}>
-        <View style={styles.actionModalContainer}>
-          <View style={styles.actionModalContent}>
-            <View style={styles.actionModalHeader}>
-              <Text style={styles.actionModalTitle}>
-                {selectedRequests.length > 1 ? "Bulk Process" : `${selectedAction === "approve" ? "Approve" : "Reject"} Request`}
-              </Text>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => {
-                  setActionModalVisible(false);
-                  setSelectedAction(null);
-                  setRejectionReason("");
-                  setAllocateQuantity("");
-                  setNote("");
-                }}
-              >
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.actionModalBody}>
-              {selectedRequests.length > 1 ? (
-                <View style={styles.bulkInfo}>
-                  <Text style={styles.bulkInfoText}>
-                    Processing {selectedRequests.length} requests
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.requestInfo}>
-                  <View style={styles.requestInfoHeader}>
-                    <Text style={styles.requestInfoLabel}>User:</Text>
-                    <Text style={styles.requestInfoValue}>
-                      {selectedRequest?.user?.name || "Unknown User"}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.requestInfoRow}>
-                    <View style={styles.requestInfoColumn}>
-                      <Text style={styles.requestInfoLabel}>Tickets:</Text>
-                      <Text style={styles.requestInfoValue}>
-                        {selectedRequest?.ticket_quantity || 0}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.requestInfoColumn}>
-                      <Text style={styles.requestInfoLabel}>Amount:</Text>
-                      <Text style={styles.requestInfoValue}>
-                        ₹{selectedRequest?.total_amount || 0}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {selectedAction === "approve" && (
-                    <View style={styles.paymentStatusInfo}>
-                      <View style={[
-                        styles.paymentStatusBadgeModal,
-                        { backgroundColor: getPaymentStatusColor(selectedRequest?.payment_status) + "15" }
-                      ]}>
-                        <Ionicons 
-                          name={getPaymentStatusIcon(selectedRequest?.payment_status)} 
-                          size={14} 
-                          color={getPaymentStatusColor(selectedRequest?.payment_status)} 
-                        />
-                        <Text style={[
-                          styles.paymentStatusTextModal,
-                          { color: getPaymentStatusColor(selectedRequest?.payment_status) }
-                        ]}>
-                          Payment: {selectedRequest?.payment_status?.toUpperCase() || "PENDING"}
-                        </Text>
-                      </View>
-                      
-                      {selectedRequest?.payment_status !== "paid" && (
-                        <TouchableOpacity
-                          style={styles.markPaidButtonModal}
-                          onPress={() => {
-                            setActionModalVisible(false);
-                            markAsPaid(selectedRequest.id);
-                          }}
-                          disabled={loadingActions[`paid_${selectedRequest?.id}`]}
-                        >
-                          {loadingActions[`paid_${selectedRequest?.id}`] ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                          ) : (
-                            <>
-                              <Ionicons name="checkmark" size={14} color="#FFF" />
-                              <Text style={styles.markPaidTextModal}>Mark as Paid</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.actionForm}>
-                {selectedAction === "approve" && (
-                  <>
-                    {selectedRequest?.payment_status !== "paid" && (
-                      <View style={styles.paymentWarning}>
-                        <Ionicons name="alert-circle" size={18} color="#FF9800" />
-                        <Text style={styles.paymentWarningText}>
-                          Payment must be marked as paid before approval
-                        </Text>
-                      </View>
-                    )}
-                    
-                    <View style={styles.formGroup}>
-                      <Text style={styles.formLabel}>Allocate Quantity *</Text>
-                      <View style={styles.inputContainer}>
-                        <Ionicons name="ticket-outline" size={20} color="#666" />
-                        <TextInput
-                          style={styles.input}
-                          value={allocateQuantity}
-                          onChangeText={setAllocateQuantity}
-                          placeholder="Enter quantity to allocate"
-                          keyboardType="numeric"
-                        />
-                      </View>
-                      <Text style={styles.formHint}>
-                        Requested: {selectedRequest?.ticket_quantity || 0}
-                      </Text>
-                    </View>
-
-                    <View style={styles.formGroup}>
-                      <Text style={styles.formLabel}>Note (Optional)</Text>
-                      <View style={styles.inputContainer}>
-                        <Ionicons name="document-text-outline" size={20} color="#666" />
-                        <TextInput
-                          style={[styles.input, styles.textArea]}
-                          value={note}
-                          onChangeText={setNote}
-                          placeholder="Enter a note for approval"
-                          multiline
-                          numberOfLines={3}
-                        />
-                      </View>
-                    </View>
-                  </>
-                )}
-
-                {selectedAction === "reject" && (
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Rejection Reason *</Text>
-                    <View style={styles.inputContainer}>
-                      <Ionicons name="alert-circle-outline" size={20} color="#666" />
-                      <TextInput
-                        style={[styles.input, styles.textArea]}
-                        value={rejectionReason}
-                        onChangeText={setRejectionReason}
-                        placeholder="Enter reason for rejection"
-                        multiline
-                        numberOfLines={3}
-                      />
-                    </View>
-                  </View>
-                )}
-              </View>
-            </ScrollView>
-
-            <View style={styles.actionModalActions}>
-              <TouchableOpacity
-                style={[styles.actionModalButton, styles.cancelButton]}
-                onPress={() => {
-                  setActionModalVisible(false);
-                  setSelectedAction(null);
-                  setRejectionReason("");
-                  setAllocateQuantity("");
-                  setNote("");
-                }}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.actionModalButton,
-                  selectedAction === "approve" ? styles.approveButton : styles.rejectButton,
-                  (!selectedAction || 
-                   (selectedAction === "approve" && (!allocateQuantity || selectedRequest?.payment_status !== "paid")) ||
-                   (selectedAction === "reject" && !rejectionReason)) && styles.disabledButton
-                ]}
-                onPress={() => {
-                  if (selectedRequests.length > 1) {
-                    handleBulkProcess();
-                  } else if (selectedRequest) {
-                    handleRequestAction(selectedRequest.id, selectedAction);
-                  }
-                }}
-                disabled={
-                  !selectedAction ||
-                  (selectedAction === "approve" && (!allocateQuantity || selectedRequest?.payment_status !== "paid")) ||
-                  (selectedAction === "reject" && !rejectionReason) ||
-                  loadingActions[selectedRequest?.id] ||
-                  loadingActions.bulk
-                }
-              >
-                {loadingActions[selectedRequest?.id] || loadingActions.bulk ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Text style={styles.actionModalButtonText}>
-                    {selectedAction === "approve" ? "Approve" : "Reject"}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </View>
-    </Modal>
   );
 
   const RequestDetailModal = () => (
@@ -970,12 +852,29 @@ const HostTicketRequests = ({ navigation, route }) => {
                       style={[styles.modalActionButton, styles.modalRejectButton]}
                       onPress={() => {
                         setModalVisible(false);
-                        setSelectedAction("reject");
-                        setActionModalVisible(true);
+                        Alert.alert(
+                          "Reject Request",
+                          `Are you sure you want to reject ${selectedRequest.user?.name}'s request for ${selectedRequest.ticket_quantity} ticket(s)?`,
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            { 
+                              text: "Reject", 
+                              style: "destructive",
+                              onPress: () => handleRejectRequest(selectedRequest.id)
+                            }
+                          ]
+                        );
                       }}
+                      disabled={loadingActions[`reject_${selectedRequest.id}`]}
                     >
-                      <Ionicons name="close" size={18} color="#FFF" />
-                      <Text style={styles.modalActionButtonText}>Reject</Text>
+                      {loadingActions[`reject_${selectedRequest.id}`] ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="close" size={18} color="#FFF" />
+                          <Text style={styles.modalActionButtonText}>Reject</Text>
+                        </>
+                      )}
                     </TouchableOpacity>
                     
                     <TouchableOpacity
@@ -987,9 +886,17 @@ const HostTicketRequests = ({ navigation, route }) => {
                       onPress={() => {
                         if (selectedRequest.payment_status === "paid") {
                           setModalVisible(false);
-                          setSelectedAction("approve");
-                          setAllocateQuantity(selectedRequest.ticket_quantity.toString());
-                          setActionModalVisible(true);
+                          Alert.alert(
+                            "Approve Request",
+                            `Are you sure you want to approve ${selectedRequest.user?.name}'s request for ${selectedRequest.ticket_quantity} ticket(s)?`,
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              { 
+                                text: "Approve", 
+                                onPress: () => handleApproveRequest(selectedRequest.id)
+                              }
+                            ]
+                          );
                         } else {
                           Alert.alert(
                             "Payment Required",
@@ -1007,10 +914,16 @@ const HostTicketRequests = ({ navigation, route }) => {
                           );
                         }
                       }}
-                      disabled={selectedRequest.payment_status !== "paid"}
+                      disabled={loadingActions[`approve_${selectedRequest.id}`] || selectedRequest.payment_status !== "paid"}
                     >
-                      <Ionicons name="checkmark" size={18} color="#FFF" />
-                      <Text style={styles.modalActionButtonText}>Approve</Text>
+                      {loadingActions[`approve_${selectedRequest.id}`] ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark" size={18} color="#FFF" />
+                          <Text style={styles.modalActionButtonText}>Approve</Text>
+                        </>
+                      )}
                     </TouchableOpacity>
                   </View>
                 )}
@@ -1120,12 +1033,30 @@ const HostTicketRequests = ({ navigation, route }) => {
                 </Text>
               </TouchableOpacity>
               {selectedRequests.length > 0 && (
-                <TouchableOpacity
-                  style={styles.processButton}
-                  onPress={() => setActionModalVisible(true)}
-                >
-                  <Ionicons name="play-outline" size={20} color="#FFF" />
-                </TouchableOpacity>
+                <View style={styles.bulkActionButtons}>
+                  <TouchableOpacity
+                    style={[styles.bulkActionButton, styles.bulkRejectButton]}
+                    onPress={handleBulkReject}
+                    disabled={loadingActions.bulk_reject}
+                  >
+                    {loadingActions.bulk_reject ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Ionicons name="close" size={20} color="#FFF" />
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.bulkActionButton, styles.bulkApproveButton]}
+                    onPress={handleBulkApprove}
+                    disabled={loadingActions.bulk_approve}
+                  >
+                    {loadingActions.bulk_approve ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Ionicons name="checkmark" size={20} color="#FFF" />
+                    )}
+                  </TouchableOpacity>
+                </View>
               )}
             </>
           )}
@@ -1212,7 +1143,6 @@ const HostTicketRequests = ({ navigation, route }) => {
       </ScrollView>
 
       <RequestDetailModal />
-      <ActionModal />
     </SafeAreaView>
   );
 };
@@ -1293,13 +1223,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  processButton: {
+  bulkActionButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  bulkActionButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#4CAF50",
     justifyContent: "center",
     alignItems: "center",
+  },
+  bulkRejectButton: {
+    backgroundColor: "#F44336",
+  },
+  bulkApproveButton: {
+    backgroundColor: "#4CAF50",
   },
   bulkHeader: {
     backgroundColor: "#E3F2FD",
@@ -1540,203 +1479,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  actionModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  actionModalContainer: {
-    width: "100%",
-    maxHeight: "80%",
-  },
-  actionModalContent: {
-    backgroundColor: "#FFF",
-    borderRadius: 24,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 20,
-  },
-  actionModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  actionModalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#333",
-    flex: 1,
-  },
-  actionModalBody: {
-    maxHeight: 400,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-  },
-  bulkInfo: {
-    backgroundColor: "#E3F2FD",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    alignItems: "center",
-  },
-  bulkInfoText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1976D2",
-  },
-  requestInfo: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  requestInfoHeader: {
-    marginBottom: 12,
-  },
-  requestInfoRow: {
-    flexDirection: "row",
-    marginBottom: 12,
-  },
-  requestInfoColumn: {
-    flex: 1,
-  },
-  requestInfoLabel: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 2,
-  },
-  requestInfoValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 12,
-  },
-  paymentStatusInfo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  paymentStatusBadgeModal: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-  },
-  paymentStatusTextModal: {
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  markPaidButtonModal: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#4CAF50",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 4,
-  },
-  markPaidTextModal: {
-    color: "#FFF",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  paymentWarning: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF3E0",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    gap: 8,
-  },
-  paymentWarningText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#FF9800",
-    fontWeight: "500",
-  },
-  actionForm: {
-    marginBottom: 20,
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  formLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
-  },
-  formHint: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-    marginLeft: 36,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  input: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
-    color: "#333",
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: "top",
-  },
-  actionModalActions: {
-    flexDirection: "row",
-    padding: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-    gap: 12,
-  },
-  actionModalButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelButton: {
-    backgroundColor: "#F5F5F5",
-  },
-  cancelButtonText: {
-    color: "#666",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  actionModalButtonText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
   emptyState: {
     alignItems: "center",
     paddingHorizontal: 20,
@@ -1867,6 +1609,9 @@ const styles = StyleSheet.create({
     color: "#333",
     flex: 1,
   },
+  closeButton: {
+    padding: 4,
+  },
   modalBody: {
     flex: 1,
   },
@@ -1935,6 +1680,19 @@ const styles = StyleSheet.create({
   statusTextModal: {
     fontSize: 13,
     fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  paymentStatusBadgeModal: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  paymentStatusTextModal: {
+    fontSize: 12,
+    fontWeight: "600",
     textTransform: "uppercase",
   },
   infoGrid: {

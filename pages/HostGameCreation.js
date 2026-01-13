@@ -9,14 +9,12 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
-  Switch,
-  Alert,
   FlatList,
   Dimensions,
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons, FontAwesome } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width } = Dimensions.get('window');
@@ -120,7 +118,6 @@ const HostGameCreation = ({ navigation, route }) => {
         return true;
       
       case 2:
-        // Basic schedule validation
         return true;
       
       case 3:
@@ -151,7 +148,6 @@ const HostGameCreation = ({ navigation, route }) => {
           return false;
         }
         
-        // Validate pattern rewards
         for (const reward of patternRewards) {
           if (!reward.amount || parseFloat(reward.amount) <= 0) {
             showToast(`Please enter a valid reward amount for ${reward.pattern_name}`, 'error');
@@ -248,9 +244,10 @@ const HostGameCreation = ({ navigation, route }) => {
       if (isSuccess) {
         showToast(response.data.message || 'Game created successfully!', 'success');
         
+        // Navigate back to HostGame which will automatically refresh due to focus event
         setTimeout(() => {
-          navigation.goBack();
-        }, 1500);
+  navigation.goBack();  // This will take you back to the previous screen (HostGame)
+}, 1500);
       } else {
         const errorMessage = response.data.message || 
                             response.data.error || 
@@ -378,7 +375,7 @@ const HostGameCreation = ({ navigation, route }) => {
               </Text>
             </View>
             {isSelected ? (
-              <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+              <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
             ) : (
               <View style={styles.radioCircle} />
             )}
@@ -454,7 +451,7 @@ const HostGameCreation = ({ navigation, route }) => {
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
           <View style={[styles.sectionIcon, { backgroundColor: '#FFE6E6' }]}>
-            <Ionicons name="information-circle" size={20} color="#FF7675" />
+            <Ionicons name="information-circle" size={18} color="#FF7675" />
           </View>
           <Text style={styles.sectionTitle}>Basic Information</Text>
         </View>
@@ -462,7 +459,7 @@ const HostGameCreation = ({ navigation, route }) => {
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Game Name *</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="game-controller" size={20} color="#666" style={styles.inputIcon} />
+            <Ionicons name="game-controller" size={18} color="#666" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               value={gameName}
@@ -478,7 +475,7 @@ const HostGameCreation = ({ navigation, route }) => {
           <View style={[styles.inputContainer, styles.messageInputContainer]}>
             <Ionicons 
               name="chatbubble" 
-              size={20} 
+              size={18} 
               color="#666" 
               style={styles.messageInputIcon} 
             />
@@ -502,7 +499,7 @@ const HostGameCreation = ({ navigation, route }) => {
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
           <View style={[styles.sectionIcon, { backgroundColor: '#E6F0FF' }]}>
-            <Ionicons name="time" size={20} color="#2196F3" />
+            <Ionicons name="time" size={18} color="#2196F3" />
           </View>
           <Text style={styles.sectionTitle}>Schedule</Text>
         </View>
@@ -514,11 +511,11 @@ const HostGameCreation = ({ navigation, route }) => {
               style={styles.dateButton}
               onPress={() => setShowGameDatePicker(true)}
             >
-              <Ionicons name="calendar-outline" size={16} color="#666" />
+              <Ionicons name="calendar-outline" size={14} color="#666" />
               <Text style={styles.dateButtonText} numberOfLines={1}>
                 {formatDate(gameDate)}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#666" />
+              <Ionicons name="chevron-down" size={14} color="#666" />
             </TouchableOpacity>
           </View>
           
@@ -528,11 +525,11 @@ const HostGameCreation = ({ navigation, route }) => {
               style={styles.dateButton}
               onPress={() => setShowGameTimePicker(true)}
             >
-              <Ionicons name="time-outline" size={16} color="#666" />
+              <Ionicons name="time-outline" size={14} color="#666" />
               <Text style={styles.dateButtonText} numberOfLines={1}>
                 {formatTime(gameStartTime)}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#666" />
+              <Ionicons name="chevron-down" size={14} color="#666" />
             </TouchableOpacity>
           </View>
         </View>
@@ -544,11 +541,11 @@ const HostGameCreation = ({ navigation, route }) => {
               style={styles.dateButton}
               onPress={() => setShowEndDatePicker(true)}
             >
-              <Ionicons name="calendar-outline" size={16} color="#666" />
+              <Ionicons name="calendar-outline" size={14} color="#666" />
               <Text style={styles.dateButtonText} numberOfLines={1}>
                 {formatDate(ticketRequestEndDate)}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#666" />
+              <Ionicons name="chevron-down" size={14} color="#666" />
             </TouchableOpacity>
           </View>
           
@@ -558,11 +555,11 @@ const HostGameCreation = ({ navigation, route }) => {
               style={styles.dateButton}
               onPress={() => setShowEndTimePicker(true)}
             >
-              <Ionicons name="time-outline" size={16} color="#666" />
+              <Ionicons name="time-outline" size={14} color="#666" />
               <Text style={styles.dateButtonText} numberOfLines={1}>
                 {formatTime(ticketRequestEndTime)}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#666" />
+              <Ionicons name="chevron-down" size={14} color="#666" />
             </TouchableOpacity>
           </View>
         </View>
@@ -575,7 +572,7 @@ const HostGameCreation = ({ navigation, route }) => {
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
           <View style={[styles.sectionIcon, { backgroundColor: '#E6F7E9' }]}>
-            <Ionicons name="settings" size={20} color="#4CAF50" />
+            <Ionicons name="settings" size={18} color="#4CAF50" />
           </View>
           <Text style={styles.sectionTitle}>Game Configuration</Text>
         </View>
@@ -593,7 +590,7 @@ const HostGameCreation = ({ navigation, route }) => {
               >
                 <Ionicons 
                   name="gift" 
-                  size={16} 
+                  size={14} 
                   color={ticketType === 'free' ? '#FFF' : '#666'} 
                 />
                 <Text style={[
@@ -612,7 +609,7 @@ const HostGameCreation = ({ navigation, route }) => {
               >
                 <Ionicons 
                   name="cash" 
-                  size={16} 
+                  size={14} 
                   color={ticketType === 'paid' ? '#FFF' : '#666'} 
                 />
                 <Text style={[
@@ -630,7 +627,7 @@ const HostGameCreation = ({ navigation, route }) => {
             <TouchableOpacity
               style={styles.fixedOptionButton}
             >
-              <Ionicons name="trophy" size={16} color="#666" />
+              <Ionicons name="trophy" size={14} color="#666" />
               <Text style={styles.fixedOptionText}>
                 Fixed
               </Text>
@@ -642,7 +639,7 @@ const HostGameCreation = ({ navigation, route }) => {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Ticket Cost (₹) *</Text>
             <View style={styles.inputContainer}>
-              <Ionicons name="logo-rupee" size={20} color="#666" style={styles.inputIcon} />
+              <Ionicons name="logo-rupee" size={18} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 value={ticketCost}
@@ -659,7 +656,7 @@ const HostGameCreation = ({ navigation, route }) => {
           <View style={styles.halfInput}>
             <Text style={styles.inputLabel}>Max Players *</Text>
             <View style={styles.inputContainer}>
-              <Ionicons name="people" size={20} color="#666" style={styles.inputIcon} />
+              <Ionicons name="people" size={18} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 value={maxPlayers}
@@ -674,7 +671,7 @@ const HostGameCreation = ({ navigation, route }) => {
           <View style={styles.halfInput}>
             <Text style={styles.inputLabel}>Max Tickets *</Text>
             <View style={styles.inputContainer}>
-              <Ionicons name="ticket" size={20} color="#666" style={styles.inputIcon} />
+              <Ionicons name="ticket" size={18} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 value={maxTickets}
@@ -690,7 +687,7 @@ const HostGameCreation = ({ navigation, route }) => {
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Max Winners *</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="trophy" size={20} color="#666" style={styles.inputIcon} />
+            <Ionicons name="trophy" size={18} color="#666" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               value={maxWinners}
@@ -710,7 +707,7 @@ const HostGameCreation = ({ navigation, route }) => {
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
           <View style={[styles.sectionIcon, { backgroundColor: '#F3E5F5' }]}>
-            <Ionicons name="grid" size={20} color="#9C27B0" />
+            <Ionicons name="grid" size={18} color="#9C27B0" />
           </View>
           <View style={styles.sectionTitleContainer}>
             <Text style={styles.sectionTitle}>Pattern Selection</Text>
@@ -762,7 +759,7 @@ const HostGameCreation = ({ navigation, route }) => {
                               styles.patternIcon,
                               { backgroundColor: getPatternColor(pattern.logic_type) + '20' }
                             ]}>
-                              <Text style={{ color: getPatternColor(pattern.logic_type) }}>
+                              <Text style={{ color: getPatternColor(pattern.logic_type), fontSize: 16 }}>
                                 {getPatternIcon(pattern.logic_type)}
                               </Text>
                             </View>
@@ -780,7 +777,7 @@ const HostGameCreation = ({ navigation, route }) => {
                               style={styles.configureRewardButton}
                               onPress={() => openInlineRewardEdit(pattern)}
                             >
-                              <Ionicons name="pencil" size={14} color="#4CAF50" />
+                              <Ionicons name="pencil" size={12} color="#4CAF50" />
                               <Text style={styles.configureRewardText}>
                                 {reward?.amount ? `₹${reward.amount}` : 'Set'}
                               </Text>
@@ -790,7 +787,7 @@ const HostGameCreation = ({ navigation, route }) => {
                               style={[styles.configureRewardButton, styles.saveRewardButton]}
                               onPress={saveInlineReward}
                             >
-                              <Ionicons name="checkmark" size={14} color="#FFF" />
+                              <Ionicons name="checkmark" size={12} color="#FFF" />
                               <Text style={[styles.configureRewardText, styles.saveRewardText]}>
                                 Save
                               </Text>
@@ -802,7 +799,6 @@ const HostGameCreation = ({ navigation, route }) => {
                           <View style={styles.rewardInfo}>
                             {isEditing ? (
                               <>
-                                {/* Editable Reward Name */}
                                 <View style={styles.inlineInputGroup}>
                                   <Text style={styles.inlineInputLabel}>Reward Name</Text>
                                   <TextInput
@@ -813,7 +809,6 @@ const HostGameCreation = ({ navigation, route }) => {
                                   />
                                 </View>
                                 
-                                {/* Editable Reward Details */}
                                 <View style={styles.inlineRewardDetails}>
                                   <View style={styles.inlineRewardDetail}>
                                     <Text style={styles.inlineRewardLabel}>Amount (₹)</Text>
@@ -849,7 +844,6 @@ const HostGameCreation = ({ navigation, route }) => {
                                   </View>
                                 </View>
                                 
-                                {/* Editable Description */}
                                 <View style={styles.inlineInputGroup}>
                                   <Text style={styles.inlineInputLabel}>Description</Text>
                                   <TextInput
@@ -864,22 +858,21 @@ const HostGameCreation = ({ navigation, route }) => {
                               </>
                             ) : (
                               <>
-                                {/* Non-editable view */}
                                 <Text style={styles.rewardName}>{reward.reward_name}</Text>
                                 {reward.description && (
                                   <Text style={styles.rewardDescription}>{reward.description}</Text>
                                 )}
                                 <View style={styles.rewardDetails}>
                                   <View style={styles.rewardDetail}>
-                                    <Ionicons name="cash" size={12} color="#4CAF50" />
+                                    <Ionicons name="cash" size={10} color="#4CAF50" />
                                     <Text style={styles.rewardAmount}>₹{reward.amount}</Text>
                                   </View>
                                   <View style={styles.rewardDetail}>
-                                    <Ionicons name="trophy" size={12} color="#FF9800" />
+                                    <Ionicons name="trophy" size={10} color="#FF9800" />
                                     <Text style={styles.rewardCount}>×{reward.reward_count}</Text>
                                   </View>
                                   <View style={styles.rewardDetail}>
-                                    <Ionicons name="ticket" size={12} color="#2196F3" />
+                                    <Ionicons name="ticket" size={10} color="#2196F3" />
                                     <Text style={styles.rewardMinTickets}>
                                       Min: {reward.min_tickets_required}
                                     </Text>
@@ -898,7 +891,7 @@ const HostGameCreation = ({ navigation, route }) => {
           </>
         ) : (
           <View style={styles.emptyPatterns}>
-            <Ionicons name="grid-outline" size={60} color="#CCC" />
+            <Ionicons name="grid-outline" size={50} color="#CCC" />
             <Text style={styles.emptyPatternsText}>No patterns available</Text>
             <Text style={styles.emptyPatternsSubtext}>
               Please check your connection or contact support
@@ -909,7 +902,7 @@ const HostGameCreation = ({ navigation, route }) => {
     </View>
   );
 
-  // Step Progress Bar - Fixed layout
+  // Step Progress Bar - Simplified without horizontal lines
   const StepProgress = () => (
     <View style={styles.stepProgressContainer}>
       <View style={styles.stepRow}>
@@ -938,17 +931,6 @@ const HostGameCreation = ({ navigation, route }) => {
           </View>
         ))}
       </View>
-      <View style={styles.stepConnectorContainer}>
-        {[1, 2, 3].map((connector) => (
-          <View 
-            key={connector} 
-            style={[
-              styles.stepConnector,
-              currentStep > connector ? styles.stepConnectorActive : styles.stepConnectorInactive
-            ]} 
-          />
-        ))}
-      </View>
     </View>
   );
 
@@ -972,7 +954,7 @@ const HostGameCreation = ({ navigation, route }) => {
               }
             }}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFF" />
+            <Ionicons name="arrow-back" size={22} color="#FFF" />
           </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Create New Game</Text>
@@ -992,39 +974,50 @@ const HostGameCreation = ({ navigation, route }) => {
       >
         {renderStepContent()}
         
+        {/* Button Container with fixed logic */}
         <View style={styles.buttonContainer}>
-          {currentStep > 1 && (
+          {currentStep > 1 ? (
+            <>
+              <TouchableOpacity
+                style={styles.prevButton}
+                onPress={prevStep}
+              >
+                <Ionicons name="arrow-back" size={16} color="#FF7675" />
+                <Text style={styles.prevButtonText}>Back</Text>
+              </TouchableOpacity>
+              
+              {currentStep < totalSteps ? (
+                <TouchableOpacity
+                  style={styles.nextButton}
+                  onPress={nextStep}
+                >
+                  <Text style={styles.nextButtonText}>Next</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#FFF" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.createButton, loading && styles.createButtonDisabled]}
+                  onPress={createGame}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="rocket" size={16} color="#FFF" />
+                      <Text style={styles.createButtonText}>Launch Game</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
             <TouchableOpacity
-              style={styles.prevButton}
-              onPress={prevStep}
-            >
-              <Ionicons name="arrow-back" size={18} color="#FF7675" />
-              <Text style={styles.prevButtonText}>Previous</Text>
-            </TouchableOpacity>
-          )}
-          
-          {currentStep < totalSteps ? (
-            <TouchableOpacity
-              style={[styles.nextButton, currentStep === 1 && styles.nextButtonFull]}
+              style={[styles.nextButton, styles.nextButtonFull]}
               onPress={nextStep}
             >
               <Text style={styles.nextButtonText}>Next</Text>
-              <Ionicons name="arrow-forward" size={18} color="#FFF" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.createButton, loading && styles.createButtonDisabled]}
-              onPress={createGame}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <>
-                  <Ionicons name="rocket" size={20} color="#FFF" />
-                  <Text style={styles.createButtonText}>Launch Game</Text>
-                </>
-              )}
+              <Ionicons name="arrow-forward" size={16} color="#FFF" />
             </TouchableOpacity>
           )}
         </View>
@@ -1093,12 +1086,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 30,
+    paddingBottom: 20,
   },
   header: {
     paddingTop: 40,
     paddingHorizontal: 20,
-    paddingBottom: 25,
+    paddingBottom: 20,
     backgroundColor: '#FF7675',
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
@@ -1106,7 +1099,7 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 25,
+    marginBottom: 20,
   },
   backButton: {
     marginRight: 15,
@@ -1115,51 +1108,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: '#FFF',
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: 'rgba(255,255,255,0.9)',
   },
-  // Step Progress Styles - Fixed
+  // Step Progress Styles - Simplified
   stepProgressContainer: {
-    position: 'relative',
-    height: 60,
+    height: 50,
   },
   stepRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 2,
   },
   stepColumn: {
     alignItems: 'center',
-    width: (width - 40) / 4, // Divide by number of steps
-  },
-  stepConnectorContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    position: 'absolute',
-    top: 18, // Half of circle height (36/2)
-    left: (width - 40) / 8 + 18, // Half of column width + half circle radius
-    right: (width - 40) / 8 + 18,
-    zIndex: 1,
+    width: (width - 40) / 4,
   },
   stepCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    marginBottom: 5,
+    marginBottom: 4,
   },
   stepCircleActive: {
     backgroundColor: '#FFF',
@@ -1170,7 +1148,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.5)',
   },
   stepNumber: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
   },
   stepNumberActive: {
@@ -1180,7 +1158,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
   },
   stepLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
     maxWidth: 60,
@@ -1191,44 +1169,33 @@ const styles = StyleSheet.create({
   stepLabelInactive: {
     color: 'rgba(255,255,255,0.5)',
   },
-  stepConnector: {
-    flex: 1,
-    height: 2,
-    marginHorizontal: 2,
-  },
-  stepConnectorActive: {
-    backgroundColor: '#FFF',
-  },
-  stepConnectorInactive: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
   // Step Content
   stepContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   stepDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
-    marginBottom: 20,
-    lineHeight: 20,
+    marginBottom: 16,
+    lineHeight: 18,
   },
   sectionCard: {
     backgroundColor: '#FFF',
-    marginTop: 20,
-    padding: 20,
-    borderRadius: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#F0F0F0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   sectionTitleContainer: {
     flexDirection: 'row',
@@ -1236,50 +1203,50 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#333',
   },
   requiredText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#FF6B6B',
     marginLeft: 4,
   },
   selectionCountBadge: {
     backgroundColor: '#E6F0FF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
   },
   selectionCountText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#FF7675',
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: '#F8FAFC',
     overflow: 'hidden',
   },
@@ -1296,20 +1263,20 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    fontSize: 15,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    fontSize: 14,
     color: '#333',
   },
   textArea: {
-    minHeight: 80,
+    minHeight: 70,
     textAlignVertical: 'top',
-    paddingTop: 12,
+    paddingTop: 10,
   },
   row: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
+    gap: 10,
+    marginBottom: 14,
   },
   halfInput: {
     flex: 1,
@@ -1320,31 +1287,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
     backgroundColor: '#F8FAFC',
-    minHeight: 50,
+    minHeight: 46,
   },
   dateButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#333',
     flex: 1,
-    marginHorizontal: 8,
+    marginHorizontal: 6,
     textAlign: 'center',
   },
   optionButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   optionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 12,
+    gap: 4,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E0E0E0',
     backgroundColor: '#F8FAFC',
@@ -1354,7 +1321,7 @@ const styles = StyleSheet.create({
     borderColor: '#FF7675',
   },
   optionButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#666',
   },
@@ -1365,33 +1332,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 12,
+    gap: 4,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E0E0E0',
     backgroundColor: '#F8FAFC',
   },
   fixedOptionText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#666',
   },
-  // Pattern Selection Styles - Fixed
+  // Pattern Selection Styles - Fixed smaller cards
   patternsGrid: {
-    paddingBottom: 15,
+    paddingBottom: 12,
   },
   columnWrapper: {
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
+    gap: 8,
   },
   patternCard: {
-    width: (width - 60) / 2, // Account for padding (20+20) and gap (10)
+    width: (width - 80) / 2, // Smaller width: 80 padding (16*2 + 8*2 + extra)
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 8, // Smaller padding
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    minHeight: 110, // Smaller height
   },
   patternCardSelected: {
     backgroundColor: '#F0F9F0',
@@ -1405,51 +1374,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
   patternTypeBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
   patternTypeText: {
-    fontSize: 18,
+    fontSize: 14,
   },
   radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: '#999',
   },
   patternName: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 6,
-    lineHeight: 18,
+    marginBottom: 3,
+    lineHeight: 13,
+    flexWrap: 'wrap',
+    minHeight: 26, // Fixed height for 2 lines
   },
   patternDescription: {
-    fontSize: 12,
+    fontSize: 9,
     color: '#666',
-    lineHeight: 16,
+    lineHeight: 11,
+    flexWrap: 'wrap',
+    minHeight: 33, // Fixed height for 3 lines
   },
   selectedPatternsSection: {
-    marginTop: 20,
-    paddingTop: 20,
+    marginTop: 16,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
   },
   selectedPatternsList: {
-    marginTop: 10,
+    marginTop: 8,
   },
   selectedPatternCard: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E8F5E9',
   },
@@ -1457,7 +1430,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   patternInfo: {
     flexDirection: 'row',
@@ -1465,40 +1438,40 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   patternIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 8,
   },
   patternText: {
     flex: 1,
   },
   selectedPatternName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#333',
     marginBottom: 2,
   },
   patternType: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#666',
   },
   configureRewardButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F0F9F0',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 3,
   },
   saveRewardButton: {
     backgroundColor: '#4CAF50',
   },
   configureRewardText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#4CAF50',
   },
@@ -1508,53 +1481,53 @@ const styles = StyleSheet.create({
   rewardInfo: {
     backgroundColor: '#FFF',
     borderRadius: 8,
-    padding: 12,
+    padding: 10,
     borderWidth: 1,
     borderColor: '#E8F5E8',
   },
   rewardName: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
   },
   rewardDescription: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
-    marginBottom: 8,
-    lineHeight: 16,
+    marginBottom: 6,
+    lineHeight: 14,
   },
   rewardDetails: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
     flexWrap: 'wrap',
   },
   rewardDetail: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   rewardAmount: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#4CAF50',
   },
   rewardCount: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#FF9800',
   },
   rewardMinTickets: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#2196F3',
   },
-  // Inline Edit Styles
+  // Inline Edit Styles - Reduced
   inlineInputGroup: {
-    marginBottom: 12,
+    marginBottom: 10,
   },
   inlineInputLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#666',
     marginBottom: 4,
@@ -1562,76 +1535,77 @@ const styles = StyleSheet.create({
   inlineInput: {
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: '#333',
-    backgroundColor: '#FFF',
-  },
-  inlineTextArea: {
-    minHeight: 60,
-    textAlignVertical: 'top',
-  },
-  inlineRewardDetails: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  inlineRewardDetail: {
-    flex: 1,
-  },
-  inlineRewardLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 4,
-  },
-  inlineRewardInput: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 6,
     fontSize: 13,
     color: '#333',
     backgroundColor: '#FFF',
+  },
+  inlineTextArea: {
+    minHeight: 50,
+    textAlignVertical: 'top',
+  },
+  inlineRewardDetails: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  inlineRewardDetail: {
+    flex: 1,
+  },
+  inlineRewardLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 3,
+  },
+  inlineRewardInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    fontSize: 12,
+    color: '#333',
+    backgroundColor: '#FFF',
     textAlign: 'center',
   },
   loadingContainer: {
-    padding: 40,
+    padding: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    marginTop: 15,
-    fontSize: 16,
+    marginTop: 12,
+    fontSize: 14,
     color: '#666',
   },
   emptyPatterns: {
     alignItems: 'center',
-    paddingVertical: 30,
+    paddingVertical: 25,
   },
   emptyPatternsText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#666',
-    marginTop: 12,
-    marginBottom: 6,
+    marginTop: 10,
+    marginBottom: 4,
   },
   emptyPatternsSubtext: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#999',
     textAlign: 'center',
   },
-  // Button Container - Fixed
+  // Button Container - Fixed equal width
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginHorizontal: 20,
-    marginTop: 30,
-    gap: 12,
+    marginHorizontal: 16,
+    marginTop: 20,
+    gap: 10,
+    width: width - 32,
   },
   prevButton: {
     flexDirection: 'row',
@@ -1640,15 +1614,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderWidth: 1,
     borderColor: '#FF7675',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    gap: 6,
     flex: 1,
+    minWidth: (width - 42) / 2,
   },
   prevButtonText: {
     color: '#FF7675',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   nextButton: {
@@ -1656,17 +1631,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FF7675',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    gap: 6,
+    flex: 1,
   },
   nextButtonFull: {
-    flex: 1,
+    width: '100%',
   },
   nextButtonText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   createButton: {
@@ -1674,50 +1650,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 10,
-    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    gap: 6,
+    flex: 1,
+    minWidth: (width - 42) / 2,
     shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   createButtonDisabled: {
     opacity: 0.7,
   },
   createButtonText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
   },
   bottomSpace: {
-    height: 20,
+    height: 10,
   },
   // Toast Styles
   toast: {
     position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 20,
+    top: 40,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 6,
+    elevation: 4,
     zIndex: 999,
   },
   toastText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    marginLeft: 10,
+    marginLeft: 8,
     flex: 1,
   },
 });

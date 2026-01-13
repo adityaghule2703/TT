@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,22 +8,97 @@ import {
   SafeAreaView,
   StatusBar,
   Dimensions,
-  Image,
+  Animated,
+  Easing,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Speech from 'expo-speech';
 
 const { width } = Dimensions.get("window");
+// Calculate size based on 10 items per row with proper spacing
+const CELL_SIZE = Math.min((width - 40) / 10 - 4, 36); // Reduced padding and size
 
 const UserCalledNumbers = ({ navigation, route }) => {
-  const { gameName, calledNumbers, voiceType: initialVoiceType } = route.params;
-  const [voiceType, setVoiceType] = useState(initialVoiceType || 'female');
+  const { calledNumbers } = route.params;
+  const [voiceType, setVoiceType] = useState('female');
+  const [speaking, setSpeaking] = useState(false);
+  const [activeNumber, setActiveNumber] = useState(null);
+  
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Function to speak number
-  const speakNumber = (number) => {
+  useEffect(() => {
+    loadVoicePreference();
+  }, []);
+
+  const loadVoicePreference = async () => {
+    try {
+      const savedVoice = await AsyncStorage.getItem('voiceType');
+      if (savedVoice) {
+        setVoiceType(savedVoice);
+      }
+    } catch (error) {
+      console.log("Error loading voice preference:", error);
+    }
+  };
+
+  const startPulseAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 300,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  const stopPulseAnimation = () => {
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1);
+  };
+
+  const speakNumber = async (number) => {
+    if (speaking) {
+      Speech.stop();
+      setSpeaking(false);
+      setActiveNumber(null);
+      stopPulseAnimation();
+      return;
+    }
+
     Speech.stop();
-    
+    setSpeaking(true);
+    setActiveNumber(number);
+    startPulseAnimation();
+
     const numStr = number.toString();
+    
+    if (numStr.length === 1) {
+      const digitWord = getSingleDigitWord(number);
+      const speechText = `Single digit ${digitWord}`;
+      
+      const voiceConfig = {
+        language: 'en-US',
+        pitch: voiceType === 'male' ? 0.8 : 1.0,
+        rate: 0.8,
+        onDone: () => {
+          setSpeaking(false);
+          setActiveNumber(null);
+          stopPulseAnimation();
+        }
+      };
+      
+      Speech.speak(speechText, voiceConfig);
+      return;
+    }
     
     const singleDigits = numStr.split('').map(digit => {
       switch(digit) {
@@ -43,15 +118,45 @@ const UserCalledNumbers = ({ navigation, route }) => {
     
     const fullNumberName = getNumberName(number);
     
-    const speechText = `Number ${singleDigits} ${fullNumberName}`;
-    
-    const voiceConfig = {
+    const digitsSpeechText = `Number ${singleDigits}`;
+    const digitsVoiceConfig = {
       language: 'en-US',
       pitch: voiceType === 'male' ? 0.8 : 1.0,
       rate: 0.8,
+      onDone: () => {
+        setTimeout(() => {
+          const fullNameVoiceConfig = {
+            language: 'en-US',
+            pitch: voiceType === 'male' ? 0.9 : 1.1,
+            rate: 0.9,
+            volume: 1.0,
+            onDone: () => {
+              setSpeaking(false);
+              setActiveNumber(null);
+              stopPulseAnimation();
+            }
+          };
+          Speech.speak(fullNumberName, fullNameVoiceConfig);
+        }, 100);
+      }
     };
     
-    Speech.speak(speechText, voiceConfig);
+    Speech.speak(digitsSpeechText, digitsVoiceConfig);
+  };
+
+  const getSingleDigitWord = (num) => {
+    switch(num) {
+      case 1: return 'one';
+      case 2: return 'two';
+      case 3: return 'three';
+      case 4: return 'four';
+      case 5: return 'five';
+      case 6: return 'six';
+      case 7: return 'seven';
+      case 8: return 'eight';
+      case 9: return 'nine';
+      default: return 'zero';
+    }
   };
 
   const getNumberName = (num) => {
@@ -79,9 +184,66 @@ const UserCalledNumbers = ({ navigation, route }) => {
     return numberNames[num] || num.toString();
   };
 
-  const getCalledPosition = (number) => {
-    const index = calledNumbers.indexOf(number);
-    return index >= 0 ? index + 1 : null;
+  const renderNumberGrid = () => {
+    const rows = [];
+    
+    // Create rows of 10 numbers each
+    for (let row = 0; row < 9; row++) {
+      const rowNumbers = [];
+      for (let col = 1; col <= 10; col++) {
+        const number = row * 10 + col;
+        const isCalled = calledNumbers.includes(number);
+        const isActive = activeNumber === number;
+        
+        rowNumbers.push(
+          <TouchableOpacity
+            key={number}
+            style={[
+              styles.numberCell,
+              isCalled && styles.calledNumberCell,
+              isActive && styles.activeNumberCell,
+            ]}
+            onPress={() => speakNumber(number)}
+            disabled={!isCalled && !isActive}
+            activeOpacity={isCalled ? 0.7 : 1}
+          >
+            <Text style={[
+              styles.numberText,
+              isCalled && styles.calledNumberText,
+              isActive && styles.activeNumberText,
+            ]}>
+              {number}
+            </Text>
+            {isActive && (
+              <Animated.View 
+                style={[
+                  styles.pulseRing,
+                  {
+                    transform: [{ scale: pulseAnim }],
+                    opacity: pulseAnim.interpolate({
+                      inputRange: [1, 1.1],
+                      outputRange: [0.3, 0]
+                    })
+                  }
+                ]} 
+              />
+            )}
+          </TouchableOpacity>
+        );
+      }
+      
+      rows.push(
+        <View key={row} style={styles.numberRow}>
+          {rowNumbers}
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.numberGrid}>
+        {rows}
+      </View>
+    );
   };
 
   return (
@@ -99,93 +261,37 @@ const UserCalledNumbers = ({ navigation, route }) => {
           </TouchableOpacity>
           
           <View style={styles.headerTextContainer}>
-            <Text style={styles.pageTitle}>All Called Numbers</Text>
-            <Text style={styles.gameInfo} numberOfLines={1}>
-              {gameName}
+            <Text style={styles.gameName}>Called Numbers</Text>
+            <Text style={styles.gameCode}>
+              {calledNumbers.length}/90 Numbers Called
             </Text>
-          </View>
-
-          <View style={styles.voiceButton}>
-            <Ionicons 
-              name={voiceType === 'male' ? "male" : "female"} 
-              size={18} 
-              color="#40E0D0" 
-            />
-          </View>
-        </View>
-
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{calledNumbers.length}</Text>
-            <Text style={styles.statLabel}>Total Called</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {calledNumbers.length > 0 ? calledNumbers[calledNumbers.length - 1] : '0'}
-            </Text>
-            <Text style={styles.statLabel}>Latest</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {Math.round((calledNumbers.length / 90) * 100)}%
-            </Text>
-            <Text style={styles.statLabel}>Progress</Text>
           </View>
         </View>
       </View>
 
-      <ScrollView
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Numbers Grid */}
-        <View style={styles.numbersGrid}>
-          {calledNumbers.slice().reverse().map((number, index) => {
-            const position = getCalledPosition(number);
-            const isLatest = position === calledNumbers.length;
-            
-            return (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.numberCard,
-                  isLatest && styles.latestNumberCard
-                ]}
-                onPress={() => speakNumber(number)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.numberHeader}>
-                  <Text style={[
-                    styles.number,
-                    isLatest && styles.latestNumber
-                  ]}>
-                    {number}
-                  </Text>
-                  {isLatest && (
-                    <View style={styles.latestBadge}>
-                      <Ionicons name="star" size={10} color="#FFF" />
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.position}>#{position}</Text>
-                <Text style={styles.name} numberOfLines={1}>
-                  {getNumberName(number)}
+      <View style={styles.container}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* All Numbers Grid Section */}
+          <View style={styles.numbersSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>All Numbers (1-90)</Text>
+              <View style={styles.sectionBadge}>
+                <Text style={styles.sectionBadgeText}>
+                  {calledNumbers.length}/90
                 </Text>
-                <View style={styles.voiceIndicator}>
-                  <Ionicons name="volume-high" size={14} color="#40E0D0" />
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+              </View>
+            </View>
+            
+            {renderNumberGrid()}
+          </View>
 
-        {/* Bottom Space */}
-        <View style={styles.bottomSpace} />
-      </ScrollView>
+          {/* Bottom Space */}
+          <View style={styles.bottomSpace} />
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 };
@@ -199,155 +305,129 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: 10, // Reduced from 12
   },
   // Header Styles
   header: {
     backgroundColor: "#FFFFFF",
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingTop: 20,
+    paddingHorizontal: 15, // Reduced from 20
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#E9ECEF",
   },
   headerTop: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 10, // Reduced from 15
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36, // Reduced from 40
+    height: 36, // Reduced from 40
+    borderRadius: 18,
     backgroundColor: "#F8F9FA",
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 10, // Reduced from 12
     borderWidth: 1,
     borderColor: "#E9ECEF",
   },
   headerTextContainer: {
     flex: 1,
-    marginLeft: 12,
   },
-  pageTitle: {
-    fontSize: 20,
+  gameName: {
+    fontSize: 22, // Reduced from 24
     fontWeight: "700",
-    color: "#40E0D0",
+    color: "#212529",
+    letterSpacing: -0.5,
   },
-  gameInfo: {
-    fontSize: 14,
-    color: "#6C757D",
-    marginTop: 4,
-  },
-  voiceButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F8F9FA",
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  // Stats Row
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#40E0D0",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
+  gameCode: {
+    fontSize: 13, // Reduced from 14
     color: "#6C757D",
     fontWeight: "500",
+    marginTop: 2,
   },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: "#E9ECEF",
-  },
-  // Numbers Grid
-  numbersGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  numberCard: {
-    width: (width - 48) / 3, // 3 items per row with padding
+  // Numbers Section
+  numbersSection: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    alignItems: "center",
+    borderRadius: 12, // Reduced from 16
+    padding: 12, // Reduced from 16
     borderWidth: 1,
     borderColor: "#E9ECEF",
   },
-  latestNumberCard: {
-    backgroundColor: "#40E0D0",
-    borderColor: "#40E0D0",
-  },
-  numberHeader: {
+  sectionHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-    position: 'relative',
+    marginBottom: 12, // Reduced from 16
   },
-  number: {
-    fontSize: 24,
-    fontWeight: "800",
+  sectionTitle: {
+    fontSize: 16, // Reduced from 18
+    fontWeight: "700",
     color: "#212529",
   },
-  latestNumber: {
-    color: "#FFFFFF",
+  sectionBadge: {
+    backgroundColor: "#40E0D0",
+    paddingHorizontal: 10, // Reduced from 12
+    paddingVertical: 4, // Reduced from 6
+    borderRadius: 10, // Reduced from 12
   },
-  latestBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: "#FF6B35",
-    borderRadius: 8,
-    width: 16,
-    height: 16,
+  sectionBadgeText: {
+    fontSize: 11, // Reduced from 12
+    fontWeight: "700",
+    color: "#FFF",
+  },
+  // Number Grid - FIXED FOR NO OVERFLOW
+  numberGrid: {
+    gap: 4, // Reduced from 6
+  },
+  numberRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 4, // Reduced from 6
+    marginBottom: 4, // Added margin between rows
+  },
+  numberCell: {
+    width: CELL_SIZE,
+    height: CELL_SIZE,
     justifyContent: "center",
     alignItems: "center",
-  },
-  position: {
-    fontSize: 12,
-    color: "#6C757D",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  name: {
-    fontSize: 12,
-    color: "#6C757D",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  voiceIndicator: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
     backgroundColor: "#F8F9FA",
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: 6, // Reduced from 8
     borderWidth: 1,
     borderColor: "#E9ECEF",
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  calledNumberCell: {
+    backgroundColor: "#4CAF50",
+    borderColor: "#388E3C",
+  },
+  activeNumberCell: {
+    backgroundColor: "#FF6B35",
+    borderColor: "#FF6B35",
+    zIndex: 10,
+  },
+  numberText: {
+    fontSize: 12, // Reduced from 14
+    fontWeight: "600",
+    color: "#6C757D",
+  },
+  calledNumberText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  activeNumberText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: CELL_SIZE,
+    height: CELL_SIZE,
+    borderRadius: 6, // Reduced from 8
+    backgroundColor: '#FF6B35',
+    zIndex: 9,
   },
   bottomSpace: {
     height: 20,

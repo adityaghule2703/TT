@@ -282,8 +282,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   header: {
-    backgroundColor: "#FFFFFF",
-    paddingTop: 50,
+    backgroundColor: "#40E0D0",
+    paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#40E0D0",
+    color: "#FFFFFF",
     letterSpacing: -0.5,
   },
   tagline: {

@@ -70,42 +70,36 @@ const HostDashboard = ({ navigation, onLogout }) => {
     }
   };
 
-  // Add these helper functions inside the HostDashboard component, before the return statement:
+  const formatNumber = (num) => {
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    }
+    return num.toString();
+  };
 
-const formatNumber = (num) => {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-  }
-  return num.toString();
-};
+  const formatPercentage = (rate) => {
+    const roundedRate = Math.round(rate);
+    return `${roundedRate}%`;
+  };
 
-const formatPercentage = (rate) => {
-  // Round to nearest whole number
-  const roundedRate = Math.round(rate);
-  return `${roundedRate}%`;
-};
-
-const getDynamicFontSize = (value, isPercentage = false) => {
-  const numStr = isPercentage ? formatPercentage(value) : formatNumber(value);
-  const length = numStr.length;
-  
-  // Base font size is 22, reduce based on character count
-  if (isPercentage) {
-    // For percentages (like "100%" or "99%")
-    if (length <= 4) return 22; // 99%
-    return 20; // 100%
-  } else {
-    // For regular numbers
-    if (length <= 3) return 22; // 0, 10, 100
-    if (length === 4) return 20; // 1000, 1.5K
-    if (length === 5) return 18; // 10,000, 99.9K
-    if (length === 6) return 16; // 100,000
-    return 14; // For very large numbers
-  }
-};
+  const getDynamicFontSize = (value, isPercentage = false) => {
+    const numStr = isPercentage ? formatPercentage(value) : formatNumber(value);
+    const length = numStr.length;
+    
+    if (isPercentage) {
+      if (length <= 4) return 22;
+      return 20;
+    } else {
+      if (length <= 3) return 22;
+      if (length === 4) return 20;
+      if (length === 5) return 18;
+      if (length === 6) return 16;
+      return 14;
+    }
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -236,88 +230,88 @@ const getDynamicFontSize = (value, isPercentage = false) => {
 
       {/* TICKETS ANALYTICS - BIG BANNER CARD */}
       <View style={styles.sectionHeader}>
-  <Text style={styles.sectionTitle}>Tickets Analytics</Text>
-</View>
+        <Text style={styles.sectionTitle}>Tickets Analytics</Text>
+      </View>
 
-<View style={styles.ticketsBannerCard}>
-  <View style={styles.ticketsBannerContent}>
-    <View style={styles.ticketsBannerTextContainer}>
-      <Text style={styles.ticketsBannerTitle}>Ticket Performance</Text>
-      <Text style={styles.ticketsBannerSubTitle}>Track your ticket sales and distribution</Text>
-      
-      <View style={styles.ticketsStatsRow}>
-        <View style={styles.ticketStatMini}>
-          <Text 
-            style={[
-              styles.ticketStatMiniValue,
-              { 
-                fontSize: getDynamicFontSize(stats?.tickets?.total_allocated || 0)
-              }
-            ]}
-            adjustsFontSizeToFit
-            numberOfLines={1}
-          >
-            {formatNumber(stats?.tickets?.total_allocated || 0)}
-          </Text>
-          <Text style={styles.ticketStatMiniLabel} numberOfLines={1}>
-            Allocated
-          </Text>
-        </View>
-        
-        <View style={styles.ticketStatDivider} />
-        
-        <View style={styles.ticketStatMini}>
-          <Text 
-            style={[
-              styles.ticketStatMiniValue,
-              { 
-                fontSize: getDynamicFontSize(stats?.tickets?.total_available || 0)
-              }
-            ]}
-            adjustsFontSizeToFit
-            numberOfLines={1}
-          >
-            {formatNumber(stats?.tickets?.total_available || 0)}
-          </Text>
-          <Text style={styles.ticketStatMiniLabel} numberOfLines={1}>
-            Available
-          </Text>
-        </View>
-        
-        <View style={styles.ticketStatDivider} />
-        
-        <View style={styles.ticketStatMini}>
-          <Text 
-            style={[
-              styles.ticketStatMiniValue,
-              { 
-                fontSize: getDynamicFontSize(stats?.tickets?.allocation_rate || 0, true)
-              }
-            ]}
-            adjustsFontSizeToFit
-            numberOfLines={1}
-          >
-            {formatPercentage(stats?.tickets?.allocation_rate || 0)}
-          </Text>
-          <Text style={[styles.ticketStatMiniLabel, styles.compactLabel]} numberOfLines={1}>
-            Allocation Rate
-          </Text>
+      <View style={styles.ticketsBannerCard}>
+        <View style={styles.ticketsBannerContent}>
+          <View style={styles.ticketsBannerTextContainer}>
+            <Text style={styles.ticketsBannerTitle}>Ticket Performance</Text>
+            <Text style={styles.ticketsBannerSubTitle}>Track your ticket sales and distribution</Text>
+            
+            <View style={styles.ticketsStatsRow}>
+              <View style={styles.ticketStatMini}>
+                <Text 
+                  style={[
+                    styles.ticketStatMiniValue,
+                    { 
+                      fontSize: getDynamicFontSize(stats?.tickets?.total_allocated || 0)
+                    }
+                  ]}
+                  adjustsFontSizeToFit
+                  numberOfLines={1}
+                >
+                  {formatNumber(stats?.tickets?.total_allocated || 0)}
+                </Text>
+                <Text style={styles.ticketStatMiniLabel} numberOfLines={1}>
+                  Allocated
+                </Text>
+              </View>
+              
+              <View style={styles.ticketStatDivider} />
+              
+              <View style={styles.ticketStatMini}>
+                <Text 
+                  style={[
+                    styles.ticketStatMiniValue,
+                    { 
+                      fontSize: getDynamicFontSize(stats?.tickets?.total_available || 0)
+                    }
+                  ]}
+                  adjustsFontSizeToFit
+                  numberOfLines={1}
+                >
+                  {formatNumber(stats?.tickets?.total_available || 0)}
+                </Text>
+                <Text style={styles.ticketStatMiniLabel} numberOfLines={1}>
+                  Available
+                </Text>
+              </View>
+              
+              <View style={styles.ticketStatDivider} />
+              
+              <View style={styles.ticketStatMini}>
+                <Text 
+                  style={[
+                    styles.ticketStatMiniValue,
+                    { 
+                      fontSize: getDynamicFontSize(stats?.tickets?.allocation_rate || 0, true)
+                    }
+                  ]}
+                  adjustsFontSizeToFit
+                  numberOfLines={1}
+                >
+                  {formatPercentage(stats?.tickets?.allocation_rate || 0)}
+                </Text>
+                <Text style={[styles.ticketStatMiniLabel, styles.compactLabel]} numberOfLines={1}>
+                  Allocation Rate
+                </Text>
+              </View>
+            </View>
+            
+            {/* <TouchableOpacity style={styles.ticketsViewBtn}>
+              <Text style={styles.ticketsViewText}>View Detailed Report</Text>
+              <Ionicons name="arrow-forward" size={16} color="#FF7675" />
+            </TouchableOpacity> */}
+          </View>
+          <Image
+            source={{
+              uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            }}
+            style={styles.ticketsBannerImage}
+          />
         </View>
       </View>
-      
-      <TouchableOpacity style={styles.ticketsViewBtn}>
-        <Text style={styles.ticketsViewText}>View Detailed Report</Text>
-        <Ionicons name="arrow-forward" size={16} color="#FF7675" />
-      </TouchableOpacity>
-    </View>
-    <Image
-      source={{
-        uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-      }}
-      style={styles.ticketsBannerImage}
-    />
-  </View>
-</View>
 
       {/* TODAY'S GAMES & UPCOMING */}
       <View style={styles.sectionHeader}>
@@ -369,7 +363,10 @@ const getDynamicFontSize = (value, isPercentage = false) => {
             </Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.viewRequestsBtn}>
+        <TouchableOpacity 
+          style={styles.viewRequestsBtn}
+          onPress={() => navigation.navigate('HostGame')}
+        >
           <Text style={styles.viewRequestsText}>View All</Text>
           <Ionicons name="arrow-forward" size={16} color="#FF7675" />
         </TouchableOpacity>
@@ -401,7 +398,7 @@ const getDynamicFontSize = (value, isPercentage = false) => {
         <>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Games</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('HostGame')}>
               <Text style={styles.seeAll}>See All</Text>
             </TouchableOpacity>
           </View>
@@ -452,7 +449,7 @@ const getDynamicFontSize = (value, isPercentage = false) => {
           <Ionicons name="game-controller-outline" size={60} color="#CCC" />
           <Text style={styles.emptyStateTitle}>No Games Yet</Text>
           <Text style={styles.emptyStateText}>Create your first game to get started</Text>
-          <TouchableOpacity style={styles.createGameBtn}>
+          <TouchableOpacity style={styles.createGameBtn} onPress={() => navigation.navigate('HostGameCreation')}>
             <Ionicons name="add" size={18} color="#FFF" />
             <Text style={styles.createGameText}>Create New Game</Text>
           </TouchableOpacity>
@@ -465,21 +462,30 @@ const getDynamicFontSize = (value, isPercentage = false) => {
       </View>
 
       <View style={styles.actionsContainer}>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('HostGameCreation')}
+        >
           <View style={[styles.actionIcon, { backgroundColor: '#FFEDED' }]}>
             <Ionicons name="add-circle-outline" size={24} color="#FF7675" />
           </View>
           <Text style={styles.actionText} numberOfLines={1}>New Game</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('HostGameCreation')}
+        >
           <View style={[styles.actionIcon, { backgroundColor: '#FFEDED' }]}>
             <Ionicons name="ticket-outline" size={24} color="#FF7675" />
           </View>
           <Text style={styles.actionText} numberOfLines={1}>Generate Tickets</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('HostProfile')}
+        >
           <View style={[styles.actionIcon, { backgroundColor: '#FFEDED' }]}>
             <Ionicons name="bar-chart-outline" size={24} color="#FF7675" />
           </View>
@@ -679,10 +685,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   compactLabel: {
-  fontSize: 10,
-  letterSpacing: -0.2,
-  paddingHorizontal: 2,
-},
+    fontSize: 10,
+    letterSpacing: -0.2,
+    paddingHorizontal: 2,
+  },
   statNumber: {
     fontSize: 18,
     fontWeight: "800",
@@ -712,7 +718,6 @@ const styles = StyleSheet.create({
     color: "#FF7675",
     fontWeight: "600",
   },
-  // TICKETS ANALYTICS BANNER
   ticketsBannerCard: {
     backgroundColor: "#FF7675",
     marginHorizontal: 20,
@@ -739,37 +744,37 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   ticketsStatsRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  backgroundColor: "rgba(255,255,255,0.15)",
-  borderRadius: 12,
-  paddingVertical: 12,
-  paddingHorizontal: 8,
-  marginBottom: 16,
-  minHeight: 90,
-  justifyContent: 'space-between',
-},
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 16,
+    minHeight: 90,
+    justifyContent: 'space-between',
+  },
   ticketStatMini: {
-  flex: 1,
-  alignItems: "center",
-  minWidth: 0,
-  paddingHorizontal: 2,
-  justifyContent: 'center',
-},
+    flex: 1,
+    alignItems: "center",
+    minWidth: 0,
+    paddingHorizontal: 2,
+    justifyContent: 'center',
+  },
   ticketStatMiniValue: {
-  fontWeight: "800",
-  color: "#FFF",
-  marginBottom: 2,
-  textAlign: 'center',
-  minHeight: 26,
-},
+    fontWeight: "800",
+    color: "#FFF",
+    marginBottom: 2,
+    textAlign: 'center',
+    minHeight: 26,
+  },
   ticketStatMiniLabel: {
-  fontSize: 12,
-  color: "rgba(255,255,255,0.9)",
-  textAlign: 'center',
-  flexShrink: 1,
-  minHeight: 14,
-},
+    fontSize: 12,
+    color: "rgba(255,255,255,0.9)",
+    textAlign: 'center',
+    flexShrink: 1,
+    minHeight: 14,
+  },
   ticketStatDivider: {
     width: 1,
     height: 30,
@@ -852,13 +857,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  dynamicNumberSize: {
-  fontWeight: "800",
-  color: "#FFF",
-  marginBottom: 2,
-  textAlign: 'center',
-  minHeight: 26,
-},
   requestIcon: {
     width: 48,
     height: 48,

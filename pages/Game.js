@@ -11,8 +11,6 @@ import {
   Dimensions,
   TextInput,
   Keyboard,
-  Animated,
-  FlatList,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -29,139 +27,126 @@ const GAME_ICONS = [
   "https://cdn-icons-png.flaticon.com/512/3094/3094707.png",
 ];
 
-// Image slider data
-const SLIDER_IMAGES = [
-  { 
-    id: 1, 
-    uri: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=800&auto=format&fit=crop',
-    title: 'Win Exciting Prizes',
-    subtitle: 'Join premium games for bigger rewards'
-  },
-  { 
-    id: 2, 
-    uri: 'https://plus.unsplash.com/premium_photo-1722018576685-45a415a4ff67?q=80&w=1032&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    title: 'Instant Withdrawals',
-    subtitle: 'Get your winnings within minutes'
-  },
-  { 
-    id: 3, 
-    uri: 'https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=800&auto=format&fit=crop',
-    title: 'Play Anywhere',
-    subtitle: 'Join games from your mobile device'
-  }
-];
-
 const Game = ({ navigation }) => {
   const [games, setGames] = useState([]);
-  const [filteredGames, setFilteredGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [stats, setStats] = useState({
-    totalGames: 0,
-    freeGames: 0,
-    premiumGames: 0,
-    totalPlayers: 0,
-    liveGames: 0,
-    upcomingGames: 0,
+  const [userGameData, setUserGameData] = useState({
+    myTickets: [],
+    myRequests: []
   });
+  const [activeTab, setActiveTab] = useState('myGames'); // 'myGames' or 'allGames'
   
-  // Image slider states
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const slideInterval = useRef(null);
-  const flatListRef = useRef(null);
-
   useEffect(() => {
-    fetchGames();
-    startAutoSlide();
-    
-    return () => {
-      if (slideInterval.current) {
-        clearInterval(slideInterval.current);
-      }
-    };
+    fetchAllData();
   }, []);
 
   useEffect(() => {
-    filterGames();
-  }, [games, searchQuery, selectedCategory]);
+    // No filter needed as tabs handle separation
+  }, [games, searchQuery, userGameData, activeTab]);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    fetchGames().finally(() => setRefreshing(false));
+    fetchAllData().finally(() => setRefreshing(false));
   }, []);
 
-  const fetchGames = async () => {
-  try {
-    const token = await AsyncStorage.getItem("token");
-    const res = await axios.get(
-      "https://exilance.com/tambolatimez/public/api/user/games",
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    
-    if (res.data.success) {
-      // Access games from games.data instead of directly from games
-      const gamesData = res.data.games.data || [];
-      setGames(gamesData);
-      
-      // Use the status_counts from the API response
-      const statusCounts = res.data.status_counts || {};
-      
-      // Calculate statistics using the new API data
-      const freeGames = gamesData.filter(g => g.ticket_type === "free").length;
-      const premiumGames = gamesData.filter(g => g.ticket_type === "paid").length;
-      const liveGames = statusCounts.live || 0;
-      const upcomingGames = statusCounts.scheduled || 0;
-      const completedGames = statusCounts.completed || 0;
-      
-      // Calculate total players if available_tickets exists
-      const totalPlayers = gamesData.reduce((acc, game) => {
-        const players = game.available_tickets || 0;
-        return acc + players;
-      }, 0);
-      
-      setStats({
-        totalGames: res.data.total_games || gamesData.length,
-        freeGames,
-        premiumGames,
-        totalPlayers,
-        liveGames,
-        upcomingGames,
-        completedGames,
-      });
+  const fetchAllData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchGames(),
+        fetchMyTickets(),
+        fetchMyRequests()
+      ]);
+    } catch (error) {
+      console.log("Error fetching data:", error);
+      alert("Failed to load games data!");
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.log("Error fetching games:", error);
-    alert("Failed to load games!");
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const startAutoSlide = () => {
-    slideInterval.current = setInterval(() => {
-      setCurrentImageIndex(prevIndex => {
-        const nextIndex = prevIndex === SLIDER_IMAGES.length - 1 ? 0 : prevIndex + 1;
-        
-        // Scroll to next image
-        flatListRef.current?.scrollToIndex({
-          index: nextIndex,
-          animated: true,
-        });
-        
-        return nextIndex;
-      });
-    }, 3000); // Change slide every 3 seconds
   };
 
-  const onSliderScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-    { useNativeDriver: false }
-  );
+  const fetchGames = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const res = await axios.get(
+        "https://exilance.com/tambolatimez/public/api/user/games",
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      if (res.data.success) {
+        const gamesData = res.data.games.data || [];
+        setGames(gamesData);
+      }
+    } catch (error) {
+      console.log("Error fetching games:", error);
+      alert("Failed to load games!");
+    }
+  };
 
-  const filterGames = () => {
+  const fetchMyTickets = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const res = await axios.get(
+        "https://exilance.com/tambolatimez/public/api/user/my-tickets",
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.success) {
+        setUserGameData(prev => ({
+          ...prev,
+          myTickets: res.data.tickets.data || []
+        }));
+      }
+    } catch (error) {
+      console.log("Error fetching tickets:", error);
+    }
+  };
+
+  const fetchMyRequests = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const res = await axios.get(
+        "https://exilance.com/tambolatimez/public/api/user/my-ticket-requests",
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.success) {
+        setUserGameData(prev => ({
+          ...prev,
+          myRequests: res.data.ticket_requests.data || []
+        }));
+      }
+    } catch (error) {
+      console.log("Error fetching requests:", error);
+    }
+  };
+
+  const isUserPlayingGame = (gameId) => {
+    // Check if user has tickets for this game
+    const hasTickets = userGameData.myTickets.some(ticket => ticket.game_id == gameId);
+    
+    // Check if user has pending requests for this game
+    const hasPendingRequests = userGameData.myRequests.some(request => 
+      request.game_id == gameId && request.status === 'pending'
+    );
+    
+    return hasTickets || hasPendingRequests;
+  };
+
+  const getUserTicketCount = (gameId) => {
+    const ticketsCount = userGameData.myTickets.filter(ticket => ticket.game_id == gameId).length;
+    const pendingRequestsCount = userGameData.myRequests.filter(request => 
+      request.game_id == gameId && request.status === 'pending'
+    ).length;
+    
+    return {
+      tickets: ticketsCount,
+      pendingRequests: pendingRequestsCount,
+      total: ticketsCount + pendingRequestsCount
+    };
+  };
+
+  const getFilteredGames = () => {
     let filtered = games;
 
     // Apply search filter
@@ -172,106 +157,34 @@ const Game = ({ navigation }) => {
       );
     }
 
-    // Apply category filter
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(game => {
-        switch(selectedCategory) {
-          case 'free':
-            return game.ticket_type === "free";
-          case 'premium':
-            return game.ticket_type === "paid";
-          case 'soon':
-            if (game.status !== 'scheduled') return false;
-            const gameTime = new Date(`${game.game_date}T${game.game_start_time}`);
-            const now = new Date();
-            const diffHours = (gameTime - now) / (1000 * 60 * 60);
-            return diffHours > 0 && diffHours < 2;
-          case 'high':
-            return game.ticket_type === "paid" && parseFloat(game.ticket_cost) >= 100;
-          case 'popular':
-            return (game.available_tickets && game.available_tickets < 30) || false;
-          default:
-            return true;
-        }
-      });
+    // Filter based on active tab
+    if (activeTab === 'myGames') {
+      filtered = filtered.filter(game => isUserPlayingGame(game.id));
     }
+    // For 'allGames' tab, show all games (already filtered by search)
 
-    setFilteredGames(filtered);
+    return filtered;
   };
 
   const getGameIcon = (index) => {
     return GAME_ICONS[index % GAME_ICONS.length];
   };
 
-  const renderImageSlider = () => {
+  const renderPlayingBadge = (game) => {
+    const ticketInfo = getUserTicketCount(game.id);
+    
+    if (ticketInfo.total === 0) return null;
+    
     return (
-      <View style={styles.sliderContainer}>
-        <Animated.FlatList
-          ref={flatListRef}
-          data={SLIDER_IMAGES}
-          keyExtractor={(item) => item.id.toString()}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onScroll={onSliderScroll}
-          scrollEventThrottle={16}
-          renderItem={({ item }) => (
-            <View style={styles.slide}>
-              <Image
-                source={{ uri: item.uri }}
-                style={styles.sliderImage}
-                resizeMode="cover"
-              />
-              <View style={styles.imageOverlay} />
-              <View style={styles.slideContent}>
-                <Text style={styles.slideTitle}>{item.title}</Text>
-                <Text style={styles.slideSubtitle}>{item.subtitle}</Text>
-              </View>
-            </View>
-          )}
-          onMomentumScrollEnd={(event) => {
-            const slideIndex = Math.round(
-              event.nativeEvent.contentOffset.x / (width - 40)
-            );
-            setCurrentImageIndex(slideIndex);
-          }}
-        />
-        
-        {/* Pagination dots */}
-        <View style={styles.pagination}>
-          {SLIDER_IMAGES.map((_, index) => {
-            const inputRange = [
-              (index - 1) * (width - 40),
-              index * (width - 40),
-              (index + 1) * (width - 40),
-            ];
-
-            const dotWidth = scrollX.interpolate({
-              inputRange,
-              outputRange: [8, 20, 8],
-              extrapolate: 'clamp',
-            });
-
-            const opacity = scrollX.interpolate({
-              inputRange,
-              outputRange: [0.3, 1, 0.3],
-              extrapolate: 'clamp',
-            });
-
-            return (
-              <Animated.View
-                key={index}
-                style={[
-                  styles.paginationDot,
-                  {
-                    width: dotWidth,
-                    opacity: opacity,
-                  },
-                ]}
-              />
-            );
-          })}
+      <View style={styles.playingBadge}>
+        <View style={styles.playingBadgeIcon}>
+          <Ionicons name="person-circle" size={12} color="#FFF" />
         </View>
+        <Text style={styles.playingBadgeText}>
+          {ticketInfo.tickets > 0 ? `${ticketInfo.tickets} Ticket${ticketInfo.tickets > 1 ? 's' : ''}` : ''}
+          {ticketInfo.tickets > 0 && ticketInfo.pendingRequests > 0 ? ' + ' : ''}
+          {ticketInfo.pendingRequests > 0 ? `${ticketInfo.pendingRequests} Request${ticketInfo.pendingRequests > 1 ? 's' : ''}` : ''}
+        </Text>
       </View>
     );
   };
@@ -279,18 +192,27 @@ const Game = ({ navigation }) => {
   const renderGameCard = (game, index) => {
     const gameIcon = getGameIcon(index);
     const ticketCost = parseFloat(game.ticket_cost || 0);
+    const ticketInfo = getUserTicketCount(game.id);
+    const isPlaying = isUserPlayingGame(game.id);
     
     return (
       <TouchableOpacity
         key={game.id}
-        style={styles.gameCard}
+        style={[styles.gameCard, isPlaying && styles.playingGameCard]}
         activeOpacity={0.9}
         onPress={() => navigation.navigate("GameDetails", { game })}
       >
-        {/* Background Pattern */}
+        {isPlaying && (
+          <View style={styles.playingCardOverlay}>
+            <View style={styles.playingCardLabel}>
+              <Ionicons name="checkmark-circle" size={12} color="#FFF" />
+              <Text style={styles.playingCardLabelText}>You're Playing</Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.gameCardPattern} />
         
-        {/* Status Badge - Moved to left side to avoid overlapping */}
         <View style={[styles.statusBadge, 
           game.status === 'live' ? styles.liveBadge :
           game.status === 'scheduled' ? styles.scheduledBadge :
@@ -314,6 +236,7 @@ const Game = ({ navigation }) => {
             <View style={styles.gameInfo}>
               <Text style={styles.gameName} numberOfLines={1}>{game.game_name}</Text>
               <Text style={styles.gameId}>ID: {game.game_code}</Text>
+              {isPlaying && renderPlayingBadge(game)}
             </View>
           </View>
           
@@ -406,12 +329,17 @@ const Game = ({ navigation }) => {
         <TouchableOpacity 
           style={[
             styles.joinButton,
-            game.ticket_type === "paid" ? styles.paidButton : styles.freeButton
+            game.ticket_type === "paid" ? styles.paidButton : styles.freeButton,
+            isPlaying && styles.playingJoinButton
           ]}
           onPress={() => navigation.navigate("GameDetails", { game })}
         >
           <Text style={styles.joinButtonText}>
-            {game.status === 'live' ? 'JOIN GAME' : 'VIEW DETAILS'}
+            {isPlaying 
+              ? 'VIEW MY GAME' 
+              : game.status === 'live' 
+                ? 'JOIN GAME' 
+                : 'VIEW DETAILS'}
           </Text>
           <Ionicons name="arrow-forward" size={16} color="#FFF" />
         </TouchableOpacity>
@@ -419,17 +347,17 @@ const Game = ({ navigation }) => {
     );
   };
 
-  const CategoryItem = ({ title, count, isActive, onPress }) => (
+  const TabButton = ({ title, count, isActive, onPress }) => (
     <TouchableOpacity
-      style={[styles.categoryItem, isActive && styles.categoryItemActive]}
+      style={[styles.tabButton, isActive && styles.tabButtonActive]}
       onPress={onPress}
     >
-      <Text style={[styles.categoryTitle, isActive && styles.categoryTitleActive]}>
+      <Text style={[styles.tabButtonText, isActive && styles.tabButtonTextActive]}>
         {title}
       </Text>
       {count > 0 && (
-        <View style={styles.categoryCount}>
-          <Text style={styles.categoryCountText}>{count}</Text>
+        <View style={styles.tabCount}>
+          <Text style={styles.tabCountText}>{count}</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -454,28 +382,11 @@ const Game = ({ navigation }) => {
     );
   }
 
-  const categories = [
-    { id: 'all', title: 'All Games', count: stats.totalGames },
-    { id: 'free', title: 'Free', count: stats.freeGames },
-    { id: 'premium', title: 'Premium', count: stats.premiumGames },
-    { id: 'soon', title: 'Starting Soon', count: stats.upcomingGames },
-    { id: 'high', title: 'High Prize', count: games.filter(g => g.ticket_type === "paid" && parseFloat(g.ticket_cost) >= 100).length },
-    { id: 'popular', title: 'Popular', count: games.filter(g => g.available_tickets && g.available_tickets < 30).length },
-  ];
+  const myGamesCount = games.filter(game => isUserPlayingGame(game.id)).length;
+  const filteredGames = getFilteredGames();
 
   return (
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor="#40E0D0"
-          colors={['#40E0D0']}
-        />
-      }
-    >
+    <View style={styles.container}>
       {/* BACKGROUND PATTERNS */}
       <View style={styles.backgroundPatterns}>
         <View style={styles.patternCircle1} />
@@ -489,6 +400,12 @@ const Game = ({ navigation }) => {
             <Text style={styles.appName}>Tambola Games</Text>
             <Text style={styles.appTagline}>Play, Compete & Win Big</Text>
           </View>
+          {myGamesCount > 0 && (
+            <View style={styles.playingCountBadge}>
+              <Ionicons name="checkmark-circle" size={14} color="#40E0D0" />
+              <Text style={styles.playingCountText}>{myGamesCount}</Text>
+            </View>
+          )}
         </View>
 
         {/* SEARCH BOX */}
@@ -516,53 +433,92 @@ const Game = ({ navigation }) => {
         </View>
       </View>
 
-      {/* IMAGE SLIDER SECTION */}
-      <View style={styles.sliderSection}>
-        {renderImageSlider()}
+      {/* TABS */}
+      <View style={styles.tabsContainer}>
+        <TabButton
+          title="My Games"
+          count={myGamesCount}
+          isActive={activeTab === 'myGames'}
+          onPress={() => setActiveTab('myGames')}
+        />
+        <TabButton
+          title="All Games"
+          count={games.length}
+          isActive={activeTab === 'allGames'}
+          onPress={() => setActiveTab('allGames')}
+        />
       </View>
-
-     
 
       {/* GAMES LIST */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Available Games</Text>
-          <Text style={styles.gameCount}>{filteredGames.length} Games</Text>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#40E0D0"
+            colors={['#40E0D0']}
+          />
+        }
+      >
+        <View style={styles.section}>
+          {activeTab === 'myGames' && (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>My Games</Text>
+              <Text style={styles.gameCount}>{filteredGames.length} Game{filteredGames.length !== 1 ? 's' : ''}</Text>
+            </View>
+          )}
+
+          {filteredGames.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconWrapper}>
+                <Ionicons 
+                  name={activeTab === 'myGames' ? "game-controller-outline" : "search-outline"} 
+                  size={50} 
+                  color="#40E0D0" 
+                />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {activeTab === 'myGames' 
+                  ? 'No Games Found' 
+                  : 'No Games Available'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {searchQuery 
+                  ? `No games found for "${searchQuery}"`
+                  : activeTab === 'myGames'
+                  ? "You haven't joined any games yet. Browse all games to get started!"
+                  : "Check back later for new exciting games!"}
+              </Text>
+              {searchQuery && (
+                <TouchableOpacity 
+                  style={styles.clearFiltersButton}
+                  onPress={() => setSearchQuery('')}
+                >
+                  <Text style={styles.clearFiltersButtonText}>Clear Search</Text>
+                </TouchableOpacity>
+              )}
+              {activeTab === 'myGames' && !searchQuery && (
+                <TouchableOpacity 
+                  style={styles.browseGamesButton}
+                  onPress={() => setActiveTab('allGames')}
+                >
+                  <Text style={styles.browseGamesButtonText}>Browse All Games</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <View style={styles.gamesList}>
+              {filteredGames.map((game, index) => renderGameCard(game, index))}
+            </View>
+          )}
         </View>
 
-        {filteredGames.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrapper}>
-              <Ionicons name="game-controller-outline" size={50} color="#40E0D0" />
-            </View>
-            <Text style={styles.emptyTitle}>No Games Found</Text>
-            <Text style={styles.emptySubtitle}>
-              {searchQuery ? `No games found for "${searchQuery}"` : 
-               selectedCategory !== 'all' ? `No ${selectedCategory} games available` :
-               "Check back later for new exciting games!"}
-            </Text>
-            {(searchQuery || selectedCategory !== 'all') && (
-              <TouchableOpacity 
-                style={styles.clearFiltersButton}
-                onPress={() => {
-                  setSearchQuery('');
-                  setSelectedCategory('all');
-                }}
-              >
-                <Text style={styles.clearFiltersButtonText}>Clear Filters</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : (
-          <View style={styles.gamesList}>
-            {filteredGames.map((game, index) => renderGameCard(game, index))}
-          </View>
-        )}
-      </View>
-
-      {/* BOTTOM SPACE */}
-      <View style={styles.bottomSpace} />
-    </ScrollView>
+        {/* BOTTOM SPACE */}
+        <View style={styles.bottomSpace} />
+      </ScrollView>
+    </View>
   );
 };
 
@@ -572,6 +528,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8F9FA",
+  },
+  scrollView: {
+    flex: 1,
   },
   backgroundPatterns: {
     position: 'absolute',
@@ -628,8 +587,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   header: {
-    backgroundColor: "#FFFFFF",
-    paddingTop: 50,
+    backgroundColor: "#40E0D0",
+    paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
@@ -645,7 +604,7 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#40E0D0",
+    color: "#FFFFFF",
     letterSpacing: -0.5,
   },
   appTagline: {
@@ -653,6 +612,20 @@ const styles = StyleSheet.create({
     color: "#6C757D",
     marginTop: 2,
     fontWeight: "500",
+  },
+  playingCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  playingCountText: {
+    color: '#40E0D0',
+    fontSize: 12,
+    fontWeight: '700',
   },
   searchContainer: {
     flexDirection: "row",
@@ -676,113 +649,51 @@ const styles = StyleSheet.create({
   clearButton: {
     padding: 4,
   },
-  sliderSection: {
-    paddingHorizontal: 20,
-    marginTop: 20,
-    zIndex: 1,
-  },
-  sliderContainer: {
-    height: 200,
-    position: 'relative',
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E9ECEF',
-  },
-  slide: {
-    width: width - 40,
-    height: 200,
-    position: 'relative',
-  },
-  sliderImage: {
-    width: '100%',
-    height: '100%',
-  },
-  imageOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  slideContent: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-  },
-  slideTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  slideSubtitle: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '500',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  pagination: {
+  tabsContainer: {
     flexDirection: 'row',
-    position: 'absolute',
-    bottom: 8,
-    alignSelf: 'center',
-  },
-  paginationDot: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#40E0D0',
-    marginHorizontal: 4,
-  },
-  categoriesScroll: {
-    marginTop: 15,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
     zIndex: 1,
   },
-  categoriesList: {
-    paddingRight: 20,
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginRight: 10,
+    backgroundColor: '#F8F9FA',
   },
-  categoryItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderWidth: 1.5,
-    borderColor: "#E9ECEF",
+  tabButtonActive: {
+    backgroundColor: '#40E0D0',
   },
-  categoryItemActive: {
-    backgroundColor: "#40E0D0",
-    borderColor: "#40E0D0",
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6C757D',
   },
-  categoryTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6C757D",
+  tabButtonTextActive: {
+    color: '#FFFFFF',
   },
-  categoryTitleActive: {
-    color: "#FFF",
-  },
-  categoryCount: {
-    backgroundColor: "#FF6B35",
+  tabCount: {
+    backgroundColor: '#FF6B35',
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 6,
   },
-  categoryCountText: {
-    color: "#FFF",
+  tabCountText: {
+    color: '#FFF',
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   section: {
     paddingHorizontal: 20,
-    marginTop: 15,
+    paddingTop: 15,
     zIndex: 1,
   },
   sectionHeader: {
@@ -812,6 +723,32 @@ const styles = StyleSheet.create({
     borderColor: "#E9ECEF",
     position: 'relative',
     overflow: 'hidden',
+  },
+  playingGameCard: {
+    backgroundColor: "#F0FFFF",
+    borderColor: "#40E0D0",
+    borderWidth: 2,
+  },
+  playingCardOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 2,
+  },
+  playingCardLabel: {
+    backgroundColor: "#40E0D0",
+    borderBottomLeftRadius: 12,
+    borderTopRightRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  playingCardLabelText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
   gameCardPattern: {
     position: 'absolute',
@@ -890,6 +827,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6C757D",
     fontWeight: "500",
+  },
+  playingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(64, 224, 208, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(64, 224, 208, 0.2)',
+  },
+  playingBadgeIcon: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#40E0D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playingBadgeText: {
+    fontSize: 10,
+    color: "#40E0D0",
+    fontWeight: "600",
   },
   gameTypeBadge: {
     flexDirection: "row",
@@ -998,6 +961,9 @@ const styles = StyleSheet.create({
   freeButton: {
     backgroundColor: "#40E0D0",
   },
+  playingJoinButton: {
+    backgroundColor: "#40E0D0",
+  },
   joinButtonText: {
     color: "#FFF",
     fontSize: 14,
@@ -1012,6 +978,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E9ECEF",
     overflow: 'hidden',
+    marginTop: 20,
   },
   emptyIconWrapper: {
     width: 70,
@@ -1043,9 +1010,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
+    marginBottom: 10,
   },
   clearFiltersButtonText: {
     color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  browseGamesButton: {
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#40E0D0",
+  },
+  browseGamesButtonText: {
+    color: "#40E0D0",
     fontSize: 14,
     fontWeight: "700",
   },

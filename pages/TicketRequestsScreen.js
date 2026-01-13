@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,6 +11,7 @@ import {
   RefreshControl,
   SafeAreaView,
   Dimensions,
+  AppState,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -30,18 +31,196 @@ const TicketRequestsScreen = ({ route, navigation }) => {
     rejected: 0,
     cancelled: 0,
   });
+  
+  // Polling state
+  const [isPolling, setIsPolling] = useState(false);
+  const pollingIntervalRef = useRef(null);
+  const appState = useRef(AppState.currentState);
+  
+  // Polling configuration
+  const POLLING_INTERVAL = 3000; // 10 seconds
+  const POLLING_INTERVAL_BACKGROUND = 30000; // 30 seconds when app is in background
+  const MAX_POLLING_DURATION = 300000; // Stop after 5 minutes to save battery
 
   useEffect(() => {
     console.log("Screen mounted, fetching requests for game:", gameId);
     fetchTicketRequests();
+    
+    // Start polling when component mounts
+    startPolling();
+    
+    // Setup app state listener for background/foreground
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    
+    // Cleanup on unmount
+    return () => {
+      console.log("Component unmounting, cleaning up...");
+      stopPolling();
+      subscription.remove();
+    };
   }, []);
 
+  useEffect(() => {
+    // Auto-stop polling after MAX_POLLING_DURATION to save battery
+    const autoStopTimer = setTimeout(() => {
+      if (isPolling) {
+        console.log("Auto-stopping polling after maximum duration");
+        stopPolling();
+      }
+    }, MAX_POLLING_DURATION);
+
+    return () => clearTimeout(autoStopTimer);
+  }, [isPolling]);
+
+  const handleAppStateChange = (nextAppState) => {
+    console.log("App state changed:", nextAppState);
+    
+    if (nextAppState.match(/inactive|background/) && appState.current === "active") {
+      // App going to background
+      console.log("App going to background, adjusting polling interval");
+      adjustPollingForBackground();
+    } else if (appState.current.match(/inactive|background/) && nextAppState === "active") {
+      // App coming to foreground
+      console.log("App coming to foreground, resuming normal polling");
+      adjustPollingForForeground();
+    }
+    
+    appState.current = nextAppState;
+  };
+
+  const startPolling = () => {
+    console.log("Starting polling...");
+    
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+    
+    setIsPolling(true);
+    
+    // Initial fetch
+    fetchTicketRequestsSilently();
+    
+    // Set up interval for polling
+    pollingIntervalRef.current = setInterval(() => {
+      console.log("Polling interval triggered");
+      fetchTicketRequestsSilently();
+    }, POLLING_INTERVAL);
+  };
+
+  const stopPolling = () => {
+    console.log("Stopping polling...");
+    setIsPolling(false);
+    
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+
+  const adjustPollingForBackground = () => {
+    if (!pollingIntervalRef.current) return;
+    
+    console.log("Adjusting to background polling interval");
+    clearInterval(pollingIntervalRef.current);
+    
+    pollingIntervalRef.current = setInterval(() => {
+      console.log("Background polling interval triggered");
+      fetchTicketRequestsSilently();
+    }, POLLING_INTERVAL_BACKGROUND);
+  };
+
+  const adjustPollingForForeground = () => {
+    if (!pollingIntervalRef.current) return;
+    
+    console.log("Adjusting to foreground polling interval");
+    clearInterval(pollingIntervalRef.current);
+    
+    pollingIntervalRef.current = setInterval(() => {
+      console.log("Foreground polling interval triggered");
+      fetchTicketRequestsSilently();
+    }, POLLING_INTERVAL);
+  };
+
+  const fetchTicketRequestsSilently = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) return;
+      
+      const response = await axios.get(
+        "https://exilance.com/tambolatimez/public/api/user/my-ticket-requests",
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          } 
+        }
+      );
+      
+      if (response.data.success) {
+        const allRequests = response.data.ticket_requests?.data || [];
+        const gameRequests = allRequests.filter(
+          (request) => request.game_id == gameId || request.game_id === gameId
+        );
+        
+        // Check if there are any status changes
+        const hasChanges = checkForStatusChanges(gameRequests);
+        
+        if (hasChanges) {
+          console.log("Status changes detected, updating UI");
+          updateRequestsAndStats(gameRequests);
+        }
+      }
+    } catch (error) {
+      console.log("Silent fetch error:", error.message);
+      // Don't show alerts for silent fetches
+    }
+  };
+
+  const checkForStatusChanges = (newRequests) => {
+    if (requests.length !== newRequests.length) {
+      return true;
+    }
+    
+    for (let i = 0; i < newRequests.length; i++) {
+      const newRequest = newRequests[i];
+      const oldRequest = requests.find(r => r.id === newRequest.id);
+      
+      if (!oldRequest) return true;
+      
+      if (oldRequest.status !== newRequest.status ||
+          oldRequest.payment_status !== newRequest.payment_status ||
+          oldRequest.rejection_reason !== newRequest.rejection_reason) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  const updateRequestsAndStats = (gameRequests) => {
+    setRequests(gameRequests);
+    
+    const pendingCount = gameRequests.filter(r => r.status === "pending").length;
+    const approvedCount = gameRequests.filter(r => r.status === "approved").length;
+    const rejectedCount = gameRequests.filter(r => r.status === "rejected").length;
+    const cancelledCount = gameRequests.filter(r => r.status === "cancelled").length;
+    
+    setStats({
+      total: gameRequests.length,
+      pending: pendingCount,
+      approved: approvedCount,
+      rejected: rejectedCount,
+      cancelled: cancelledCount,
+    });
+  };
+
   const onRefresh = React.useCallback(() => {
-    console.log("Refreshing...");
+    console.log("Manual refresh triggered");
     setRefreshing(true);
     fetchTicketRequests().finally(() => {
       setRefreshing(false);
-      console.log("Refresh complete");
+      console.log("Manual refresh complete");
     });
   }, []);
 
@@ -74,29 +253,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
         );
         console.log("Filtered requests for game:", gameRequests.length);
         
-        setRequests(gameRequests);
-        
-        // Calculate stats
-        const pendingCount = gameRequests.filter(r => r.status === "pending").length;
-        const approvedCount = gameRequests.filter(r => r.status === "approved").length;
-        const rejectedCount = gameRequests.filter(r => r.status === "rejected").length;
-        const cancelledCount = gameRequests.filter(r => r.status === "cancelled").length;
-        
-        console.log("Stats:", {
-          total: gameRequests.length,
-          pending: pendingCount,
-          approved: approvedCount,
-          rejected: rejectedCount,
-          cancelled: cancelledCount
-        });
-        
-        setStats({
-          total: gameRequests.length,
-          pending: pendingCount,
-          approved: approvedCount,
-          rejected: rejectedCount,
-          cancelled: cancelledCount,
-        });
+        updateRequestsAndStats(gameRequests);
       } else {
         console.log("API returned success: false", response.data);
         Alert.alert("Error", response.data.message || "Failed to fetch requests");
@@ -154,6 +311,14 @@ const TicketRequestsScreen = ({ route, navigation }) => {
         }
       ]
     );
+  };
+
+  const togglePolling = () => {
+    if (isPolling) {
+      stopPolling();
+    } else {
+      startPolling();
+    }
   };
 
   const getStatusColor = (status) => {
@@ -263,7 +428,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="arrow-back" size={22} color="#FFF" />
+              <Ionicons name="arrow-back" size={22} color="#40E0D0" />
             </TouchableOpacity>
 
             <View style={styles.headerTextContainer}>
@@ -276,10 +441,15 @@ const TicketRequestsScreen = ({ route, navigation }) => {
               </View>
             </View>
             
-            {/* <TouchableOpacity style={styles.refreshButton} onPress={fetchTicketRequests}>
+            <TouchableOpacity 
+              style={styles.refreshButton} 
+              onPress={fetchTicketRequests}
+            >
               <Feather name="refresh-ccw" size={18} color="#FFF" />
-            </TouchableOpacity> */}
+            </TouchableOpacity>
           </View>
+          
+         
         </View>
 
         {/* Content */}
@@ -456,6 +626,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
           <View style={styles.infoCard}>
             <Ionicons name="information-circle" size={18} color="#40E0D0" />
             <Text style={styles.infoText}>
+              • Auto-refresh checks for updates every 10 seconds{'\n'}
               • Pending requests can be cancelled anytime{'\n'}
               • Approved tickets will appear in your wallet{'\n'}
               • Contact support for any issues with requests
@@ -533,10 +704,10 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   header: {
-    backgroundColor: "#FFFFFF",
-    paddingTop: 50,
+    backgroundColor: "#40E0D0",
+    paddingTop: 20,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#E9ECEF",
   },
@@ -544,12 +715,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 10,
   },
   backButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#40E0D0",
+    backgroundColor: "#FFFFFF",
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -557,11 +729,11 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "rgba(64, 224, 208, 0.1)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: "rgba(64, 224, 208, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   headerTextContainer: {
     flex: 1,
@@ -570,7 +742,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#40E0D0",
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   gameInfoContainer: {
@@ -582,6 +754,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6C757D",
     fontWeight: "500",
+  },
+  pollingIndicatorContainer: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  pollingStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  pollingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  pollingText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  pollingToggleButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  pollingToggleText: {
+    fontSize: 11,
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  pollingSubText: {
+    fontSize: 10,
+    color: "rgba(255, 255, 255, 0.8)",
+    fontStyle: 'italic',
   },
   content: {
     padding: 20,

@@ -19,8 +19,7 @@ import axios from "axios";
 import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
-const TICKET_WIDTH = width - 40;
-const CELL_SIZE = (TICKET_WIDTH - 60) / 9;
+const TICKET_WIDTH = width - 32; // Card width
 
 const TicketsScreen = ({ route, navigation }) => {
   const { game } = route.params || {};
@@ -99,7 +98,7 @@ const TicketsScreen = ({ route, navigation }) => {
         console.log("Filtered tickets:", tickets.length);
         setMyTickets(tickets);
         
-        // Calculate stats
+        // Calculate stats (keeping for potential future use)
         const activeCount = tickets.filter(t => t.is_active).length;
         const setsCount = getTicketSetCount(tickets);
         
@@ -146,37 +145,37 @@ const TicketsScreen = ({ route, navigation }) => {
 
   const renderTicketGrid = (ticketData, isModal = false) => {
     const processedData = processTicketData(ticketData);
-    const cellSize = isModal ? (TICKET_WIDTH - 60) / 9 : CELL_SIZE;
+    
+    // Calculate cell size to fill the entire available space
+    const containerWidth = isModal ? width - 80 : TICKET_WIDTH - 24; // Remove padding
+    const containerHeight = isModal ? 180 : 140; // Fixed height for consistency
+    const cellWidth = containerWidth / 9;
+    const cellHeight = containerHeight / 3;
     
     return (
-      <View style={[styles.ticketGridContainer, isModal && styles.modalTicketGrid]}>
-        {/* Column Headers */}
-        <View style={styles.columnNumbers}>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-            <View key={`header-${num}`} style={[styles.columnNumberCell, { width: cellSize }]}>
-              <Text style={styles.columnNumberText}>{num}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Ticket rows */}
+      <View style={[
+        styles.ticketGridContainer, 
+        isModal && styles.modalTicketGrid,
+        { width: containerWidth, height: containerHeight }
+      ]}>
+        {/* Ticket rows without column headers */}
         {processedData.map((row, rowIndex) => (
-          <View key={`row-${rowIndex}`} style={styles.ticketRow}>
+          <View key={`row-${rowIndex}`} style={[styles.ticketRow, { height: cellHeight }]}>
             {row.map((cell, colIndex) => {
               const isEmpty = cell === null;
-              const cellBackgroundColor = isEmpty ? "#CCCCCC" : "#80CBC4"; // Turquoise for filled cells
+              const cellBackgroundColor = isEmpty ? "#F5F5F5" : "#80CBC4"; // Turquoise for filled cells
               
               return (
                 <View
                   key={`cell-${rowIndex}-${colIndex}`}
                   style={[
                     styles.ticketCell,
-                    { width: cellSize, height: cellSize, backgroundColor: cellBackgroundColor },
+                    { 
+                      width: cellWidth, 
+                      height: cellHeight,
+                      backgroundColor: cellBackgroundColor,
+                    },
                     isEmpty && styles.emptyCell,
-                    rowIndex === 0 && styles.firstRowCell,
-                    rowIndex === 2 && styles.lastRowCell,
-                    colIndex === 0 && styles.firstColumnCell,
-                    colIndex === 8 && styles.lastColumnCell,
                   ]}
                 >
                   {!isEmpty && (
@@ -192,32 +191,9 @@ const TicketsScreen = ({ route, navigation }) => {
   };
 
   const renderTicketItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.ticketCard}
-      onPress={() => {
-        setSelectedTicket(item);
-        setModalVisible(true);
-      }}
-      activeOpacity={0.8}
-    >
-      <View style={styles.cardPattern} />
-      
-      {/* Status Badge */}
-      <View style={[
-        styles.statusBadge,
-        { backgroundColor: item.is_active ? '#4CAF5020' : '#6C757D20' }
-      ]}>
-        <Ionicons
-          name={item.is_active ? "checkmark-circle" : "close-circle"}
-          size={12}
-          color={item.is_active ? SUCCESS_COLOR : GRAY_COLOR}
-        />
-        <Text style={[styles.statusText, { color: item.is_active ? SUCCESS_COLOR : GRAY_COLOR }]}>
-          {item.is_active ? "Active" : "Inactive"}
-        </Text>
-      </View>
-
-      <View style={styles.ticketCardHeader}>
+    <View style={styles.ticketItemContainer}>
+      {/* Ticket number and status outside the card */}
+      <View style={styles.ticketHeader}>
         <View style={styles.ticketNumberContainer}>
           <Image
             source={{ uri: GAME_IMAGES.ticket }}
@@ -228,45 +204,37 @@ const TicketsScreen = ({ route, navigation }) => {
             <Text style={styles.ticketNumber}>#{item.ticket_number}</Text>
           </View>
         </View>
-      </View>
-
-      <View style={styles.ticketPreview}>
-        {renderTicketGrid(item.ticket_data)}
-      </View>
-
-      <View style={styles.ticketCardFooter}>
-        <View style={styles.ticketInfoRow}>
-          <View style={styles.infoItem}>
-            <MaterialIcons name="collections" size={14} color={GRAY_COLOR} />
-            <Text style={styles.infoLabel}>Set</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>
-              {item.ticket_set_id?.split("_")[1] || "N/A"}
-            </Text>
-          </View>
-          <View style={styles.infoItem}>
-            <MaterialIcons name="date-range" size={14} color={GRAY_COLOR} />
-            <Text style={styles.infoLabel}>Allocated</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>
-              {new Date(item.allocated_at).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-              })}
-            </Text>
-          </View>
+        
+        <View style={[
+          styles.statusBadge,
+          { backgroundColor: item.is_active ? '#4CAF5020' : '#6C757D20' }
+        ]}>
+          <Ionicons
+            name={item.is_active ? "checkmark-circle" : "close-circle"}
+            size={12}
+            color={item.is_active ? SUCCESS_COLOR : GRAY_COLOR}
+          />
+          <Text style={[styles.statusText, { color: item.is_active ? SUCCESS_COLOR : GRAY_COLOR }]}>
+            {item.is_active ? "Active" : "Inactive"}
+          </Text>
         </View>
-        <TouchableOpacity
-          style={styles.viewButton}
-          onPress={() => {
-            setSelectedTicket(item);
-            setModalVisible(true);
-          }}
-        >
-          <Feather name="eye" size={14} color="#FFF" />
-          <Text style={styles.viewButtonText}>View Details</Text>
-        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+
+      {/* Ticket Card with grid */}
+      <TouchableOpacity
+        style={styles.ticketCard}
+        onPress={() => {
+          setSelectedTicket(item);
+          setModalVisible(true);
+        }}
+        activeOpacity={0.9}
+      >
+        {/* Ticket takes the full card */}
+        <View style={styles.fullTicketContainer}>
+          {renderTicketGrid(item.ticket_data)}
+        </View>
+      </TouchableOpacity>
+    </View>
   );
 
   // Calculate ticket set count
@@ -274,16 +242,6 @@ const TicketsScreen = ({ route, navigation }) => {
     const sets = new Set(tickets.map(t => t.ticket_set_id));
     return sets.size;
   };
-
-  const StatCard = ({ icon, value, label, color = PRIMARY_COLOR }) => (
-    <View style={styles.statCard}>
-      <View style={[styles.statIconContainer, { backgroundColor: color + '20' }]}>
-        <MaterialIcons name={icon} size={18} color={color} />
-      </View>
-      <Text style={[styles.statValue, { color: PRIMARY_COLOR }]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
 
   if (loading) {
     console.log("Showing loading screen");
@@ -343,39 +301,12 @@ const TicketsScreen = ({ route, navigation }) => {
               )}
             </View>
 
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={onRefresh}
-            >
-              <Ionicons name="refresh" size={20} color={PRIMARY_COLOR} />
-            </TouchableOpacity>
+           
           </View>
         </View>
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Stats Overview */}
-          <View style={styles.statsOverview}>
-            <StatCard 
-              icon="confirmation-number" 
-              value={stats.total} 
-              label="Total" 
-              color={PRIMARY_COLOR} 
-            />
-            <StatCard 
-              icon="check-circle" 
-              value={stats.active} 
-              label="Active" 
-              color={SUCCESS_COLOR} 
-            />
-            <StatCard 
-              icon="collections" 
-              value={stats.sets} 
-              label="Sets" 
-              color={PRIMARY_COLOR} 
-            />
-          </View>
-
           {/* Tickets Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -475,54 +406,6 @@ const TicketsScreen = ({ route, navigation }) => {
                 </View>
 
                 <View style={styles.modalContent}>
-                  {/* <View style={styles.modalInfoGrid}>
-                    <View style={styles.modalInfoRow}>
-                      <View style={styles.modalInfoItem}>
-                        <View style={styles.modalInfoIcon}>
-                          <MaterialIcons name="collections" size={14} color={PRIMARY_COLOR} />
-                        </View>
-                        <View>
-                          <Text style={styles.modalInfoLabel}>Ticket Set</Text>
-                          <Text style={styles.modalInfoValue} numberOfLines={1}>
-                            {selectedTicket.ticket_set_id || "N/A"}
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.modalInfoItem}>
-                        <View style={styles.modalInfoIcon}>
-                          <MaterialIcons name="date-range" size={14} color={PRIMARY_COLOR} />
-                        </View>
-                        <View>
-                          <Text style={styles.modalInfoLabel}>Allocated Date</Text>
-                          <Text style={styles.modalInfoValue} numberOfLines={1}>
-                            {new Date(selectedTicket.allocated_at).toLocaleDateString('en-US', {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.modalInfoItem}>
-                      <View style={styles.modalInfoIcon}>
-                        <MaterialIcons name="access-time" size={14} color={PRIMARY_COLOR} />
-                      </View>
-                      <View>
-                        <Text style={styles.modalInfoLabel}>Allocated Time</Text>
-                        <Text style={styles.modalInfoValue} numberOfLines={1}>
-                          {new Date(selectedTicket.allocated_at).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </Text>
-                      </View>
-                    </View>
-                  </View> */}
-
                   {selectedTicket.game && (
                     <View style={styles.gameCard}>
                       <View style={styles.gameCardHeader}>
@@ -551,7 +434,7 @@ const TicketsScreen = ({ route, navigation }) => {
                     </View>
                   )}
 
-                  <View style={styles.fullTicketContainer}>
+                  <View style={styles.fullTicketContainerModal}>
                     <Text style={styles.ticketGridTitle}>Ticket Grid</Text>
                     <View style={styles.fullTicketGrid}>
                       {renderTicketGrid(selectedTicket.ticket_data, true)}
@@ -636,10 +519,10 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   header: {
-    backgroundColor: "#FFFFFF",
-    paddingTop: 50,
+    backgroundColor: "#40E0D0",
+    paddingTop: 20,
     paddingHorizontal: 20,
-    paddingBottom: 15,
+   
     borderBottomWidth: 1,
     borderBottomColor: "#E9ECEF",
     zIndex: 1,
@@ -667,7 +550,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#40E0D0",
+    color: "#FFFFFF",
     letterSpacing: -0.5,
     marginBottom: 4,
   },
@@ -692,50 +575,9 @@ const styles = StyleSheet.create({
     borderColor: "#E9ECEF",
   },
   content: {
-    padding: 20,
+    padding: 16,
     zIndex: 1,
     marginTop: 0,
-  },
-  statsOverview: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 25,
-    marginTop: -15,
-  },
-  statCard: {
-    flex: 1,
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: "#6C757D",
-    fontWeight: "600",
-    textAlign: 'center',
   },
   section: {
     marginBottom: 20,
@@ -765,61 +607,36 @@ const styles = StyleSheet.create({
     color: "#FFF",
   },
   ticketsList: {
-    gap: 12,
+    gap: 20, // Increased gap for better separation
   },
   ticketWrapper: {
     marginBottom: 8,
   },
-  ticketCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-    position: 'relative',
-    overflow: 'hidden',
+  ticketItemContainer: {
+    marginBottom: 4,
   },
-  cardPattern: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: 50,
-    height: 50,
-    borderBottomLeftRadius: 12,
-    borderTopRightRadius: 25,
-    backgroundColor: 'rgba(64, 224, 208, 0.03)',
-  },
-  statusBadge: {
+  ticketHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
-    alignSelf: 'flex-end',
     marginBottom: 8,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  ticketCardHeader: {
-    marginBottom: 12,
+    paddingHorizontal: 4,
   },
   ticketNumberContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
+    flex: 1,
   },
   ticketIcon: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
   },
   ticketInfo: {
     flex: 1,
   },
   ticketLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: "#6C757D",
     fontWeight: "500",
     marginBottom: 2,
@@ -829,105 +646,67 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#212529",
   },
-  ticketPreview: {
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  ticketCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderRadius: 16,
+    padding: 0, // Remove padding to make ticket full width
+    borderWidth: 0,
+    position: 'relative',
+    overflow: 'hidden',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+    height: 160, // Fixed height for consistent ticket display
+  },
+  fullTicketContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12, // Minimal padding
   },
   ticketGridContainer: {
-    alignItems: "center",
-  },
-  columnNumbers: {
-    flexDirection: "row",
-    marginBottom: 2,
-  },
-  columnNumberCell: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  columnNumberText: {
-    fontSize: 10,
-    color: "#6C757D",
-    fontWeight: "600",
+    overflow: 'hidden',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
   },
   ticketRow: {
     flexDirection: "row",
-    marginBottom: 1,
   },
   ticketCell: {
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 0.5,
-    borderColor: "#FFFFFF",
+    borderColor: "#E0E0E0",
   },
   emptyCell: {
-    backgroundColor: "#CCCCCC",
-  },
-  firstRowCell: {
-    borderTopWidth: 2,
-    borderTopColor: "#374151",
-  },
-  lastRowCell: {
-    borderBottomWidth: 2,
-    borderBottomColor: "#374151",
-  },
-  firstColumnCell: {
-    borderLeftWidth: 2,
-    borderLeftColor: "#374151",
-  },
-  lastColumnCell: {
-    borderRightWidth: 2,
-    borderRightColor: "#374151",
+    backgroundColor: "#F5F5F5",
   },
   cellNumber: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "700",
     color: "#FFFFFF",
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
-  },
-  ticketCardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  ticketInfoRow: {
-    flexDirection: "row",
-    flex: 1,
-    marginRight: 12,
-  },
-  infoItem: {
-    flex: 1,
-    alignItems: "flex-start",
-  },
-  infoLabel: {
-    fontSize: 10,
-    color: "#6C757D",
-    marginTop: 2,
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#212529",
-  },
-  viewButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#40E0D0",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-  },
-  viewButtonText: {
-    color: "#FFF",
-    fontSize: 13,
-    fontWeight: "600",
   },
   emptyState: {
     backgroundColor: "#FFFFFF",
@@ -937,6 +716,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "#E9ECEF",
+    marginTop: 20,
   },
   emptyIcon: {
     width: 80,
@@ -1074,46 +854,6 @@ const styles = StyleSheet.create({
   modalContent: {
     padding: 20,
   },
-  modalInfoGrid: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  modalInfoRow: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 12,
-  },
-  modalInfoItem: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  modalInfoIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  modalInfoLabel: {
-    fontSize: 12,
-    color: "#6C757D",
-    fontWeight: "500",
-    marginBottom: 2,
-  },
-  modalInfoValue: {
-    fontSize: 14,
-    color: "#212529",
-    fontWeight: "600",
-  },
   gameCard: {
     backgroundColor: "#F8F9FA",
     borderRadius: 12,
@@ -1163,7 +903,7 @@ const styles = StyleSheet.create({
     color: "#6C757D",
     fontWeight: "500",
   },
-  fullTicketContainer: {
+  fullTicketContainerModal: {
     marginBottom: 20,
   },
   ticketGridTitle: {
@@ -1180,6 +920,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E9ECEF",
     alignItems: "center",
+    overflow: 'hidden',
   },
   modalTicketGrid: {
     // Additional styles for modal grid if needed

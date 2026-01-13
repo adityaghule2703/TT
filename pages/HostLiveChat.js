@@ -13,10 +13,20 @@ import {
   ActivityIndicator,
   Modal,
   RefreshControl,
+  Image,
+  Dimensions,
+  Linking,
+  Alert,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { Audio } from 'expo-av';
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const HostLiveChat = ({ navigation, route }) => {
   const { gameId, gameName, participantCount } = route.params;
@@ -24,23 +34,339 @@ const HostLiveChat = ({ navigation, route }) => {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [participants, setParticipants] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [mutedUsers, setMutedUsers] = useState([]);
   const [isConnected, setIsConnected] = useState(true);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [currentHostId, setCurrentHostId] = useState(null);
+  const [currentHostName, setCurrentHostName] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [newMessageCount, setNewMessageCount] = useState(0);
- 
+  const [downloading, setDownloading] = useState(false);
+  
+  // Voice recording states
+  const [recording, setRecording] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingUri, setRecordingUri] = useState(null);
+  const [showVoiceRecording, setShowVoiceRecording] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState("idle"); // idle, recording, processing
+  
   const scrollViewRef = useRef(null);
   const messageInputRef = useRef(null);
   const isMounted = useRef(true);
   const pollingIntervalRef = useRef(null);
   const initialLoadDoneRef = useRef(false);
-  const lastMessageCountRef = useRef(0);
   const scrollOffsetRef = useRef(0);
   const lastMessageIdRef = useRef(null);
+  const recordingIntervalRef = useRef(null);
+
+  // Initialize audio recording
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== 'granted') {
+          console.log('Audio recording permission not granted');
+        }
+        
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+        });
+      } catch (error) {
+        console.log('Error setting up audio:', error);
+      }
+    })();
+
+    return () => {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Start voice recording
+  const startVoiceRecording = async () => {
+    try {
+      setRecordingDuration(0);
+      setRecordingUri(null);
+      
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      
+      setRecording(recording);
+      setIsRecording(true);
+      setShowVoiceRecording(true);
+      setRecordingStatus("recording");
+      
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+      
+    } catch (error) {
+      console.log('Failed to start recording:', error);
+      Alert.alert("Error", "Failed to start recording. Please try again.");
+    }
+  };
+
+  // Stop voice recording
+  const stopVoiceRecording = async () => {
+    if (!recording || !isRecording) return;
+
+    try {
+      setRecordingStatus("processing");
+      
+      await recording.stopAndUnloadAsync();
+      
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+      
+      const uri = recording.getURI();
+      setRecordingUri(uri);
+      setIsRecording(false);
+      
+      setRecording(null);
+      
+      Alert.alert(
+        "Voice Message",
+        "What would you like to do with this recording?",
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => {
+              setShowVoiceRecording(false);
+              setRecordingDuration(0);
+              setRecordingUri(null);
+              setRecordingStatus("idle");
+            }
+          },
+          {
+            text: "Send",
+            onPress: () => sendVoiceMessage(uri)
+          },
+          {
+            text: "Listen Again",
+            onPress: () => playRecording(uri)
+          }
+        ]
+      );
+      
+    } catch (error) {
+      console.log('Failed to stop recording:', error);
+      Alert.alert("Error", "Failed to stop recording.");
+      setRecordingStatus("idle");
+      setIsRecording(false);
+      setShowVoiceRecording(false);
+    }
+  };
+
+  // Cancel voice recording
+  const cancelVoiceRecording = () => {
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+    }
+    
+    if (recording) {
+      recording.stopAndUnloadAsync();
+    }
+    
+    setRecording(null);
+    setIsRecording(false);
+    setShowVoiceRecording(false);
+    setRecordingDuration(0);
+    setRecordingUri(null);
+    setRecordingStatus("idle");
+  };
+
+  // Play recording
+  const playRecording = async (uri) => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true }
+      );
+      
+      await sound.playAsync();
+      
+      sound.setOnPlaybackStatusUpdate(async (status) => {
+        if (status.didJustFinish) {
+          await sound.unloadAsync();
+        }
+      });
+    } catch (error) {
+      console.log('Error playing recording:', error);
+      Alert.alert("Error", "Failed to play recording");
+    }
+  };
+
+  // Send voice message
+  const sendVoiceMessage = async (uri) => {
+    setUploading(true);
+    setRecordingStatus("uploading");
+
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      
+      const formData = new FormData();
+      formData.append('type', 'media');
+      formData.append('message', '🎤 Voice message');
+      
+      const filename = `voice_${Date.now()}.m4a`;
+      const type = 'audio/m4a';
+      
+      formData.append('attachment', {
+        uri: uri,
+        type: type,
+        name: filename,
+      });
+
+      const response = await axios.post(
+        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/send`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "Content-Type": 'multipart/form-data',
+          },
+        }
+      );
+
+      if (response.data.success) {
+        const newMsg = response.data.data || {
+          id: Date.now().toString(),
+          sender_id: currentHostId,
+          sender_name: currentHostName,
+          sender_type: "host",
+          message: '🎤 Voice message',
+          type: 'voice',
+          attachment_url: response.data.data?.attachment_url || uri,
+          timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        };
+       
+        setMessages(prev => [...prev, newMsg]);
+        setShouldScrollToBottom(true);
+        setNewMessageCount(0);
+        setShowScrollToBottom(false);
+       
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        }, 50);
+       
+        Alert.alert("Success", "Voice message sent!");
+      }
+    } catch (error) {
+      console.log("Error sending voice message:", error);
+      Alert.alert("Error", "Failed to send voice message");
+    } finally {
+      setUploading(false);
+      setShowVoiceRecording(false);
+      setRecordingStatus("idle");
+      setRecordingDuration(0);
+      setRecordingUri(null);
+    }
+  };
+
+  // Handle voice button press
+  const handleVoicePress = () => {
+    if (isRecording) {
+      stopVoiceRecording();
+    } else {
+      Alert.alert(
+        "Voice Message",
+        "Hold the button to record a voice message",
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Start Recording",
+            onPress: startVoiceRecording
+          }
+        ]
+      );
+    }
+  };
+
+  // Handle voice playback
+  const handleVoicePlay = async (message) => {
+    const mediaUrl = message.attachment?.url 
+      ? `https://exilance.com/tambolatimez/public${message.attachment.url}`
+      : message.attachment_url;
+    
+    if (!mediaUrl) {
+      Alert.alert("Error", "Voice message URL not available");
+      return;
+    }
+
+    Alert.alert(
+      "Voice Message",
+      "What would you like to do?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Play",
+          onPress: async () => {
+            try {
+              const { sound } = await Audio.Sound.createAsync(
+                { uri: mediaUrl },
+                { shouldPlay: true }
+              );
+              
+              await sound.playAsync();
+              
+              sound.setOnPlaybackStatusUpdate(async (status) => {
+                if (status.didJustFinish) {
+                  await sound.unloadAsync();
+                }
+              });
+            } catch (error) {
+              console.log("Error playing voice:", error);
+              Alert.alert("Error", "Failed to play voice message");
+            }
+          }
+        },
+        {
+          text: "Download",
+          onPress: () => downloadVoiceMessage(mediaUrl, message)
+        }
+      ]
+    );
+  };
+
+  // Download voice message
+  const downloadVoiceMessage = async (url, message) => {
+    setDownloading(true);
+    try {
+      const filename = message.attachment?.name || `voice_${Date.now()}.m4a`;
+      const fileUri = FileSystem.documentDirectory + filename;
+      
+      const downloadResult = await FileSystem.downloadAsync(url, fileUri);
+      
+      if (downloadResult.status === 200) {
+        Alert.alert("Success", "Voice message downloaded!");
+      }
+    } catch (error) {
+      console.log("Error downloading voice:", error);
+      Alert.alert("Error", "Failed to download voice message");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   // Track scroll position
   const handleScroll = (event) => {
@@ -58,58 +384,31 @@ const HostLiveChat = ({ navigation, route }) => {
     setShowScrollToBottom(!isNearBottom && newMessageCount > 0);
   };
 
-  // Filter duplicate messages
-  const filterDuplicateMessages = useCallback((newMessages) => {
-    if (!newMessages || newMessages.length === 0) return newMessages;
-   
-    const seenKeys = new Set();
-    const filteredMessages = [];
-   
-    for (const message of newMessages) {
-      // Create a unique key for each message
-      const timestamp = message.timestamp || new Date().toISOString();
-      const messageId = message.id || `${timestamp}_${message.message?.substring(0, 20)}`;
-      const key = `${message.type}_${messageId}_${message.sender?.id || 'system'}`;
-     
-      if (seenKeys.has(key)) {
-        continue;
-      }
-     
-      seenKeys.add(key);
-      filteredMessages.push({
-        ...message,
-        _id: key, // Add unique identifier
-      });
-    }
-   
-    return filteredMessages;
-  }, []);
-
   // Get the latest message ID
   const getLatestMessageId = (messagesArray) => {
     if (!messagesArray || messagesArray.length === 0) return null;
-    return messagesArray[messagesArray.length - 1]?._id ||
-           `${messagesArray[messagesArray.length - 1]?.timestamp}_${messagesArray[messagesArray.length - 1]?.message?.substring(0, 10)}`;
+    return messagesArray[messagesArray.length - 1]?.id || null;
   };
 
-  // Fetch current host ID
-  const getCurrentHostId = async () => {
+  // Fetch current host info
+  const getCurrentHostInfo = async () => {
     try {
       const tokenData = await AsyncStorage.getItem("host");
       if (tokenData) {
         const host = JSON.parse(tokenData);
         setCurrentHostId(host.id);
-        return host.id;
+        setCurrentHostName(host.name || "Host");
+        return host;
       }
       return null;
     } catch (error) {
-      console.log("Error getting host ID:", error);
+      console.log("Error getting host info:", error);
       return null;
     }
   };
 
-  // Fetch chat messages silently (without affecting scroll)
-  const fetchMessagesSilently = async (isManualRefresh = false) => {
+  // Fetch chat messages
+  const fetchMessages = async (isManualRefresh = false) => {
     if (!isMounted.current) return;
 
     try {
@@ -125,21 +424,73 @@ const HostLiveChat = ({ navigation, route }) => {
       );
 
       if (response.data.success && isMounted.current) {
-        const newMessages = response.data.data || [];
-        const filteredMessages = filterDuplicateMessages(newMessages);
+        const apiMessages = response.data.data || [];
+        
+        // Transform API messages to match our app's format
+        const newMessages = apiMessages.map(msg => {
+          // Handle system messages
+          if (msg.type === 'system') {
+            return {
+              id: msg.id.toString(),
+              type: "system",
+              message: msg.message,
+              timestamp: msg.timestamp,
+              created_at: msg.created_at,
+              metadata: msg.metadata,
+              is_muted: msg.is_muted
+            };
+          }
+          
+          // Handle chat messages
+          if (msg.type === 'chat') {
+            const messageType = msg.message_type;
+            // Detect voice messages
+            const isVoice = messageType === 'media' && 
+                           (msg.attachment?.mime_type?.includes('audio') || 
+                            msg.message?.includes('Voice') ||
+                            msg.message?.includes('🎤'));
+            
+            return {
+              id: msg.id.toString(),
+              type: isVoice ? 'voice' : messageType,
+              message: msg.message,
+              timestamp: msg.timestamp,
+              created_at: msg.created_at,
+              sender_id: msg.sender?.id,
+              sender_name: msg.sender?.name,
+              sender_type: msg.sender?.type, // 'host' or 'user'
+              is_muted: msg.is_muted,
+              attachment: msg.attachment
+            };
+          }
+          
+          // Default fallback
+          return {
+            id: msg.id.toString(),
+            type: "text",
+            message: msg.message,
+            timestamp: msg.timestamp,
+            created_at: msg.created_at,
+            sender_id: msg.sender?.id,
+            sender_name: msg.sender?.name,
+            sender_type: msg.sender?.type,
+            is_muted: msg.is_muted
+          };
+        });
+
         const currentLatestId = getLatestMessageId(messages);
-        const newLatestId = getLatestMessageId(filteredMessages);
+        const newLatestId = getLatestMessageId(newMessages);
        
         setMessages(prevMessages => {
           // Check if messages actually changed
           const prevString = JSON.stringify(prevMessages);
-          const newString = JSON.stringify(filteredMessages);
+          const newString = JSON.stringify(newMessages);
          
           if (prevString !== newString) {
             // Calculate new messages count
             if (!shouldScrollToBottom && currentLatestId !== newLatestId) {
               const prevCount = prevMessages.length;
-              const newCount = filteredMessages.length;
+              const newCount = newMessages.length;
               const addedMessages = newCount - prevCount;
              
               if (addedMessages > 0 && !isManualRefresh) {
@@ -149,7 +500,7 @@ const HostLiveChat = ({ navigation, route }) => {
             }
            
             // If user is near bottom or manual refresh, scroll to bottom
-            if ((shouldScrollToBottom || isManualRefresh) && filteredMessages.length > prevMessages.length) {
+            if ((shouldScrollToBottom || isManualRefresh) && newMessages.length > prevMessages.length) {
               setTimeout(() => {
                 if (isMounted.current && scrollViewRef.current) {
                   scrollViewRef.current.scrollToEnd({ animated: true });
@@ -157,14 +508,36 @@ const HostLiveChat = ({ navigation, route }) => {
               }, 100);
             }
            
-            return filteredMessages;
+            return newMessages;
           }
          
           return prevMessages;
         });
       }
     } catch (error) {
-      console.log("Error fetching messages silently:", error);
+      console.log("Error fetching messages:", error);
+    }
+  };
+
+  // Fetch muted users
+  const fetchMutedUsers = async () => {
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      const response = await axios.get(
+        `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/chat/muted-users`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setMutedUsers(response.data.data.muted_users || []);
+      }
+    } catch (error) {
+      console.log("Error fetching muted users:", error);
     }
   };
 
@@ -172,8 +545,8 @@ const HostLiveChat = ({ navigation, route }) => {
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await fetchMessagesSilently(true);
-      await fetchParticipants();
+      await fetchMessages(true);
+      await fetchMutedUsers();
       setNewMessageCount(0);
       setShowScrollToBottom(false);
     } catch (error) {
@@ -184,64 +557,28 @@ const HostLiveChat = ({ navigation, route }) => {
   };
 
   // Initial fetch with loading state
-  const fetchMessages = async () => {
+  const initialFetch = async () => {
     try {
-      const token = await AsyncStorage.getItem("hostToken");
-      const response = await axios.get(
-        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/messages`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
-      );
-
-      if (response.data.success) {
-        const filteredMessages = filterDuplicateMessages(response.data.data || []);
-        setMessages(filteredMessages);
-        lastMessageIdRef.current = getLatestMessageId(filteredMessages);
-       
-        // Scroll to bottom only on initial load
-        if (!initialLoadDoneRef.current) {
-          initialLoadDoneRef.current = true;
-          setTimeout(() => {
-            if (scrollViewRef.current) {
-              scrollViewRef.current.scrollToEnd({ animated: false });
-            }
-          }, 100);
-        }
+      await fetchMessages();
+      await fetchMutedUsers();
+      
+      // Scroll to bottom only on initial load
+      if (!initialLoadDoneRef.current) {
+        initialLoadDoneRef.current = true;
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: false });
+          }
+        }, 100);
       }
       setLoading(false);
     } catch (error) {
-      console.log("Error fetching messages:", error);
+      console.log("Error in initial fetch:", error);
       setLoading(false);
     }
   };
 
-  // Fetch participants
-  const fetchParticipants = async () => {
-    try {
-      const token = await AsyncStorage.getItem("hostToken");
-      const response = await axios.get(
-        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/participants`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
-      );
-
-      if (response.data.success) {
-        setParticipants(response.data.data || []);
-      }
-    } catch (error) {
-      console.log("Error fetching participants:", error);
-    }
-  };
-
-  // Send message
+  // Send text message
   const sendMessage = async () => {
     if (!newMessage.trim() || sending) return;
 
@@ -252,6 +589,7 @@ const HostLiveChat = ({ navigation, route }) => {
         `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/send`,
         {
           message: newMessage.trim(),
+          type: "text",
         },
         {
           headers: {
@@ -264,23 +602,17 @@ const HostLiveChat = ({ navigation, route }) => {
 
       if (response.data.success) {
         setNewMessage("");
-        const tokenData = await AsyncStorage.getItem("host");
-        const host = tokenData ? JSON.parse(tokenData) : null;
-       
-        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const messageId = `${timestamp}_${newMessage.trim().substring(0, 10)}`;
-       
-        const newMsg = {
-          type: "chat",
-          sender: {
-            id: host?.id || 0,
-            type: "host",
-            name: host?.name || "Host",
-          },
+        
+        // Add message to local state immediately
+        const newMsg = response.data.data || {
+          id: Date.now().toString(),
+          sender_id: currentHostId,
+          sender_name: currentHostName,
+          sender_type: "host",
           message: newMessage.trim(),
-          timestamp: timestamp,
-          is_muted: false,
-          _id: messageId,
+          type: "text",
+          timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString(),
         };
        
         setMessages(prev => [...prev, newMsg]);
@@ -294,93 +626,356 @@ const HostLiveChat = ({ navigation, route }) => {
             scrollViewRef.current.scrollToEnd({ animated: true });
           }
         }, 50);
-       
-        // Fetch updated messages after a delay
-        setTimeout(() => fetchMessagesSilently(), 1000);
       }
     } catch (error) {
       console.log("Error sending message:", error);
-      alert("Failed to send message");
+      Alert.alert("Error", "Failed to send message");
     } finally {
       setSending(false);
     }
   };
 
-  // Mute/unmute participant
-  const toggleMuteParticipant = async (participantId, isCurrentlyMuted) => {
+  // Send image or video
+  const sendMedia = async (mediaType, uri) => {
+    setUploading(true);
     try {
       const token = await AsyncStorage.getItem("hostToken");
-      const endpoint = isCurrentlyMuted ? 'unmute' : 'mute';
-     
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append('type', mediaType); // 'image' or 'media'
+      
+      // Get file info
+      const filename = uri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `${mediaType === 'image' ? 'image' : 'video'}/${match[1]}` : 'image/jpeg';
+      
+      // Add file to form data
+      formData.append('attachment', {
+        uri: uri,
+        type: type,
+        name: filename,
+      });
+
       const response = await axios.post(
-        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/${endpoint}`,
-        {
-          participant_id: participantId,
-        },
+        `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/send`,
+        formData,
         {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
-            "Content-Type": "application/json",
+            "Content-Type": 'multipart/form-data',
           },
         }
       );
 
       if (response.data.success) {
-        // Refresh participants list
-        await fetchParticipants();
+        // Add message to local state
+        const newMsg = response.data.data || {
+          id: Date.now().toString(),
+          sender_id: currentHostId,
+          sender_name: currentHostName,
+          sender_type: "host",
+          message: mediaType === 'image' ? '📷 Image' : '🎥 Video',
+          type: mediaType,
+          attachment_url: response.data.data?.attachment_url || uri,
+          timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        };
        
-        // Add system message about mute/unmute
-        const mutedParticipant = participants.find(p => p.id === participantId);
-        if (mutedParticipant) {
-          const systemMsg = {
-            type: "system",
-            message: `${mutedParticipant.name} has been ${isCurrentlyMuted ? 'unmuted' : 'muted'}`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _id: `system_${Date.now()}`,
-          };
-         
-          setMessages(prev => [...prev, systemMsg]);
-        }
+        setMessages(prev => [...prev, newMsg]);
+        setShouldScrollToBottom(true);
+        setNewMessageCount(0);
+        setShowScrollToBottom(false);
+       
+        // Scroll to bottom
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        }, 50);
       }
     } catch (error) {
-      console.log("Error toggling mute:", error);
-      alert(`Failed to ${isCurrentlyMuted ? 'unmute' : 'mute'} participant`);
+      console.log("Error sending media:", error);
+      Alert.alert("Error", "Failed to send media");
+    } finally {
+      setUploading(false);
     }
   };
 
-  // Start silent polling
-  const startSilentPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-   
-    pollingIntervalRef.current = setInterval(() => {
-      fetchMessagesSilently();
-    }, 5000);
-  }, []);
+  // Handle attachment press - directly opens gallery with options
+  const handleAttachmentPress = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to upload media.');
+        return;
+      }
 
-  // Stop polling
-  const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-  }, []);
+      // Show options for image or video
+      Alert.alert(
+        "Send Media",
+        "Choose media type",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Image",
+            onPress: async () => {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+              });
 
-  // Scroll to bottom function
-  const scrollToBottom = () => {
-    setShouldScrollToBottom(true);
-    setNewMessageCount(0);
-    setShowScrollToBottom(false);
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollToEnd({ animated: true });
+              if (!result.canceled && result.assets[0].uri) {
+                await sendMedia('image', result.assets[0].uri);
+              }
+            }
+          },
+          {
+            text: "Video",
+            onPress: async () => {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                allowsEditing: true,
+                aspect: [16, 9],
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0].uri) {
+                await sendMedia('media', result.assets[0].uri);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.log("Error handling attachment:", error);
+      Alert.alert("Error", "Failed to open gallery");
     }
+  };
+
+  // Handle video playback
+  const handleVideoPress = async (message) => {
+    const mediaUrl = message.attachment?.url 
+      ? `https://exilance.com/tambolatimez/public${message.attachment.url}`
+      : message.attachment_url;
+    
+    if (!mediaUrl) {
+      Alert.alert("Error", "Video URL not available");
+      return;
+    }
+
+    // Show options to user
+    Alert.alert(
+      "Video Options",
+      "How would you like to view this video?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Open in Browser",
+          onPress: () => openVideoInBrowser(mediaUrl)
+        },
+        {
+          text: "Download & Open",
+          onPress: () => downloadAndOpenVideo(mediaUrl, message)
+        }
+      ]
+    );
+  };
+
+  // Open video in browser
+  const openVideoInBrowser = async (url) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Error", "Cannot open this URL");
+      }
+    } catch (error) {
+      console.log("Error opening URL:", error);
+      Alert.alert("Error", "Failed to open video");
+    }
+  };
+
+  // Download and open video
+  const downloadAndOpenVideo = async (url, message) => {
+    setDownloading(true);
+    try {
+      const filename = message.attachment?.name || `video_${Date.now()}.mp4`;
+      const fileUri = FileSystem.documentDirectory + filename;
+      
+      const downloadResult = await FileSystem.downloadAsync(url, fileUri);
+      
+      if (downloadResult.status === 200) {
+        // Open the downloaded file
+        if (Platform.OS === 'ios') {
+          Alert.alert("Download Complete", "Video has been downloaded.");
+        } else {
+          const contentUri = await FileSystem.getContentUriAsync(downloadResult.uri);
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: contentUri,
+            flags: 1,
+            type: message.attachment?.mime_type || 'video/*',
+          });
+        }
+      }
+    } catch (error) {
+      console.log("Error downloading video:", error);
+      Alert.alert("Error", "Failed to download video");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Mute user
+  const muteUser = async (userId, userName) => {
+    try {
+      Alert.prompt(
+        "Mute User",
+        `Enter reason for muting ${userName} (optional):`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Mute",
+            onPress: async (reason) => {
+              try {
+                const token = await AsyncStorage.getItem("hostToken");
+                const response = await axios.post(
+                  `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/chat/mute-user`,
+                  {
+                    user_id: userId,
+                    user_type: "user",
+                    duration_minutes: 30,
+                    reason: reason || "Violating chat rules",
+                  },
+                  {
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                      Accept: "application/json",
+                    },
+                  }
+                );
+
+                if (response.data.success) {
+                  await fetchMutedUsers();
+                  
+                  // Add system message
+                  const systemMsg = {
+                    id: Date.now().toString(),
+                    sender_id: 0,
+                    sender_name: "System",
+                    sender_type: "system",
+                    message: `${userName} has been muted for 30 minutes`,
+                    type: "system",
+                    timestamp: new Date().toISOString(),
+                  };
+                 
+                  setMessages(prev => [...prev, systemMsg]);
+                  Alert.alert("Success", "User has been muted");
+                }
+              } catch (error) {
+                console.log("Error muting user:", error);
+                Alert.alert("Error", "Failed to mute user");
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.log("Error in mute user:", error);
+    }
+  };
+
+  // Unmute user
+  const unmuteUser = async (userId, userName) => {
+    try {
+      const token = await AsyncStorage.getItem("hostToken");
+      const response = await axios.post(
+        `https://exilance.com/tambolatimez/public/api/host/games/chat/unmute-user`,
+        {
+          user_id: userId,
+          user_type: "user",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        await fetchMutedUsers();
+        
+        // Add system message
+        const systemMsg = {
+          id: Date.now().toString(),
+          sender_id: 0,
+          sender_name: "System",
+          sender_type: "system",
+          message: `${userName} has been unmuted`,
+          type: "system",
+          timestamp: new Date().toISOString(),
+        };
+       
+        setMessages(prev => [...prev, systemMsg]);
+        Alert.alert("Success", "User has been unmuted");
+      }
+    } catch (error) {
+      console.log("Error unmuting user:", error);
+      Alert.alert("Error", "Failed to unmute user");
+    }
+  };
+
+  // Clear chat
+  const clearChat = async () => {
+    Alert.alert(
+      "Clear Chat",
+      "Are you sure you want to clear all chat messages? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem("hostToken");
+              const response = await axios.delete(
+                `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/chat/clear`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                  },
+                }
+              );
+
+              if (response.data.success) {
+                setMessages([]);
+                Alert.alert("Success", "Chat has been cleared");
+              }
+            } catch (error) {
+              console.log("Error clearing chat:", error);
+              Alert.alert("Error", "Failed to clear chat");
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Leave chat
   const leaveChat = async () => {
-    stopPolling();
     try {
       const token = await AsyncStorage.getItem("hostToken");
       await axios.post(
@@ -400,16 +995,64 @@ const HostLiveChat = ({ navigation, route }) => {
     }
   };
 
+  // Start polling
+  const startPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+   
+    pollingIntervalRef.current = setInterval(() => {
+      fetchMessages();
+      fetchMutedUsers();
+    }, 5000);
+  }, []);
+
+  // Stop polling
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+
+  // Scroll to bottom
+  const scrollToBottom = () => {
+    setShouldScrollToBottom(true);
+    setNewMessageCount(0);
+    setShowScrollToBottom(false);
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollToEnd({ animated: true });
+    }
+  };
+
   useEffect(() => {
     isMounted.current = true;
    
     const initializeChat = async () => {
-      await getCurrentHostId();
-      await fetchMessages();
-      await fetchParticipants();
-     
-      // Start silent polling
-      startSilentPolling();
+      await getCurrentHostInfo();
+      
+      // First join the chat
+      try {
+        const token = await AsyncStorage.getItem("hostToken");
+        await axios.post(
+          `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/join`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+        
+        // Then fetch data
+        await initialFetch();
+        startPolling();
+      } catch (error) {
+        console.log("Error joining chat:", error);
+        Alert.alert("Error", "Failed to join chat");
+        navigation.goBack();
+      }
     };
    
     initializeChat();
@@ -431,37 +1074,191 @@ const HostLiveChat = ({ navigation, route }) => {
   );
 
   const renderMessage = (message, index) => {
-    if (message.type === "system") {
+    const isSystem = message.type === "system";
+    const isHost = message.sender_type === "host";
+    const isOwnMessage = isHost && message.sender_id === currentHostId;
+    const isMuted = message.is_muted;
+    const isVoice = message.type === 'voice';
+
+    if (isSystem) {
       return (
-        <View key={message._id || index} style={styles.systemMessageContainer}>
+        <View key={message.id || index} style={styles.systemMessageContainer}>
           <View style={styles.systemMessage}>
             <Ionicons name="information-circle" size={14} color="#666" />
             <Text style={styles.systemMessageText}>{message.message}</Text>
           </View>
-          <Text style={styles.systemTimestamp}>{message.timestamp}</Text>
+          <Text style={styles.systemTimestamp}>
+            {message.timestamp || new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
         </View>
       );
     }
 
-    const isHostMessage = message.sender?.type === "host" || message.sender?.is_host;
-    const isOwnMessage = isHostMessage && message.sender?.id === currentHostId;
+    const isMedia = message.type === 'image' || message.type === 'media';
+    const mediaUrl = message.attachment?.url 
+      ? `https://exilance.com/tambolatimez/public${message.attachment.url}`
+      : message.attachment_url;
+    const isVideo = message.type === 'media' && !isVoice;
+    const isImage = message.type === 'image';
+
+    if (isVoice) {
+      if (isOwnMessage) {
+        return (
+          <View key={message.id || index} style={styles.ownMessageContainer}>
+            <View style={styles.ownMessageBubble}>
+              <TouchableOpacity
+                style={styles.voiceContainer}
+                onPress={() => handleVoicePlay(message)}
+                disabled={downloading}
+              >
+                <View style={styles.voiceContent}>
+                  <Ionicons name="mic" size={20} color="#075E54" />
+                  <View style={styles.voiceInfo}>
+                    <Text style={styles.voiceText}>Voice message</Text>
+                    <Text style={styles.voiceDuration}>
+                      {message.attachment?.duration || '00:30'}
+                    </Text>
+                  </View>
+                  <Ionicons name="play-circle" size={24} color="#25D366" />
+                </View>
+              </TouchableOpacity>
+              <View style={styles.ownMessageFooter}>
+                <Text style={styles.ownTimestamp}>
+                  {message.timestamp || new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+                <Ionicons
+                  name="checkmark-done"
+                  size={12}
+                  color="#34B7F1"
+                  style={styles.messageStatusIcon}
+                />
+              </View>
+            </View>
+          </View>
+        );
+      } else {
+        return (
+          <View key={message.id || index} style={styles.otherMessageContainer}>
+            <View style={styles.otherMessageBubble}>
+              <Text style={styles.senderName}>
+                {message.sender_name || "User"}
+                {isHost && " (Host)"}
+                {isMuted && " 🔇"}
+              </Text>
+              <TouchableOpacity
+                style={styles.voiceContainer}
+                onPress={() => handleVoicePlay(message)}
+                disabled={downloading}
+              >
+                <View style={styles.voiceContent}>
+                  <Ionicons name="mic" size={20} color="#075E54" />
+                  <View style={styles.voiceInfo}>
+                    <Text style={styles.voiceText}>Voice message</Text>
+                    <Text style={styles.voiceDuration}>
+                      {message.attachment?.duration || '00:30'}
+                    </Text>
+                  </View>
+                  <Ionicons name="play-circle" size={24} color="#25D366" />
+                </View>
+              </TouchableOpacity>
+              <View style={styles.otherMessageFooter}>
+                <Text style={styles.otherTimestamp}>
+                  {message.timestamp || new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+                {!isHost && (
+                  <TouchableOpacity
+                    style={styles.muteButtonSmall}
+                    onPress={() => {
+                      if (isMuted) {
+                        unmuteUser(message.sender_id, message.sender_name);
+                      } else {
+                        muteUser(message.sender_id, message.sender_name);
+                      }
+                    }}
+                  >
+                    <Ionicons
+                      name={isMuted ? "mic" : "mic-off"}
+                      size={12}
+                      color={isMuted ? "#4CAF50" : "#FF5252"}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          </View>
+        );
+      }
+    }
 
     if (isOwnMessage) {
       // Own message - aligned to right
       return (
-        <View key={message._id || index} style={styles.ownMessageContainer}>
+        <View key={message.id || index} style={styles.ownMessageContainer}>
           <View style={styles.ownMessageBubble}>
-            <Text style={styles.ownMessageText}>
-              {message.message}
-            </Text>
+            {isMedia ? (
+              <View style={styles.mediaContainer}>
+                {isVideo ? (
+                  <TouchableOpacity
+                    style={styles.videoContainer}
+                    onPress={() => handleVideoPress(message)}
+                    disabled={downloading}
+                  >
+                    {downloading ? (
+                      <View style={styles.videoThumbnail}>
+                        <ActivityIndicator size="large" color="#FFF" />
+                        <Text style={styles.downloadingText}>Downloading...</Text>
+                      </View>
+                    ) : (
+                      <>
+                        <View style={styles.videoThumbnail}>
+                          <Ionicons name="play-circle" size={40} color="#FFF" />
+                        </View>
+                        {message.message && message.message.trim() && (
+                          <Text style={styles.mediaCaption}>{message.message}</Text>
+                        )}
+                        <View style={styles.videoInfo}>
+                          <Ionicons name="videocam" size={12} color="#666" />
+                          <Text style={styles.videoText}>Video</Text>
+                          <Text style={styles.fileSize}>
+                            {message.attachment?.formatted_size || "Unknown size"}
+                          </Text>
+                        </View>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                ) : isImage ? (
+                  <>
+                    <Image
+                      source={{ uri: mediaUrl }}
+                      style={styles.mediaImage}
+                      resizeMode="cover"
+                    />
+                    {message.message && message.message.trim() && (
+                      <Text style={styles.mediaCaption}>{message.message}</Text>
+                    )}
+                    <View style={styles.imageInfo}>
+                      <Ionicons name="image" size={12} color="#666" />
+                      <Text style={styles.imageText}>Image</Text>
+                      <Text style={styles.fileSize}>
+                        {message.attachment?.formatted_size || "Unknown size"}
+                      </Text>
+                    </View>
+                  </>
+                ) : null}
+              </View>
+            ) : (
+              <Text style={styles.ownMessageText}>
+                {message.message}
+              </Text>
+            )}
             <View style={styles.ownMessageFooter}>
               <Text style={styles.ownTimestamp}>
-                {message.timestamp}
+                {message.timestamp || new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
               <Ionicons
                 name="checkmark-done"
                 size={12}
-                color={message.is_muted ? "#666" : "#34B7F1"}
+                color="#34B7F1"
                 style={styles.messageStatusIcon}
               />
             </View>
@@ -470,28 +1267,97 @@ const HostLiveChat = ({ navigation, route }) => {
       );
     } else {
       // Other person's message - aligned to left
-      const isMutedParticipant = participants.find(p =>
-        p.id === message.sender?.id && p.is_muted
-      );
-     
       return (
-        <View key={message._id || index} style={styles.otherMessageContainer}>
+        <View key={message.id || index} style={styles.otherMessageContainer}>
           <View style={styles.otherMessageBubble}>
             <Text style={styles.senderName}>
-              {message.sender?.name || "User"}
-              {isHostMessage && " (Host)"}
-              {isMutedParticipant && " 🔇"}
+              {message.sender_name || "User"}
+              {isHost && " (Host)"}
+              {isMuted && " 🔇"}
             </Text>
-            <Text style={[
-              styles.otherMessageText,
-              isMutedParticipant && styles.mutedMessageText
-            ]}>
-              {isMutedParticipant ? "[This user is muted]" : message.message}
-            </Text>
+            
+            {isMedia ? (
+              <View style={styles.mediaContainer}>
+                {isVideo ? (
+                  <TouchableOpacity
+                    style={styles.videoContainer}
+                    onPress={() => handleVideoPress(message)}
+                    disabled={downloading}
+                  >
+                    {downloading ? (
+                      <View style={styles.videoThumbnail}>
+                        <ActivityIndicator size="large" color="#FFF" />
+                        <Text style={styles.downloadingText}>Downloading...</Text>
+                      </View>
+                    ) : (
+                      <>
+                        <View style={styles.videoThumbnail}>
+                          <Ionicons name="play-circle" size={40} color="#FFF" />
+                        </View>
+                        {message.message && message.message.trim() && (
+                          <Text style={styles.mediaCaption}>{message.message}</Text>
+                        )}
+                        <View style={styles.videoInfo}>
+                          <Ionicons name="videocam" size={12} color="#666" />
+                          <Text style={styles.videoText}>Video</Text>
+                          <Text style={styles.fileSize}>
+                            {message.attachment?.formatted_size || "Unknown size"}
+                          </Text>
+                        </View>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                ) : isImage ? (
+                  <>
+                    <Image
+                      source={{ uri: mediaUrl }}
+                      style={styles.mediaImage}
+                      resizeMode="cover"
+                    />
+                    {message.message && message.message.trim() && (
+                      <Text style={styles.mediaCaption}>{message.message}</Text>
+                    )}
+                    <View style={styles.imageInfo}>
+                      <Ionicons name="image" size={12} color="#666" />
+                      <Text style={styles.imageText}>Image</Text>
+                      <Text style={styles.fileSize}>
+                        {message.attachment?.formatted_size || "Unknown size"}
+                      </Text>
+                    </View>
+                  </>
+                ) : null}
+              </View>
+            ) : (
+              <Text style={[
+                styles.otherMessageText,
+                isMuted && styles.mutedMessageText
+              ]}>
+                {isMuted ? "[This user is muted]" : message.message}
+              </Text>
+            )}
+            
             <View style={styles.otherMessageFooter}>
               <Text style={styles.otherTimestamp}>
-                {message.timestamp}
+                {message.timestamp || new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
+              {!isHost && (
+                <TouchableOpacity
+                  style={styles.muteButtonSmall}
+                  onPress={() => {
+                    if (isMuted) {
+                      unmuteUser(message.sender_id, message.sender_name);
+                    } else {
+                      muteUser(message.sender_id, message.sender_name);
+                    }
+                  }}
+                >
+                  <Ionicons
+                    name={isMuted ? "mic" : "mic-off"}
+                    size={12}
+                    color={isMuted ? "#4CAF50" : "#FF5252"}
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -499,93 +1365,11 @@ const HostLiveChat = ({ navigation, route }) => {
     }
   };
 
-  const ParticipantsModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={showParticipantsModal}
-      onRequestClose={() => setShowParticipantsModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Chat Participants</Text>
-            <TouchableOpacity onPress={() => setShowParticipantsModal(false)}>
-              <Ionicons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
-         
-          <ScrollView style={styles.participantsList}>
-            {participants.map((participant, index) => (
-              <View key={index} style={styles.participantItem}>
-                <View style={styles.participantAvatar}>
-                  <Text style={styles.participantAvatarText}>
-                    {participant.name?.charAt(0) || "U"}
-                  </Text>
-                </View>
-                <View style={styles.participantInfo}>
-                  <Text style={styles.participantName}>{participant.name}</Text>
-                  <View style={styles.participantStatus}>
-                    <View style={[
-                      styles.statusDot,
-                      { backgroundColor: participant.is_online ? '#4CAF50' : '#9E9E9E' }
-                    ]} />
-                    <Text style={styles.participantStatusText}>
-                      {participant.is_online ? 'Online' : 'Offline'}
-                    </Text>
-                    {participant.is_muted && (
-                      <View style={styles.mutedBadge}>
-                        <Ionicons name="mic-off" size={10} color="#FF5252" />
-                        <Text style={styles.mutedBadgeText}>Muted</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                {participant.type === 'host' ? (
-                  <View style={styles.hostBadge}>
-                    <Ionicons name="shield-checkmark" size={12} color="#FFF" />
-                    <Text style={styles.hostBadgeText}>Host</Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.muteActionButton}
-                    onPress={() => toggleMuteParticipant(
-                      participant.id,
-                      participant.is_muted
-                    )}
-                  >
-                    <Ionicons
-                      name={participant.is_muted ? "mic" : "mic-off"}
-                      size={16}
-                      color={participant.is_muted ? "#4CAF50" : "#FF5252"}
-                    />
-                    <Text style={[
-                      styles.muteActionText,
-                      { color: participant.is_muted ? "#4CAF50" : "#FF5252" }
-                    ]}>
-                      {participant.is_muted ? "Unmute" : "Mute"}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
-          </ScrollView>
-         
-          <View style={styles.modalFooter}>
-            <Text style={styles.totalParticipants}>
-              Total: {participants.length} participant{participants.length !== 1 ? 's' : ''}
-            </Text>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#25D366" />
-        <Text style={styles.loadingText}>Loading Chat...</Text>
+        <Text style={styles.loadingText}>Joining Chat...</Text>
       </View>
     );
   }
@@ -603,11 +1387,7 @@ const HostLiveChat = ({ navigation, route }) => {
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
        
-        <TouchableOpacity
-          style={styles.headerContent}
-          onPress={() => setShowParticipantsModal(true)}
-          activeOpacity={0.7}
-        >
+        <View style={styles.headerContent}>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               {gameName}
@@ -615,23 +1395,18 @@ const HostLiveChat = ({ navigation, route }) => {
             <View style={styles.onlineStatus}>
               <View style={styles.onlineDot} />
               <Text style={styles.onlineText}>
-                {participants.length} online
+                Host Chat
               </Text>
             </View>
           </View>
-          <Text style={styles.headerSubtitle}>Host Chat</Text>
-        </TouchableOpacity>
+          <Text style={styles.headerSubtitle}>{currentHostName}</Text>
+        </View>
        
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => setShowParticipantsModal(true)}
+          onPress={clearChat}
         >
-          <Ionicons name="people" size={22} color="#FFF" />
-          {newMessageCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{newMessageCount}</Text>
-            </View>
-          )}
+          <Ionicons name="trash-outline" size={22} color="#FFF" />
         </TouchableOpacity>
        
         <TouchableOpacity
@@ -641,6 +1416,59 @@ const HostLiveChat = ({ navigation, route }) => {
           <Ionicons name="exit-outline" size={22} color="#FFF" />
         </TouchableOpacity>
       </View>
+
+      {/* Voice Recording Overlay */}
+      {showVoiceRecording && (
+        <View style={styles.voiceRecordingOverlay}>
+          <View style={styles.voiceRecordingContainer}>
+            {isRecording ? (
+              <>
+                <View style={styles.recordingIndicator}>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.recordingText}>Recording...</Text>
+                </View>
+                <Text style={styles.recordingDuration}>
+                  {formatDuration(recordingDuration)}
+                </Text>
+                <View style={styles.voiceWaveformLarge}>
+                  <View style={styles.waveBarLarge} />
+                  <View style={[styles.waveBarLarge, styles.waveBarMediumLarge]} />
+                  <View style={[styles.waveBarLarge, styles.waveBarTallLarge]} />
+                  <View style={[styles.waveBarLarge, styles.waveBarMediumLarge]} />
+                  <View style={styles.waveBarLarge} />
+                  <View style={[styles.waveBarLarge, styles.waveBarMediumLarge]} />
+                  <View style={[styles.waveBarLarge, styles.waveBarTallLarge]} />
+                  <View style={styles.waveBarLarge} />
+                </View>
+                <TouchableOpacity
+                  style={styles.stopRecordingButton}
+                  onPress={stopVoiceRecording}
+                >
+                  <Ionicons name="stop-circle" size={50} color="#FF5252" />
+                  <Text style={styles.stopRecordingText}>Tap to stop</Text>
+                </TouchableOpacity>
+              </>
+            ) : recordingStatus === "processing" ? (
+              <View style={styles.processingContainer}>
+                <ActivityIndicator size="large" color="#25D366" />
+                <Text style={styles.processingText}>Processing...</Text>
+              </View>
+            ) : recordingStatus === "uploading" ? (
+              <View style={styles.processingContainer}>
+                <ActivityIndicator size="large" color="#25D366" />
+                <Text style={styles.processingText}>Sending...</Text>
+              </View>
+            ) : null}
+            
+            <TouchableOpacity
+              style={styles.cancelRecordingButton}
+              onPress={cancelVoiceRecording}
+            >
+              <Text style={styles.cancelRecordingText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Chat Messages */}
       <ScrollView
@@ -659,24 +1487,24 @@ const HostLiveChat = ({ navigation, route }) => {
             <Ionicons name="chatbubbles" size={24} color="#075E54" />
             <Text style={styles.welcomeTitle}>Welcome to Host Chat!</Text>
             <Text style={styles.welcomeText}>
-              Chat with players and other hosts. You're hosting the chat for {gameName}.
+              You're hosting the chat for {gameName}. Use your host privileges to manage the conversation.
             </Text>
             <View style={styles.welcomeTips}>
               <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
-                <Text style={styles.tipText}>You have host privileges</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
-                <Text style={styles.tipText}>Help players with questions</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
-                <Text style={styles.tipText}>Monitor the conversation</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                <Ionicons name="mic-off" size={14} color="#FF5252" />
                 <Text style={styles.tipText}>Mute disruptive users</Text>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="trash" size={14} color="#2196F3" />
+                <Text style={styles.tipText}>Clear chat if needed</Text>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="image" size={14} color="#4CAF50" />
+                <Text style={styles.tipText}>Send images & videos</Text>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="mic" size={14} color="#2196F3" />
+                <Text style={styles.tipText}>Tap and hold to send voice messages</Text>
               </View>
             </View>
           </View>
@@ -720,8 +1548,16 @@ const HostLiveChat = ({ navigation, route }) => {
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         <View style={styles.inputWrapper}>
-          <TouchableOpacity style={styles.emojiButton}>
-            <Ionicons name="happy-outline" size={24} color="#666" />
+          <TouchableOpacity 
+            style={styles.attachButton}
+            onPress={handleAttachmentPress}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <ActivityIndicator size="small" color="#666" />
+            ) : (
+              <Ionicons name="attach" size={22} color="#666" />
+            )}
           </TouchableOpacity>
          
           <TextInput
@@ -736,6 +1572,18 @@ const HostLiveChat = ({ navigation, route }) => {
             onSubmitEditing={sendMessage}
           />
          
+          <TouchableOpacity
+            style={styles.voiceButton}
+            onPress={handleVoicePress}
+            onLongPress={startVoiceRecording}
+          >
+            {isRecording ? (
+              <Ionicons name="mic-off" size={24} color="#FF5252" />
+            ) : (
+              <Ionicons name="mic" size={22} color="#666" />
+            )}
+          </TouchableOpacity>
+         
           {newMessage.trim() ? (
             <TouchableOpacity
               style={styles.sendButton}
@@ -749,8 +1597,8 @@ const HostLiveChat = ({ navigation, route }) => {
               )}
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.attachButton}>
-              <Ionicons name="attach" size={22} color="#666" />
+            <TouchableOpacity style={styles.emojiButton}>
+              <Ionicons name="happy-outline" size={24} color="#666" />
             </TouchableOpacity>
           )}
         </View>
@@ -770,10 +1618,15 @@ const HostLiveChat = ({ navigation, route }) => {
           </View>
         </View>
       </KeyboardAvoidingView>
-
-      <ParticipantsModal />
     </SafeAreaView>
   );
+};
+
+// Format duration helper function
+const formatDuration = (seconds) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 const styles = StyleSheet.create({
@@ -846,24 +1699,95 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
-    position: 'relative',
   },
-  badge: {
+  // Voice Recording Overlay
+  voiceRecordingOverlay: {
     position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#FF5252',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    zIndex: 1000,
   },
-  badgeText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: 'bold',
+  voiceRecordingContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    width: '80%',
+    maxWidth: 300,
+  },
+  recordingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#FF5252',
+    marginRight: 8,
+  },
+  recordingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  recordingDuration: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 20,
+  },
+  voiceWaveformLarge: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 40,
+    marginBottom: 30,
+    gap: 4,
+  },
+  waveBarLarge: {
+    width: 6,
+    backgroundColor: '#2196F3',
+    borderRadius: 3,
+  },
+  waveBarMediumLarge: {
+    height: 20,
+  },
+  waveBarTallLarge: {
+    height: 30,
+  },
+  stopRecordingButton: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  stopRecordingText: {
+    marginTop: 5,
+    fontSize: 14,
+    color: '#666',
+  },
+  processingContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  processingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '600',
+  },
+  cancelRecordingButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+  },
+  cancelRecordingText: {
+    fontSize: 16,
+    color: '#FF5252',
+    fontWeight: '600',
   },
   messagesContainer: {
     flex: 1,
@@ -1034,6 +1958,99 @@ const styles = StyleSheet.create({
   otherTimestamp: {
     fontSize: 11,
     color: "rgba(0,0,0,0.6)",
+    marginRight: 6,
+  },
+  muteButtonSmall: {
+    padding: 4,
+  },
+  // VOICE MESSAGE STYLES - Compact
+  voiceContainer: {
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 10,
+    marginVertical: 4,
+  },
+  voiceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  voiceInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  voiceText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  voiceDuration: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  // MEDIA MESSAGE STYLES
+  mediaContainer: {
+    borderRadius: 12,
+    overflow: "hidden",
+    marginVertical: 4,
+  },
+  mediaImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+  },
+  mediaCaption: {
+    fontSize: 14,
+    color: "#333",
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  // VIDEO STYLES
+  videoContainer: {
+    width: 200,
+  },
+  videoThumbnail: {
+    width: 200,
+    height: 200,
+    backgroundColor: "#000",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  downloadingText: {
+    color: "#FFF",
+    fontSize: 12,
+    marginTop: 8,
+  },
+  videoInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    paddingHorizontal: 4,
+    gap: 4,
+  },
+  videoText: {
+    fontSize: 12,
+    color: "#666",
+    flex: 1,
+  },
+  imageInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    paddingHorizontal: 4,
+    gap: 4,
+  },
+  imageText: {
+    fontSize: 12,
+    color: "#666",
+    flex: 1,
+  },
+  fileSize: {
+    fontSize: 11,
+    color: "#999",
   },
   messagesSpacer: {
     height: 80,
@@ -1056,6 +2073,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  attachButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   textInput: {
     flex: 1,
     backgroundColor: "#FFF",
@@ -1069,7 +2092,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E0E0E0",
   },
-  attachButton: {
+  voiceButton: {
     width: 40,
     height: 40,
     justifyContent: "center",
@@ -1107,138 +2130,6 @@ const styles = StyleSheet.create({
   connectionText: {
     fontSize: 12,
     color: "#666",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  modalContainer: {
-    backgroundColor: "#FFF",
-    borderRadius: 25,
-    padding: 20,
-    width: "100%",
-    maxWidth: 400,
-    maxHeight: "80%",
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEE",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#075E54",
-  },
-  participantsList: {
-    maxHeight: 300,
-  },
-  participantItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
-  },
-  participantAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#075E54",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  participantAvatarText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  participantInfo: {
-    flex: 1,
-  },
-  participantName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 2,
-  },
-  participantStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  participantStatusText: {
-    fontSize: 12,
-    color: "#666",
-    marginRight: 8,
-  },
-  mutedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFEBEE",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    gap: 4,
-  },
-  mutedBadgeText: {
-    color: "#FF5252",
-    fontSize: 10,
-    fontWeight: "500",
-  },
-  hostBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FF9800",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
-  },
-  hostBadgeText: {
-    color: "#FFF",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  muteActionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: "#F5F5F5",
-    gap: 4,
-  },
-  muteActionText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  modalFooter: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#EEE",
-  },
-  totalParticipants: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    fontWeight: "600",
   },
   scrollToBottomButton: {
     position: 'absolute',

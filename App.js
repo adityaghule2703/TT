@@ -54,6 +54,9 @@ import UserGameClaim from "./pages/UserGameClaim";
 import HostGameWinners from "./pages/HostGameWinners";
 import UserGameWinners from "./pages/UserGameWinners";
 import UserCalledNumbers from "./pages/UserCalledNumbers";
+import HostGameOptions from "./pages/HostGameOptions";
+import UserGamePatterns from "./pages/UserGamePatterns";
+import HostGameReward from "./pages/HostGameReward";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -306,6 +309,11 @@ export default function App() {
                       options={{ contentStyle: { paddingBottom: 20 } }}
                     />
                     <Stack.Screen 
+                      name="UserGamePatterns" 
+                      component={UserGamePatterns}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
                       name="UserCalledNumbers" 
                       component={UserCalledNumbers}
                       options={{ contentStyle: { paddingBottom: 20 } }}
@@ -363,6 +371,16 @@ export default function App() {
                     <Stack.Screen 
                       name="HostCalledNumbers" 
                       component={HostCalledNumbers}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostGameOptions" 
+                      component={HostGameOptions}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="HostGameReward" 
+                      component={HostGameReward}
                       options={{ contentStyle: { paddingBottom: 20 } }}
                     />
                     <Stack.Screen 
