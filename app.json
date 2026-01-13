@@ -25,13 +25,14 @@
     "plugins": [
       "expo-font"
     ],
-    "extra": {
-      "eas": {
-        "projectId": "8929bcb4-11ca-4312-ba19-2b64af1f4ba1"
-      }
-    },
     "ios": {
       "bundleIdentifier": "com.adi-ghule.TambolaTimez"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7f32d5f2-00cf-4b4e-b037-7ef56bc4e9cf"
+      }
+    },
+    "owner": "mahesh1234567"
   }
 }
