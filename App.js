@@ -57,6 +57,7 @@ import UserCalledNumbers from "./pages/UserCalledNumbers";
 import HostGameOptions from "./pages/HostGameOptions";
 import UserGamePatterns from "./pages/UserGamePatterns";
 import HostGameReward from "./pages/HostGameReward";
+import UserGameResult from "./pages/UserGameResult";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -316,6 +317,11 @@ export default function App() {
                     <Stack.Screen 
                       name="UserCalledNumbers" 
                       component={UserCalledNumbers}
+                      options={{ contentStyle: { paddingBottom: 20 } }}
+                    />
+                    <Stack.Screen 
+                      name="UserGameResult" 
+                      component={UserGameResult}
                       options={{ contentStyle: { paddingBottom: 20 } }}
                     />
                     <Stack.Screen 

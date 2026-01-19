@@ -38,6 +38,11 @@ const HostClaimRequests = ({ navigation, route }) => {
     total: 0
   });
   
+  // Bulk processing states
+  const [selectedClaims, setSelectedClaims] = useState([]);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkActionModalVisible, setBulkActionModalVisible] = useState(false);
+  
   const fetchCalledNumbers = async () => {
     try {
       const token = await AsyncStorage.getItem("hostToken");
@@ -79,6 +84,8 @@ const HostClaimRequests = ({ navigation, route }) => {
         setSummary(response.data.data.summary);
         setClaims(response.data.data.claims);
         setPagination(response.data.data.pagination);
+        // Clear selected claims on refresh
+        setSelectedClaims([]);
         await fetchCalledNumbers();
       }
     } catch (error) {
@@ -102,6 +109,108 @@ const HostClaimRequests = ({ navigation, route }) => {
   const showClaimDetails = (claim) => {
     setSelectedClaim(claim);
     setDetailModalVisible(true);
+  };
+
+  // Bulk processing functions
+  const toggleClaimSelection = (claimId) => {
+    setSelectedClaims(prev => {
+      if (prev.includes(claimId)) {
+        return prev.filter(id => id !== claimId);
+      } else {
+        return [...prev, claimId];
+      }
+    });
+  };
+
+  const selectAllClaims = () => {
+    if (selectedClaims.length === claims.length) {
+      setSelectedClaims([]);
+    } else {
+      setSelectedClaims(claims.map(claim => claim.id));
+    }
+  };
+
+  const openBulkActionModal = () => {
+    if (selectedClaims.length === 0) {
+      Alert.alert("No Claims Selected", "Please select at least one claim to process.");
+      return;
+    }
+    setBulkActionModalVisible(true);
+  };
+
+  const closeBulkActionModal = () => {
+    setBulkActionModalVisible(false);
+  };
+
+  const processBulkClaims = async (action) => {
+    if (selectedClaims.length === 0) return;
+
+    const actionText = action === "approve" ? "Approve" : "Reject";
+    const confirmMessage = action === "approve" 
+      ? `Are you sure you want to approve ${selectedClaims.length} selected claim(s)?`
+      : `Are you sure you want to reject ${selectedClaims.length} selected claim(s)?`;
+
+    Alert.alert(
+      `${actionText} Selected Claims`,
+      confirmMessage,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: actionText,
+          style: action === "reject" ? "destructive" : "default",
+          onPress: async () => {
+            try {
+              setBulkProcessing(true);
+              const token = await AsyncStorage.getItem("hostToken");
+              
+              const response = await axios.post(
+                `https://exilance.com/tambolatimez/public/api/host/games/${gameId}/claims/bulk-process`,
+                {
+                  claim_ids: selectedClaims,
+                  action: action,
+                  host_response: `${actionText}d ${selectedClaims.length} claims in bulk`
+                },
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                  },
+                }
+              );
+
+              if (response.data.success) {
+                Alert.alert(
+                  "Success", 
+                  `${selectedClaims.length} claim(s) ${actionText.toLowerCase()}d successfully!`
+                );
+                
+                // Remove processed claims from the list
+                setClaims(prev => prev.filter(claim => !selectedClaims.includes(claim.id)));
+                setSummary(prev => ({
+                  ...prev,
+                  total_pending: prev.total_pending - selectedClaims.length
+                }));
+                
+                // Clear selected claims
+                setSelectedClaims([]);
+                closeBulkActionModal();
+                
+                // Refresh data
+                fetchClaims();
+              }
+            } catch (error) {
+              console.log("Error processing bulk claims:", error);
+              Alert.alert(
+                "Error",
+                error.response?.data?.message || `Failed to ${actionText.toLowerCase()} claims`
+              );
+            } finally {
+              setBulkProcessing(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Function to render all called numbers in a compact grid
@@ -267,6 +376,74 @@ const HostClaimRequests = ({ navigation, route }) => {
               >
                 <Ionicons name="checkmark-circle" size={20} color="#FFF" />
                 <Text style={styles.actionButtonText}>Approve</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  const BulkActionModal = () => {
+    return (
+      <Modal
+        visible={bulkActionModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={closeBulkActionModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.bulkModalContainer}>
+            <View style={styles.bulkModalHeader}>
+              <Text style={styles.bulkModalTitle}>
+                Process {selectedClaims.length} Selected Claim(s)
+              </Text>
+              <TouchableOpacity onPress={closeBulkActionModal}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.bulkModalContent}>
+              <Text style={styles.bulkModalText}>
+                Choose an action for the selected {selectedClaims.length} claim(s):
+              </Text>
+              
+              <TouchableOpacity
+                style={[styles.bulkActionButton, styles.bulkRejectButton]}
+                onPress={() => processBulkClaims("reject")}
+                disabled={bulkProcessing}
+              >
+                {bulkProcessing ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="close-circle" size={20} color="#FFF" />
+                    <Text style={styles.bulkActionButtonText}>Reject Selected</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.bulkActionButton, styles.bulkApproveButton]}
+                onPress={() => processBulkClaims("approve")}
+                disabled={bulkProcessing}
+              >
+                {bulkProcessing ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                    <Text style={styles.bulkActionButtonText}>Approve Selected</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.bulkCancelButton}
+                onPress={closeBulkActionModal}
+                disabled={bulkProcessing}
+              >
+                <Text style={styles.bulkCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -467,7 +644,7 @@ const HostClaimRequests = ({ navigation, route }) => {
         </View>
       </View>
 
-      {/* Summary Card */}
+      {/* Summary Card with Bulk Actions */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryHeader}>
           <Ionicons name="checkmark-done" size={24} color="#25D366" />
@@ -492,7 +669,50 @@ const HostClaimRequests = ({ navigation, route }) => {
             <Text style={styles.summaryStatValue}>{claims.length}</Text>
             <Text style={styles.summaryStatLabel}>Active Claims</Text>
           </View>
+          <View style={styles.summaryStat}>
+            <Ionicons name="checkbox-outline" size={20} color="#9C27B0" />
+            <Text style={styles.summaryStatValue}>{selectedClaims.length}</Text>
+            <Text style={styles.summaryStatLabel}>Selected</Text>
+          </View>
         </View>
+        
+        {/* Bulk Actions Row */}
+        {claims.length > 0 && (
+          <View style={styles.bulkActionsRow}>
+            <TouchableOpacity
+              style={[styles.bulkActionButtonSmall, styles.selectAllButton]}
+              onPress={selectAllClaims}
+            >
+              <Ionicons 
+                name={selectedClaims.length === claims.length ? "checkbox" : "square-outline"} 
+                size={18} 
+                color="#25D366" 
+              />
+              <Text style={styles.bulkActionButtonTextSmall}>
+                {selectedClaims.length === claims.length ? "Deselect All" : "Select All"}
+              </Text>
+            </TouchableOpacity>
+            
+            {selectedClaims.length > 0 && (
+              <TouchableOpacity
+                style={[styles.bulkActionButtonSmall, styles.processSelectedButton]}
+                onPress={openBulkActionModal}
+                disabled={bulkProcessing}
+              >
+                {bulkProcessing ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="play-circle" size={18} color="#FFF" />
+                    <Text style={[styles.bulkActionButtonTextSmall, { color: "#FFF" }]}>
+                      Process Selected ({selectedClaims.length})
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -526,80 +746,115 @@ const HostClaimRequests = ({ navigation, route }) => {
         ) : (
           <>
             <Text style={styles.claimsTitle}>Pending Claims ({claims.length})</Text>
-            {claims.map((claim) => (
-              <TouchableOpacity
-                key={claim.id}
-                style={styles.claimCard}
-                onPress={() => showClaimDetails(claim)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.claimHeader}>
-                  <View style={styles.userInfo}>
-                    <View style={styles.userInfoText}>
-                      <Text style={styles.userName}>{claim.user_name}</Text>
-                      <Text style={styles.username}>@{claim.username}</Text>
-                      <View style={styles.patternContainer}>
-                        <MaterialIcons name="pattern" size={12} color="#25D366" />
-                        <Text style={styles.patternName}>{claim.pattern_name}</Text>
+            {claims.map((claim) => {
+              const isSelected = selectedClaims.includes(claim.id);
+              
+              return (
+                <TouchableOpacity
+                  key={claim.id}
+                  style={[
+                    styles.claimCard,
+                    isSelected && styles.selectedClaimCard
+                  ]}
+                  onPress={() => showClaimDetails(claim)}
+                  onLongPress={() => toggleClaimSelection(claim.id)}
+                  activeOpacity={0.7}
+                  delayLongPress={300}
+                >
+                  <View style={styles.claimHeader}>
+                    <View style={styles.userInfo}>
+                      <TouchableOpacity
+                        style={styles.checkboxContainer}
+                        onPress={() => toggleClaimSelection(claim.id)}
+                      >
+                        <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+                          {isSelected && (
+                            <Ionicons name="checkmark" size={14} color="#FFF" />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                      
+                      <View style={styles.userInfoText}>
+                        <Text style={styles.userName}>{claim.user_name}</Text>
+                        <Text style={styles.username}>@{claim.username}</Text>
+                        <View style={styles.patternContainer}>
+                          <MaterialIcons name="pattern" size={12} color="#25D366" />
+                          <Text style={styles.patternName}>{claim.pattern_name}</Text>
+                        </View>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.claimStatus}>
+                      <Text style={styles.waitingTime}>
+                        {claim.waiting_time_minutes} min ago
+                      </Text>
+                      <View style={styles.amountContainer}>
+                        <FontAwesome name="rupee" size={14} color="#25D366" />
+                        <Text style={styles.winningAmount}>₹{claim.winning_amount}</Text>
                       </View>
                     </View>
                   </View>
                   
-                  <View style={styles.claimStatus}>
-                    <Text style={styles.waitingTime}>
-                      {claim.waiting_time_minutes} min ago
-                    </Text>
-                    <View style={styles.amountContainer}>
-                      <FontAwesome name="rupee" size={14} color="#25D366" />
-                      <Text style={styles.winningAmount}>₹{claim.winning_amount}</Text>
-                    </View>
+                  <View style={styles.claimActions}>
+                    <TouchableOpacity
+                      style={[styles.quickActionButton, styles.rejectQuickButton]}
+                      onPress={() => rejectClaim(claim.id)}
+                      disabled={!!processingClaim || !claim.can_process}
+                    >
+                      {processingClaim === claim.id ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Ionicons name="close" size={16} color="#FFF" />
+                      )}
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={[styles.quickActionButton, styles.approveQuickButton]}
+                      onPress={() => approveClaim(claim.id)}
+                      disabled={!!processingClaim || !claim.can_process}
+                    >
+                      {processingClaim === claim.id ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Ionicons name="checkmark" size={16} color="#FFF" />
+                      )}
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={styles.detailsButton}
+                      onPress={() => showClaimDetails(claim)}
+                    >
+                      <Text style={styles.detailsButtonText}>Verify Claim</Text>
+                      <Ionicons name="chevron-forward" size={16} color="#25D366" />
+                    </TouchableOpacity>
                   </View>
-                </View>
-                
-                <View style={styles.claimActions}>
-                  <TouchableOpacity
-                    style={[styles.quickActionButton, styles.rejectQuickButton]}
-                    onPress={() => rejectClaim(claim.id)}
-                    disabled={!!processingClaim || !claim.can_process}
-                  >
-                    {processingClaim === claim.id ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <Ionicons name="close" size={16} color="#FFF" />
-                    )}
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.quickActionButton, styles.approveQuickButton]}
-                    onPress={() => approveClaim(claim.id)}
-                    disabled={!!processingClaim || !claim.can_process}
-                  >
-                    {processingClaim === claim.id ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <Ionicons name="checkmark" size={16} color="#FFF" />
-                    )}
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={styles.detailsButton}
-                    onPress={() => showClaimDetails(claim)}
-                  >
-                    <Text style={styles.detailsButtonText}>Verify Claim</Text>
-                    <Ionicons name="chevron-forward" size={16} color="#25D366" />
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
+            
+            {selectedClaims.length > 0 && (
+              <View style={styles.selectedSummary}>
+                <Text style={styles.selectedSummaryText}>
+                  {selectedClaims.length} claim(s) selected
+                </Text>
+                <TouchableOpacity
+                  style={styles.clearSelectionButton}
+                  onPress={() => setSelectedClaims([])}
+                >
+                  <Text style={styles.clearSelectionText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             
             <Text style={styles.refreshHint}>
-              Pull down to refresh for new claims
+              Pull down to refresh for new claims • Long press to select multiple
             </Text>
           </>
         )}
       </ScrollView>
 
       <ClaimDetailModal />
+      <BulkActionModal />
     </SafeAreaView>
   );
 };
@@ -700,6 +955,7 @@ const styles = StyleSheet.create({
   summaryStats: {
     flexDirection: "row",
     justifyContent: "space-around",
+    marginBottom: 16,
   },
   summaryStat: {
     alignItems: "center",
@@ -715,6 +971,38 @@ const styles = StyleSheet.create({
     color: "#666",
     fontWeight: "500",
     marginTop: 4,
+  },
+  // Bulk Actions
+  bulkActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F0F0",
+  },
+  bulkActionButtonSmall: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  selectAllButton: {
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#E6F0FF",
+  },
+  processSelectedButton: {
+    backgroundColor: "#9C27B0",
+    borderWidth: 1,
+    borderColor: "#8E24AA",
+  },
+  bulkActionButtonTextSmall: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#25D366",
   },
   claimsTitle: {
     fontSize: 18,
@@ -738,6 +1026,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
+  selectedClaimCard: {
+    backgroundColor: "#F0F7FF",
+    borderColor: "#2196F3",
+    borderWidth: 2,
+  },
   claimHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -749,6 +1042,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
     gap: 12,
+  },
+  checkboxContainer: {
+    padding: 4,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkboxSelected: {
+    backgroundColor: "#25D366",
+    borderColor: "#25D366",
   },
   userInfoText: {
     flex: 1,
@@ -842,6 +1151,38 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#25D366",
   },
+  selectedSummary: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#E3F2FD",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#BBDEFB",
+  },
+  selectedSummaryText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1976D2",
+  },
+  clearSelectionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#FFF",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#BDBDBD",
+  },
+  clearSelectionText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
@@ -901,6 +1242,71 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
   },
+  // Bulk Modal
+  bulkModalContainer: {
+    width: "90%",
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  bulkModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  bulkModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#333",
+    flex: 1,
+    marginRight: 10,
+  },
+  bulkModalContent: {
+    padding: 20,
+  },
+  bulkModalText: {
+    fontSize: 15,
+    color: "#666",
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  bulkActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 10,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  bulkRejectButton: {
+    backgroundColor: "#FF3B30",
+  },
+  bulkApproveButton: {
+    backgroundColor: "#25D366",
+  },
+  bulkActionButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  bulkCancelButton: {
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  bulkCancelButtonText: {
+    color: "#666",
+    fontSize: 15,
+    fontWeight: "500",
+  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -947,11 +1353,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-  },
-  claimInfoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
   },
   claimInfoRow: {
     flexDirection: "row",

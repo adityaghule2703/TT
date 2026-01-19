@@ -53,10 +53,10 @@ const ResetPassword = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <Image
+      {/* <Image
         source={{ uri: "https://cdn-icons-png.flaticon.com/512/5345/5345809.png" }}
         style={styles.logo}
-      />
+      /> */}
 
       <View style={styles.card}>
         <Text style={styles.title}>Reset Password</Text>

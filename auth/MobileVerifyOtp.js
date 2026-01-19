@@ -1,22 +1,42 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  StyleSheet,
-  Image,
-} from "react-native";
+import React, { useState, useRef } from "react";
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from "react-native";
 import axios from "axios";
 
 const MobileVerifyOtp = ({ navigation, route }) => {
   const { mobile, role = "user", type = "user" } = route.params;
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
+  const inputRefs = useRef([]);
+
+  const handleOtpChange = (index, value) => {
+    // Allow only numeric input
+    if (value && !/^\d+$/.test(value)) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    // Auto-focus next input if value is entered
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-focus previous input on backspace if current is empty
+    if (!value && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleKeyPress = (index, key) => {
+    if (key === "Backspace" && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
 
   const verifyOtp = async () => {
-    if (!otp || otp.length !== 6) {
+    const otpString = otp.join("");
+    
+    if (!otpString || otpString.length !== 6) {
       return Alert.alert("Error", "Enter valid 6-digit OTP");
     }
 
@@ -36,7 +56,7 @@ const MobileVerifyOtp = ({ navigation, route }) => {
 
       const res = await axios.post(url, {
         mobile,
-        code: otp,
+        code: otpString,
         type: verifyType,
       });
 
@@ -44,7 +64,7 @@ const MobileVerifyOtp = ({ navigation, route }) => {
 
       navigation.navigate("Register", {
         mobile,
-        otp_code: otp,
+        otp_code: otpString,
         role: role,
       });
     } catch (error) {
@@ -55,15 +75,13 @@ const MobileVerifyOtp = ({ navigation, route }) => {
     }
   };
 
+  const clearOtp = () => {
+    setOtp(["", "", "", "", "", ""]);
+    inputRefs.current[0]?.focus();
+  };
+
   return (
     <View style={styles.container}>
-      <Image
-        source={{
-          uri: "https://cdn-icons-png.flaticon.com/512/5345/5345809.png",
-        }}
-        style={styles.logo}
-      />
-
       <View style={styles.card}>
         <Text style={styles.title}>Verify OTP</Text>
         <Text style={styles.subtitle}>
@@ -74,16 +92,40 @@ const MobileVerifyOtp = ({ navigation, route }) => {
           <Text style={styles.mobileText}>Mobile: {mobile}</Text>
         </View>
 
-        <TextInput
-          placeholder="Enter 6-digit OTP"
-          keyboardType="number-pad"
-          style={styles.input}
-          value={otp}
-          onChangeText={setOtp}
-          placeholderTextColor="#999"
-          maxLength={6}
-        />
+        <Text style={styles.instruction}>Enter the 6-digit OTP sent to your mobile</Text>
 
+        {/* OTP Boxes Container with padding */}
+        <View style={styles.otpWrapper}>
+          <View style={styles.otpContainer}>
+            {otp.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={ref => inputRefs.current[index] = ref}
+                style={[
+                  styles.otpBox,
+                  digit && styles.otpBoxFilled
+                ]}
+                keyboardType="number-pad"
+                maxLength={1}
+                value={digit}
+                onChangeText={(value) => handleOtpChange(index, value)}
+                onKeyPress={({ nativeEvent }) => handleKeyPress(index, nativeEvent.key)}
+                placeholder="•"
+                placeholderTextColor="#999"
+                textAlign="center"
+                autoFocus={index === 0}
+                selectionColor="#FF7675"
+              />
+            ))}
+          </View>
+        </View>
+
+        {/* Clear OTP Button */}
+        <TouchableOpacity onPress={clearOtp} style={styles.clearBtn}>
+          <Text style={styles.clearText}>Clear OTP</Text>
+        </TouchableOpacity>
+
+        {/* Verify Button */}
         <TouchableOpacity
           style={[styles.btn, isLoading && styles.btnDisabled]}
           onPress={verifyOtp}
@@ -119,12 +161,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
   },
-  logo: {
-    width: 90,
-    height: 90,
-    alignSelf: "center",
-    marginBottom: 20,
-  },
   card: {
     backgroundColor: "#fff",
     borderRadius: 20,
@@ -140,6 +176,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center",
     marginBottom: 6,
+    color: "#333",
   },
   subtitle: {
     fontSize: 14,
@@ -159,16 +196,47 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
   },
-  input: {
-    backgroundColor: "#FAFAFA",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 15,
-    fontSize: 18,
+  instruction: {
     textAlign: "center",
-    letterSpacing: 8,
+    color: "#666",
+    fontSize: 14,
+    marginBottom: 20,
+  },
+  otpWrapper: {
+    paddingHorizontal: 15,
+    marginBottom: 15,
+  },
+  otpContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  otpBox: {
+    width: 40,
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: "#DDD",
+    borderRadius: 8,
+    backgroundColor: "#FAFAFA",
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#333",
+  },
+  otpBoxFilled: {
+    borderColor: "#FF7675",
+    backgroundColor: "#FFF5F5",
+  },
+  clearBtn: {
+    alignSelf: "center",
+    marginBottom: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    backgroundColor: "#F0F0F0",
+    borderRadius: 8,
+  },
+  clearText: {
+    color: "#666",
+    fontSize: 14,
+    fontWeight: "500",
   },
   btn: {
     backgroundColor: "#FF7675",

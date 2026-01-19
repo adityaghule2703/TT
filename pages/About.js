@@ -5,29 +5,178 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  Animated,
+  Easing,
 } from 'react-native';
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
 const About = () => {
+  // Animation values
+  const floatAnim1 = useRef(new Animated.Value(0)).current;
+  const floatAnim2 = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Start background animations
+    startAnimations();
+  }, []);
+
+  const startAnimations = () => {
+    // First floating animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim1, {
+          toValue: 1,
+          duration: 4000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim1, {
+          toValue: 0,
+          duration: 4000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Second floating animation (different timing)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim2, {
+          toValue: 1,
+          duration: 5000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim2, {
+          toValue: 0,
+          duration: 5000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Pulse animation for subtle effect
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.02,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Slow rotation animation
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 20000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  };
+
+  // Interpolations for animations
+  const translateY1 = floatAnim1.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 15]
+  });
+
+  const translateY2 = floatAnim2.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -10]
+  });
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* BACKGROUND PATTERNS */}
+      {/* BACKGROUND PATTERNS WITH ANIMATIONS */}
       <View style={styles.backgroundPatterns}>
-        <View style={styles.patternCircle1} />
-        <View style={styles.patternCircle2} />
-        <View style={styles.patternCircle3} />
-        <View style={styles.geometricPattern1} />
-        <View style={styles.geometricPattern2} />
+        {/* Animated clouds */}
+        <Animated.View 
+          style={[
+            styles.cloud1, 
+            { 
+              transform: [
+                { translateY: translateY1 },
+                { translateX: translateY2 }
+              ] 
+            }
+          ]} 
+        />
+        <Animated.View 
+          style={[
+            styles.cloud2, 
+            { 
+              transform: [
+                { translateY: translateY2 },
+                { translateX: translateY1 }
+              ] 
+            }
+          ]} 
+        />
+        <Animated.View 
+          style={[
+            styles.cloud3, 
+            { 
+              transform: [
+                { translateY: translateY1 },
+                { translateX: translateY2 }
+              ] 
+            }
+          ]} 
+        />
+        
+        {/* Animated sun */}
+        <Animated.View 
+          style={[
+            styles.sun,
+            { 
+              transform: [{ rotate: rotate }],
+              opacity: pulseAnim
+            }
+          ]} 
+        />
+        
+        {/* Sky gradient */}
+        <View style={styles.skyGradient} />
+        
+        {/* Mountains */}
+        <View style={styles.mountain1} />
+        <View style={styles.mountain2} />
       </View>
 
       {/* HEADER */}
-      <View style={styles.header}>
+      <Animated.View 
+        style={[
+          styles.header,
+          { 
+            transform: [{ scale: pulseAnim }]
+          }
+        ]}
+      >
         <Text style={styles.title}>About Tambola Timez</Text>
         <Text style={styles.tagline}>Professional Gaming Platform</Text>
-      </View>
+      </Animated.View>
 
       {/* BANNER CARD */}
       <View style={styles.section}>
@@ -35,7 +184,7 @@ const About = () => {
           <View style={styles.bannerPattern} />
           <View style={styles.bannerContent}>
             <View style={styles.bannerIconContainer}>
-              <Ionicons name="game-controller" size={48} color="#40E0D0" />
+              <Ionicons name="game-controller" size={48} color="#4A90E2" />
             </View>
             <View style={styles.bannerTextContainer}>
               <Text style={styles.bannerTitle}>Welcome to Tambola Timez</Text>
@@ -61,7 +210,7 @@ const About = () => {
           ].map((item, index) => (
             <View key={index} style={styles.missionItem}>
               <View style={styles.missionIcon}>
-                <FontAwesome5 name={item.icon} size={20} color="#40E0D0" />
+                <FontAwesome5 name={item.icon} size={20} color="#4A90E2" />
               </View>
               <Text style={styles.missionText}>{item.text}</Text>
             </View>
@@ -78,25 +227,25 @@ const About = () => {
               icon: 'flash',
               title: 'Instant Matchmaking',
               description: 'Join games instantly with players worldwide',
-              color: '#40E0D0',
+              color: '#4A90E2',
             },
             {
               icon: 'layers',
               title: 'Multiple Modes',
               description: 'Classic, Speed, and Premium game modes',
-              color: '#FF6B35',
+              color: '#7EC8E3',
             },
             {
               icon: 'lock-closed',
               title: 'Secure Rooms',
               description: 'Private rooms with end-to-end encryption',
-              color: '#4CD964',
+              color: '#5DADE2',
             },
             {
               icon: 'trophy',
               title: 'Daily Rewards',
               description: 'Win exciting prizes and bonuses daily',
-              color: '#FFD700',
+              color: '#4682B4',
             },
           ].map((feature, index) => (
             <View key={index} style={styles.featureCard}>
@@ -125,7 +274,7 @@ const About = () => {
             { icon: 'checkmark-circle', text: 'Regular Tournaments & Events' },
           ].map((item, index) => (
             <View key={index} style={styles.whyItem}>
-              <Ionicons name={item.icon} size={20} color="#40E0D0" />
+              <Ionicons name={item.icon} size={20} color="#4A90E2" />
               <Text style={styles.whyText}>{item.text}</Text>
             </View>
           ))}
@@ -138,7 +287,7 @@ const About = () => {
         <View style={styles.valuesContainer}>
           <View style={styles.valueCard}>
             <View style={styles.valueIcon}>
-              <MaterialIcons name="security" size={32} color="#40E0D0" />
+              <MaterialIcons name="security" size={32} color="#4A90E2" />
             </View>
             <Text style={styles.valueTitle}>Security First</Text>
             <Text style={styles.valueDescription}>
@@ -148,7 +297,7 @@ const About = () => {
 
           <View style={styles.valueCard}>
             <View style={styles.valueIcon}>
-              <MaterialIcons name="balance" size={32} color="#40E0D0" />
+              <MaterialIcons name="balance" size={32} color="#4A90E2" />
             </View>
             <Text style={styles.valueTitle}>Fair Play</Text>
             <Text style={styles.valueDescription}>
@@ -158,7 +307,7 @@ const About = () => {
 
           <View style={styles.valueCard}>
             <View style={styles.valueIcon}>
-              <MaterialIcons name="support-agent" size={32} color="#40E0D0" />
+              <MaterialIcons name="support-agent" size={32} color="#4A90E2" />
             </View>
             <Text style={styles.valueTitle}>Player Support</Text>
             <Text style={styles.valueDescription}>
@@ -174,7 +323,7 @@ const About = () => {
         <View style={styles.contactCard}>
           <View style={styles.contactPattern} />
           <View style={styles.contactItem}>
-            <Ionicons name="mail" size={24} color="#40E0D0" />
+            <Ionicons name="mail" size={24} color="#4A90E2" />
             <View style={styles.contactTextContainer}>
               <Text style={styles.contactLabel}>Email</Text>
               <Text style={styles.contactValue}>support@tambolatimez.com</Text>
@@ -182,7 +331,7 @@ const About = () => {
           </View>
           <View style={styles.contactDivider} />
           <View style={styles.contactItem}>
-            <Ionicons name="time" size={24} color="#40E0D0" />
+            <Ionicons name="time" size={24} color="#4A90E2" />
             <View style={styles.contactTextContainer}>
               <Text style={styles.contactLabel}>Support Hours</Text>
               <Text style={styles.contactValue}>24/7</Text>
@@ -190,7 +339,7 @@ const About = () => {
           </View>
           <View style={styles.contactDivider} />
           <View style={styles.contactItem}>
-            <MaterialIcons name="verified-user" size={24} color="#40E0D0" />
+            <MaterialIcons name="verified-user" size={24} color="#4A90E2" />
             <View style={styles.contactTextContainer}>
               <Text style={styles.contactLabel}>Licensed By</Text>
               <Text style={styles.contactValue}>International Gaming Commission</Text>
@@ -217,7 +366,7 @@ export default About;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F0F8FF",
   },
   backgroundPatterns: {
     position: 'absolute',
@@ -225,80 +374,117 @@ const styles = StyleSheet.create({
     height: '100%',
     zIndex: 0,
   },
-  patternCircle1: {
+  // Cloud animations
+  cloud1: {
     position: 'absolute',
     top: 100,
-    right: -40,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(64, 224, 208, 0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(64, 224, 208, 0.08)',
+    right: 40,
+    width: 100,
+    height: 40,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  patternCircle2: {
+  cloud2: {
     position: 'absolute',
-    bottom: 200,
-    left: -60,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(64, 224, 208, 0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(64, 224, 208, 0.06)',
+    top: 200,
+    left: 30,
+    width: 80,
+    height: 30,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  patternCircle3: {
+  cloud3: {
     position: 'absolute',
     top: 300,
-    left: 20,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 107, 53, 0.02)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 53, 0.04)',
+    right: 20,
+    width: 60,
+    height: 25,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  geometricPattern1: {
+  // Sun
+  sun: {
     position: 'absolute',
-    bottom: 100,
-    right: 40,
+    top: 50,
+    left: 30,
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(255, 215, 0, 0.02)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.04)',
-    transform: [{ rotate: '45deg' }],
+    backgroundColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  geometricPattern2: {
+  // Sky gradient
+  skyGradient: {
     position: 'absolute',
-    top: 400,
-    right: 30,
-    width: 40,
-    height: 40,
-    borderWidth: 1,
-    borderColor: 'rgba(64, 224, 208, 0.05)',
-    borderStyle: 'dashed',
-    borderRadius: 20,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 300,
+    backgroundColor: 'linear-gradient(to bottom, rgba(135, 206, 235, 0.2), rgba(135, 206, 235, 0))',
+  },
+  // Mountains
+  mountain1: {
+    position: 'absolute',
+    bottom: 0,
+    left: -50,
+    width: width + 100,
+    height: 200,
+    backgroundColor: '#4682B4',
+    transform: [{ rotate: '5deg' }],
+    opacity: 0.1,
+  },
+  mountain2: {
+    position: 'absolute',
+    bottom: 0,
+    right: -50,
+    width: width + 100,
+    height: 150,
+    backgroundColor: '#5DADE2',
+    transform: [{ rotate: '-5deg' }],
+    opacity: 0.08,
   },
   header: {
-    backgroundColor: "#40E0D0",
+    backgroundColor: "#5DADE2",
     paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E9ECEF",
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    position: 'relative',
+    overflow: 'hidden',
     zIndex: 1,
   },
   title: {
     fontSize: 24,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   tagline: {
     fontSize: 14,
-    color: "#6C757D",
+    color: "rgba(255, 255, 255, 0.9)",
     marginTop: 4,
     fontWeight: "500",
   },
@@ -309,8 +495,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "700",
-    color: "#212529",
+    fontWeight: "800",
+    color: "#4682B4",
     marginBottom: 16,
   },
   bannerCard: {
@@ -318,9 +504,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     overflow: 'hidden',
     position: 'relative',
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   bannerPattern: {
     position: 'absolute',
@@ -330,7 +521,7 @@ const styles = StyleSheet.create({
     height: 100,
     borderTopRightRadius: 16,
     borderBottomLeftRadius: 50,
-    backgroundColor: 'rgba(64, 224, 208, 0.05)',
+    backgroundColor: 'rgba(74, 144, 226, 0.05)',
   },
   bannerContent: {
     flexDirection: "row",
@@ -340,12 +531,12 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 16,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 20,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.2)",
   },
   bannerTextContainer: {
     flex: 1,
@@ -353,12 +544,12 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#212529",
+    color: "#4682B4",
     marginBottom: 8,
   },
   bannerText: {
     fontSize: 14,
-    color: "#6C757D",
+    color: "#666",
     lineHeight: 20,
   },
   missionCard: {
@@ -366,9 +557,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     overflow: 'hidden',
     position: 'relative',
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   missionPattern: {
     position: 'absolute',
@@ -378,7 +574,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderBottomLeftRadius: 16,
     borderTopRightRadius: 40,
-    backgroundColor: 'rgba(64, 224, 208, 0.03)',
+    backgroundColor: 'rgba(74, 144, 226, 0.03)',
   },
   missionItem: {
     flexDirection: "row",
@@ -389,16 +585,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.2)",
   },
   missionText: {
     fontSize: 15,
-    color: "#495057",
+    color: "#4682B4",
     fontWeight: "500",
   },
   featuresGrid: {
@@ -412,9 +608,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     overflow: 'hidden',
     position: 'relative',
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   featurePattern: {
     position: 'absolute',
@@ -424,13 +625,13 @@ const styles = StyleSheet.create({
     height: 40,
     borderTopRightRadius: 12,
     borderBottomLeftRadius: 20,
-    backgroundColor: 'rgba(64, 224, 208, 0.02)',
+    backgroundColor: 'rgba(74, 144, 226, 0.02)',
   },
   featureIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
@@ -439,12 +640,12 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#212529",
+    color: "#4682B4",
     marginBottom: 4,
   },
   featureDescription: {
     fontSize: 12,
-    color: "#6C757D",
+    color: "#666",
     lineHeight: 16,
   },
   whyCard: {
@@ -452,9 +653,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     overflow: 'hidden',
     position: 'relative',
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   whyPattern: {
     position: 'absolute',
@@ -463,7 +669,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderTopRightRadius: 16,
-    backgroundColor: 'rgba(255, 107, 53, 0.02)',
+    backgroundColor: 'rgba(126, 200, 227, 0.02)',
   },
   whyItem: {
     flexDirection: "row",
@@ -472,7 +678,7 @@ const styles = StyleSheet.create({
   },
   whyText: {
     fontSize: 14,
-    color: "#495057",
+    color: "#4682B4",
     marginLeft: 12,
     fontWeight: "500",
   },
@@ -487,30 +693,35 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     alignItems: "center",
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   valueIcon: {
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.2)",
   },
   valueTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#212529",
+    color: "#4682B4",
     marginBottom: 4,
     textAlign: "center",
   },
   valueDescription: {
     fontSize: 12,
-    color: "#6C757D",
+    color: "#666",
     textAlign: "center",
     lineHeight: 16,
   },
@@ -519,9 +730,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     overflow: 'hidden',
     position: 'relative',
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   contactPattern: {
     position: 'absolute',
@@ -530,7 +746,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderBottomLeftRadius: 16,
-    backgroundColor: 'rgba(64, 224, 208, 0.03)',
+    backgroundColor: 'rgba(74, 144, 226, 0.03)',
   },
   contactItem: {
     flexDirection: "row",
@@ -543,17 +759,17 @@ const styles = StyleSheet.create({
   },
   contactLabel: {
     fontSize: 12,
-    color: "#6C757D",
+    color: "#666",
     marginBottom: 2,
   },
   contactValue: {
     fontSize: 14,
-    color: "#212529",
+    color: "#4682B4",
     fontWeight: "500",
   },
   contactDivider: {
     height: 1,
-    backgroundColor: "#E9ECEF",
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
     marginVertical: 4,
   },
   footer: {
@@ -561,18 +777,18 @@ const styles = StyleSheet.create({
     padding: 24,
     marginTop: 24,
     borderTopWidth: 1,
-    borderTopColor: "#E9ECEF",
+    borderTopColor: "rgba(74, 144, 226, 0.1)",
     alignItems: "center",
   },
   footerText: {
     fontSize: 14,
-    color: "#6C757D",
+    color: "#4682B4",
     textAlign: "center",
     marginBottom: 4,
   },
   footerSubtext: {
     fontSize: 12,
-    color: "#ADB5BD",
+    color: "#666",
     textAlign: "center",
   },
 });

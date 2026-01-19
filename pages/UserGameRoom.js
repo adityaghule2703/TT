@@ -1,2569 +1,3 @@
-// import React, { useState, useEffect, useRef } from "react";
-// import {
-//   StyleSheet,
-//   Text,
-//   View,
-//   ScrollView,
-//   TouchableOpacity,
-//   ActivityIndicator,
-//   SafeAreaView,
-//   StatusBar,
-//   Dimensions,
-//   RefreshControl,
-//   Image,
-//   Modal,
-//   Animated,
-//   Easing,
-// } from "react-native";
-// import axios from "axios";
-// import AsyncStorage from "@react-native-async-storage/async-storage";
-// import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-// import * as Speech from 'expo-speech';
-// import { Snackbar } from 'react-native-paper';
-
-// const { width, height } = Dimensions.get("window");
-// const TICKET_WIDTH = width - 24;
-// const CELL_SIZE = Math.min((TICKET_WIDTH - 16) / 9, 50);
-// const TICKET_GRID_HEIGHT = CELL_SIZE * 3;
-
-// const UserGameRoom = ({ navigation, route }) => {
-//   const { gameId, gameName } = route.params;
-//   const [loading, setLoading] = useState(true);
-//   const [refreshing, setRefreshing] = useState(false);
-//   const [gameStatus, setGameStatus] = useState(null);
-//   const [callingStatus, setCallingStatus] = useState(null);
-//   const [calledNumbers, setCalledNumbers] = useState([]);
-//   const [myTickets, setMyTickets] = useState([]);
-//   const [isChatJoined, setIsChatJoined] = useState(false);
-//   const [participantCount, setParticipantCount] = useState(0);
-//   const [markingLoading, setMarkingLoading] = useState(false);
-//   const [voiceType, setVoiceType] = useState('female');
-//   const [showVoiceModal, setShowVoiceModal] = useState(false);
-//   const [showGameEndModal, setShowGameEndModal] = useState(false);
-//   const [gameCompleted, setGameCompleted] = useState(false);
-//   const [claims, setClaims] = useState([]);
-//   const [snackbarVisible, setSnackbarVisible] = useState(false);
-//   const [snackbarMessage, setSnackbarMessage] = useState('');
-//   const [snackbarType, setSnackbarType] = useState('info');
-//   const [initialClaimsFetched, setInitialClaimsFetched] = useState(false);
-//   const [menuVisible, setMenuVisible] = useState(false);
-//   const [selectedTicket, setSelectedTicket] = useState(null);
-//   const [patternRewards, setPatternRewards] = useState([]);
-//   const [submittingClaim, setSubmittingClaim] = useState(false);
-//   const [showWinningCelebration, setShowWinningCelebration] = useState(false);
-//   const [winningMessage, setWinningMessage] = useState('');
-//   const [winningUser, setWinningUser] = useState('');
-//   const [winningAmount, setWinningAmount] = useState(0);
-//   const [winningPattern, setWinningPattern] = useState('');
-  
-//   // New state for tracking patterns per ticket
-//   const [patternsByTicket, setPatternsByTicket] = useState({}); // { ticketId: { [patternId]: { count: 1, status: 'approved' | 'pending' | 'rejected' } } }
-//   const [totalPatternCounts, setTotalPatternCounts] = useState({}); // { patternId: { claimed: 0, total: 5 } }
-  
-//   const lastCalledRef = useRef(null);
-//   const confettiAnimation = useRef(new Animated.Value(0)).current;
-//   const claimsRef = useRef([]);
-//   const menuRefs = useRef([]);
-//   const lastApprovedClaimRef = useRef(null);
-//   const audioEnabled = useRef(true);
-
-//   // Celebration animations - using transform instead of top/left
-//   const celebrationOpacity = useRef(new Animated.Value(0)).current;
-//   const celebrationScale = useRef(new Animated.Value(0.5)).current;
-//   const celebrationTranslateY = useRef(new Animated.Value(50)).current;
-//   const confettiTranslateY = useRef([]);
-
-//   // Initialize confetti animations
-//   useEffect(() => {
-//     confettiTranslateY.current = Array(20).fill().map(() => new Animated.Value(-50));
-//   }, []);
-
-//   const GAME_IMAGES = {
-//     ticket: "https://cdn-icons-png.flaticon.com/512/2589/2589909.png",
-//     diamond: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-//     celebrate: "https://cdn-icons-png.flaticon.com/512/3126/3126640.png",
-//     empty: "https://cdn-icons-png.flaticon.com/512/4076/4076478.png",
-//     pattern: "https://cdn-icons-png.flaticon.com/512/2097/2097069.png",
-//     live: "https://cdn-icons-png.flaticon.com/512/2809/2809645.png",
-//     users: "https://cdn-icons-png.flaticon.com/512/1077/1077012.png",
-//     megaphone: "https://cdn-icons-png.flaticon.com/512/2599/2599562.png",
-//     trophy: "https://cdn-icons-png.flaticon.com/512/869/869869.png",
-//     voice: "https://cdn-icons-png.flaticon.com/512/727/727240.png",
-//     confetti: "https://cdn-icons-png.flaticon.com/512/2821/2821812.png",
-//     numbers: "https://cdn-icons-png.flaticon.com/512/3884/3884344.png",
-//     claim: "https://cdn-icons-png.flaticon.com/512/1006/1006581.png",
-//     firework: "https://cdn-icons-png.flaticon.com/512/599/599499.png",
-//     star: "https://cdn-icons-png.flaticon.com/512/1828/1828970.png",
-//   };
-
-//   const PRIMARY_COLOR = "#40E0D0";
-//   const SUCCESS_COLOR = "#4CAF50";
-//   const WARNING_COLOR = "#FFD700";
-//   const DANGER_COLOR = "#FF5252";
-//   const GRAY_COLOR = "#6C757D";
-//   const LIGHT_GRAY = "#F8F9FA";
-//   const BORDER_COLOR = "#E9ECEF";
-//   const BACKGROUND_COLOR = "#FFFFFF";
-//   const SECONDARY_COLOR = "#FF6B35";
-
-//   useEffect(() => {
-//     if (calledNumbers.length >= 90 && !gameCompleted) {
-//       setGameCompleted(true);
-//       setTimeout(() => {
-//         setShowGameEndModal(true);
-//         startConfettiAnimation();
-//       }, 1000);
-//     }
-//   }, [calledNumbers]);
-
-//   useEffect(() => {
-//     fetchGameStatus();
-//     fetchMyTickets();
-//     checkChatStatus();
-//     fetchClaims();
-//     fetchPatternRewards();
-
-//     const statusInterval = setInterval(fetchGameStatus, 3000);
-//     const claimsInterval = setInterval(fetchClaims, 3000);
-
-//     return () => {
-//       clearInterval(statusInterval);
-//       clearInterval(claimsInterval);
-//       Speech.stop();
-//       stopConfettiAnimation();
-//       stopWinningCelebration();
-//     };
-//   }, []);
-
-//   useEffect(() => {
-//     claimsRef.current = claims;
-//   }, [claims]);
-
-//   // Helper function to process claims and update pattern counts
-//   const updatePatternCounts = (claimsData) => {
-//     const ticketPatterns = {};
-//     const patternCounts = {};
-
-//     // Initialize pattern counts from patternRewards
-//     patternRewards.forEach(pattern => {
-//       patternCounts[pattern.pattern_id] = {
-//         claimed: 0,
-//         total: pattern.limit_count || 0, // Get limit from pattern rewards
-//         patternName: pattern.reward_name,
-//       };
-//     });
-
-//     // Process claims
-//     claimsData.forEach(claim => {
-//       const ticketId = claim.ticket_id;
-//       const patternId = claim.game_pattern_id;
-      
-//       if (!ticketId || !patternId) return;
-
-//       // Initialize ticket entry if not exists
-//       if (!ticketPatterns[ticketId]) {
-//         ticketPatterns[ticketId] = {};
-//       }
-
-//       // Add pattern to ticket's claimed patterns (only count approved/pending)
-//       if (claim.claim_status === 'approved' || claim.claim_status === 'pending') {
-//         ticketPatterns[ticketId][patternId] = {
-//           count: (ticketPatterns[ticketId][patternId]?.count || 0) + 1,
-//           status: claim.claim_status,
-//         };
-
-//         // Update global pattern count for approved claims only
-//         if (claim.claim_status === 'approved' && patternCounts[patternId]) {
-//           patternCounts[patternId].claimed += 1;
-//         }
-//       }
-//     });
-
-//     setPatternsByTicket(ticketPatterns);
-//     setTotalPatternCounts(patternCounts);
-//   };
-
-//   const fetchPatternRewards = async () => {
-//     try {
-//       const token = await AsyncStorage.getItem("token");
-//       const response = await axios.get(
-//         "https://exilance.com/tambolatimez/public/api/user/games",
-//         {
-//           headers: {
-//             Authorization: `Bearer ${token}`,
-//             Accept: "application/json",
-//           },
-//         }
-//       );
-
-//       if (response.data.success) {
-//         const games = response.data.games.data;
-//         const currentGame = games.find((game) => game.id === parseInt(gameId));
-
-//         if (currentGame && currentGame.pattern_rewards) {
-//           setPatternRewards(currentGame.pattern_rewards);
-          
-//           // Initialize pattern counts
-//           const initialCounts = {};
-//           currentGame.pattern_rewards.forEach(pattern => {
-//             initialCounts[pattern.pattern_id] = {
-//               claimed: 0,
-//               total: pattern.limit_count || 0,
-//               patternName: pattern.reward_name,
-//             };
-//           });
-//           setTotalPatternCounts(initialCounts);
-//         }
-//       }
-//     } catch (error) {
-//       console.log("Error fetching pattern rewards:", error);
-//     }
-//   };
-
-//   const fetchClaims = async () => {
-//     try {
-//       const token = await AsyncStorage.getItem("token");
-//       const response = await axios.get(
-//         `https://exilance.com/tambolatimez/public/api/user/claims/game/${gameId}/claims`,
-//         {
-//           headers: {
-//             Authorization: `Bearer ${token}`,
-//             Accept: "application/json",
-//           },
-//         }
-//       );
-
-//       if (response.data.success) {
-//         const newClaims = response.data.data.claims || [];
-//         const previousClaims = claimsRef.current;
-        
-//         // Update pattern counts
-//         updatePatternCounts(newClaims);
-        
-//         // Check for new or updated claims
-//         const notifications = [];
-        
-//         newClaims.forEach(newClaim => {
-//           const oldClaim = previousClaims.find(old => old.id === newClaim.id);
-          
-//           if (!oldClaim) {
-//             // New claim submission
-//             if (newClaim.claim_status === 'pending') {
-//               notifications.push({
-//                 type: 'new_claim',
-//                 claim: newClaim,
-//                 message: `🎉 ${newClaim.user_name} submitted a ${newClaim.reward_name} claim!`
-//               });
-//             }
-//           } else {
-//             // Check for status changes
-//             if (oldClaim.claim_status === 'pending' && newClaim.claim_status === 'approved') {
-//               // Claim got approved - WINNER!
-//               notifications.push({
-//                 type: 'claim_approved',
-//                 claim: newClaim,
-//                 message: `🏆 ${newClaim.user_name} WON ₹${newClaim.winning_amount} for ${newClaim.reward_name}! CONGRATULATIONS! 🎊`
-//               });
-//             } else if (oldClaim.claim_status === 'pending' && newClaim.claim_status === 'rejected') {
-//               // Claim got rejected
-//               notifications.push({
-//                 type: 'claim_rejected',
-//                 claim: newClaim,
-//                 message: `❌ ${newClaim.user_name}'s ${newClaim.reward_name} claim was rejected`
-//               });
-//             }
-//           }
-//         });
-        
-//         // Show notifications with delays to prevent overlapping
-//         if (notifications.length > 0) {
-//           notifications.forEach((notification, index) => {
-//             setTimeout(() => {
-//               showNotification(notification);
-//             }, index * 1500);
-//           });
-//         }
-        
-//         setClaims(newClaims);
-        
-//         if (!initialClaimsFetched) {
-//           setInitialClaimsFetched(true);
-//         }
-//       }
-//     } catch (error) {
-//       console.log("Error fetching claims:", error);
-//     }
-//   };
-
-//   const showNotification = (notification) => {
-//     const { type, claim, message } = notification;
-    
-//     // Set snackbar type based on notification type
-//     if (type === 'claim_approved') {
-//       setSnackbarType('success');
-//       startWinnerCelebration(claim);
-//     } else if (type === 'claim_rejected') {
-//       setSnackbarType('error');
-//     } else {
-//       setSnackbarType('info');
-//     }
-    
-//     setSnackbarMessage(message);
-//     setSnackbarVisible(true);
-    
-//     // Speak announcement
-//     if (audioEnabled.current) {
-//       setTimeout(() => {
-//         speakClaimAnnouncement(claim, type);
-//       }, 500);
-//     }
-//   };
-
-//   const startWinnerCelebration = (claim) => {
-//     setWinningMessage(`🏆 WINNER! 🏆`);
-//     setWinningUser(claim.user_name);
-//     setWinningAmount(claim.winning_amount);
-//     setWinningPattern(claim.reward_name);
-    
-//     // Reset animations
-//     celebrationOpacity.setValue(0);
-//     celebrationScale.setValue(0.5);
-//     celebrationTranslateY.setValue(50);
-
-//     // Show celebration
-//     setShowWinningCelebration(true);
-
-//     // Animate in
-//     Animated.parallel([
-//       Animated.timing(celebrationOpacity, {
-//         toValue: 1,
-//         duration: 300,
-//         easing: Easing.ease,
-//         useNativeDriver: true,
-//       }),
-//       Animated.timing(celebrationScale, {
-//         toValue: 1,
-//         duration: 400,
-//         easing: Easing.out(Easing.back(1.5)),
-//         useNativeDriver: true,
-//       }),
-//       Animated.timing(celebrationTranslateY, {
-//         toValue: 0,
-//         duration: 400,
-//         easing: Easing.out(Easing.back(1.5)),
-//         useNativeDriver: true,
-//       }),
-//     ]).start();
-
-//     // Start confetti animation
-//     startConfettiAnimationCelebration();
-
-//     // Auto close after 2 seconds
-//     setTimeout(() => {
-//       stopWinningCelebration();
-//     }, 2000);
-//   };
-
-//   const startConfettiAnimationCelebration = () => {
-//     confettiTranslateY.current.forEach((anim, index) => {
-//       anim.setValue(-50);
-//       Animated.timing(anim, {
-//         toValue: height + 50,
-//         duration: 1500 + Math.random() * 1000,
-//         delay: index * 100,
-//         easing: Easing.linear,
-//         useNativeDriver: true,
-//       }).start();
-//     });
-//   };
-
-//   const stopWinningCelebration = () => {
-//     Animated.parallel([
-//       Animated.timing(celebrationOpacity, {
-//         toValue: 0,
-//         duration: 300,
-//         easing: Easing.ease,
-//         useNativeDriver: true,
-//       }),
-//       Animated.timing(celebrationScale, {
-//         toValue: 0.5,
-//         duration: 300,
-//         easing: Easing.ease,
-//         useNativeDriver: true,
-//       }),
-//       Animated.timing(celebrationTranslateY, {
-//         toValue: 50,
-//         duration: 300,
-//         easing: Easing.ease,
-//         useNativeDriver: true,
-//       }),
-//     ]).start(() => {
-//       setShowWinningCelebration(false);
-//     });
-//   };
-
-//   const speakClaimAnnouncement = (claim, type) => {
-//     let announcement = '';
-    
-//     if (type === 'claim_approved') {
-//       announcement = `Congratulations! ${claim.user_name} has won ${claim.winning_amount} rupees for completing the ${claim.reward_name} pattern! Tambola!`;
-      
-//       Speech.speak(announcement, {
-//         language: 'en-US',
-//         pitch: voiceType === 'male' ? 0.9 : 1.2,
-//         rate: 0.9,
-//         volume: 1.0,
-//       });
-      
-//       setTimeout(() => {
-//         const celebration = "Congratulations to the winner!";
-//         Speech.speak(celebration, {
-//           language: 'en-US',
-//           pitch: voiceType === 'male' ? 1.0 : 1.3,
-//           rate: 1.0,
-//           volume: 1.0,
-//         });
-//       }, 3000);
-      
-//     } else if (type === 'new_claim') {
-//       const claimMessage = `${claim.user_name} has submitted a ${claim.reward_name} claim!`;
-      
-//       Speech.speak(claimMessage, {
-//         language: 'en-US',
-//         pitch: voiceType === 'male' ? 0.8 : 1.0,
-//         rate: 0.8,
-//       });
-
-//       setTimeout(() => {
-//         const tambolaAnnouncement = "Tambola!";
-//         Speech.speak(tambolaAnnouncement, {
-//           language: 'en-US',
-//           pitch: voiceType === 'male' ? 0.9 : 1.2,
-//           rate: 0.9,
-//           volume: 1.0,
-//         });
-//       }, 1500);
-//     } else if (type === 'claim_rejected') {
-//       const rejectionMessage = `${claim.user_name}'s ${claim.reward_name} claim has been rejected.`;
-      
-//       Speech.speak(rejectionMessage, {
-//         language: 'en-US',
-//         pitch: voiceType === 'male' ? 0.8 : 1.0,
-//         rate: 0.8,
-//       });
-//     }
-//   };
-
-//   const submitClaim = async (ticketId, pattern) => {
-//     if (submittingClaim) return;
-    
-//     try {
-//       setSubmittingClaim(true);
-//       const token = await AsyncStorage.getItem("token");
-      
-//       const ticket = myTickets.find(t => t.id === ticketId);
-//       if (!ticket) {
-//         showSnackbar("Ticket not found", 'error');
-//         return;
-//       }
-
-//       // Check if pattern can be claimed for this ticket
-//       const ticketPatterns = patternsByTicket[ticketId] || {};
-//       const patternOnTicket = ticketPatterns[pattern.pattern_id];
-      
-//       if (patternOnTicket && patternOnTicket.status !== 'rejected') {
-//         showSnackbar(`You have already claimed ${pattern.reward_name} on this ticket`, 'error');
-//         return;
-//       }
-
-//       // Check if pattern limit is reached globally
-//       const patternCount = totalPatternCounts[pattern.pattern_id];
-//       if (patternCount && patternCount.total > 0 && patternCount.claimed >= patternCount.total) {
-//         showSnackbar(`${pattern.reward_name} claim limit reached (${patternCount.claimed}/${patternCount.total})`, 'error');
-//         return;
-//       }
-
-//       const response = await axios.post(
-//         "https://exilance.com/tambolatimez/public/api/user/claims/submit",
-//         {
-//           game_id: parseInt(gameId),
-//           ticket_id: parseInt(ticketId),
-//           reward_name: pattern.reward_name,
-//           claim_evidence: `Pattern ${pattern.pattern_id} completed on ticket ${ticket.ticket_number}`,
-//           game_pattern_id: pattern.pattern_id,
-//         },
-//         {
-//           headers: {
-//             Authorization: `Bearer ${token}`,
-//             Accept: "application/json",
-//             "Content-Type": "application/json",
-//           },
-//         }
-//       );
-
-//       if (response.data.success) {
-//         showSnackbar(`Claim submitted for ${pattern.reward_name}! Waiting for approval.`, 'info');
-//         fetchClaims();
-//       } else {
-//         showSnackbar(response.data.message || "Failed to submit claim", 'error');
-//       }
-//     } catch (error) {
-//       console.log("Error submitting claim:", error);
-//       let errorMessage = "Failed to submit claim. Please try again.";
-
-//       if (error.response) {
-//         if (error.response.data && error.response.data.message) {
-//           errorMessage = error.response.data.message;
-//         } else if (error.response.data && error.response.data.errors) {
-//           const errors = error.response.data.errors;
-//           errorMessage = Object.values(errors).flat().join("\n");
-//         }
-//       }
-
-//       showSnackbar(errorMessage, 'error');
-//     } finally {
-//       setSubmittingClaim(false);
-//       setMenuVisible(false);
-//       setSelectedTicket(null);
-//     }
-//   };
-
-//   const showSnackbar = (message, type = 'info') => {
-//     setSnackbarType(type);
-//     setSnackbarMessage(message);
-//     setSnackbarVisible(true);
-//   };
-
-//   const startConfettiAnimation = () => {
-//     confettiAnimation.setValue(0);
-//     Animated.loop(
-//       Animated.sequence([
-//         Animated.timing(confettiAnimation, {
-//           toValue: 1,
-//           duration: 2000,
-//           easing: Easing.linear,
-//           useNativeDriver: true,
-//         }),
-//         Animated.timing(confettiAnimation, {
-//           toValue: 0,
-//           duration: 2000,
-//           easing: Easing.linear,
-//           useNativeDriver: true,
-//         }),
-//       ]),
-//       { iterations: -1 }
-//     ).start();
-//   };
-
-//   const stopConfettiAnimation = () => {
-//     confettiAnimation.stopAnimation();
-//     confettiAnimation.setValue(0);
-//   };
-
-//   const handleCloseGameEndModal = () => {
-//     stopConfettiAnimation();
-//     setShowGameEndModal(false);
-//     navigation.goBack();
-//   };
-
-//   const handleNavigateToClaim = () => {
-//     stopConfettiAnimation();
-//     setShowGameEndModal(false);
-//     if (myTickets.length > 0) {
-//       navigation.navigate('UserGameClaim', {
-//         gameId,
-//         gameName,
-//         gameData: gameStatus
-//       });
-//     } else {
-//       navigation.goBack();
-//     }
-//   };
-
-//   const handleViewWinners = () => {
-//     stopConfettiAnimation();
-//     setShowGameEndModal(false);
-//     navigation.navigate('UserGameWinners', {
-//       gameId,
-//       gameName,
-//       gameData: gameStatus,
-//       calledNumbers: calledNumbers
-//     });
-//   };
-
-//   const handleViewAllCalledNumbers = () => {
-//     navigation.navigate('UserCalledNumbers', {
-//       gameId,
-//       gameName,
-//       calledNumbers,
-//       voiceType,
-//       gameData: gameStatus
-//     });
-//   };
-
-//   const openMenu = (ticketId) => {
-//     setSelectedTicket(ticketId);
-//     setMenuVisible(true);
-//   };
-
-//   const closeMenu = () => {
-//     setMenuVisible(false);
-//     setSelectedTicket(null);
-//   };
-
-//   useEffect(() => {
-//     loadVoicePreference();
-//   }, []);
-
-//   const loadVoicePreference = async () => {
-//     try {
-//       const savedVoice = await AsyncStorage.getItem('voiceType');
-//       if (savedVoice) {
-//         setVoiceType(savedVoice);
-//       }
-//     } catch (error) {
-//       console.log("Error loading voice preference:", error);
-//     }
-//   };
-
-//   const saveVoicePreference = async (type) => {
-//     try {
-//       await AsyncStorage.setItem('voiceType', type);
-//       setVoiceType(type);
-//       setShowVoiceModal(false);
-//     } catch (error) {
-//       console.log("Error saving voice preference:", error);
-//     }
-//   };
-
-//   const onRefresh = async () => {
-//     setRefreshing(true);
-//     await fetchGameStatus();
-//     await fetchMyTickets();
-//     await checkChatStatus();
-//     await fetchClaims();
-//     await fetchPatternRewards();
-//     setRefreshing(false);
-//   };
-
-//   const fetchGameStatus = async () => {
-//     try {
-//       const token = await AsyncStorage.getItem("token");
-      
-//       const response = await axios.get(
-//         `https://exilance.com/tambolatimez/public/api/user/games/${gameId}/calling-status`,
-//         {
-//           headers: {
-//             Authorization: `Bearer ${token}`,
-//             Accept: "application/json",
-//           },
-//         }
-//       );
-
-//       if (response.data.success) {
-//         const data = response.data.data;
-//         setGameStatus(data.game);
-//         setCallingStatus(data.calling);
-//         setCalledNumbers(data.numbers.called_numbers || []);
-//         setLoading(false);
-//       }
-//     } catch (error) {
-//       console.log("Error fetching game status:", error);
-//       setLoading(false);
-//     }
-//   };
-
-//   const fetchMyTickets = async () => {
-//     try {
-//       const token = await AsyncStorage.getItem("token");
-//       const res = await axios.get(
-//         "https://exilance.com/tambolatimez/public/api/user/my-tickets",
-//         { headers: { Authorization: `Bearer ${token}` } }
-//       );
-
-//       if (res.data.success) {
-//         const tickets = res.data.tickets.data.filter((ticket) => ticket.game_id === parseInt(gameId));
-//         setMyTickets(tickets);
-//       }
-//     } catch (error) {
-//       console.log("Error fetching tickets:", error);
-//     }
-//   };
-
-//   const checkChatStatus = async () => {
-//     try {
-//       const token = await AsyncStorage.getItem("token");
-//       const response = await axios.get(
-//         `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/participants`,
-//         {
-//           headers: {
-//             Authorization: `Bearer ${token}`,
-//             Accept: "application/json",
-//           },
-//         }
-//       );
-
-//       if (response.data.success) {
-//         setParticipantCount(response.data.total_participants || 0);
-//         const tokenData = await AsyncStorage.getItem("user");
-//         if (tokenData) {
-//           const user = JSON.parse(tokenData);
-//           const isParticipant = response.data.data.some(p => p.id === user.id);
-//           setIsChatJoined(isParticipant);
-//         }
-//       }
-//     } catch (error) {
-//       console.log("Error checking chat status:", error);
-//     }
-//   };
-
-//   const joinChat = async () => {
-//     try {
-//       const token = await AsyncStorage.getItem("token");
-//       const response = await axios.post(
-//         `https://exilance.com/tambolatimez/public/api/games/${gameId}/chat/join`,
-//         {},
-//         {
-//           headers: {
-//             Authorization: `Bearer ${token}`,
-//             Accept: "application/json",
-//           },
-//         }
-//       );
-
-//       if (response.data.success) {
-//         setIsChatJoined(true);
-//         setParticipantCount(response.data.participant_count || 1);
-//         navigation.navigate('UserLiveChat', {
-//           gameId,
-//           gameName,
-//           participantCount: response.data.participant_count || 1
-//         });
-//       }
-//     } catch (error) {
-//       console.log("Error joining chat:", error);
-//     }
-//   };
-
-//   const speakNumber = (number) => {
-//     Speech.stop();
-    
-//     const numStr = number.toString();
-    
-//     if (numStr.length === 1) {
-//       const digitWord = getSingleDigitWord(number);
-//       const speechText = `Single digit ${digitWord}`;
-      
-//       const voiceConfig = {
-//         language: 'en-US',
-//         pitch: voiceType === 'male' ? 0.8 : 1.0,
-//         rate: 0.8,
-//       };
-      
-//       Speech.speak(speechText, voiceConfig);
-//       return;
-//     }
-    
-//     const singleDigits = numStr.split('').map(digit => {
-//       switch(digit) {
-//         case '0': return 'zero';
-//         case '1': return 'one';
-//         case '2': return 'two';
-//         case '3': return 'three';
-//         case '4': return 'four';
-//         case '5': return 'five';
-//         case '6': return 'six';
-//         case '7': return 'seven';
-//         case '8': return 'eight';
-//         case '9': return 'nine';
-//         default: return digit;
-//       }
-//     }).join(' ');
-    
-//     const fullNumberName = getNumberName(number);
-    
-//     const digitsSpeechText = `Number ${singleDigits}`;
-//     const digitsVoiceConfig = {
-//       language: 'en-US',
-//       pitch: voiceType === 'male' ? 0.8 : 1.0,
-//       rate: 0.8,
-//       onDone: () => {
-//         setTimeout(() => {
-//           const fullNameVoiceConfig = {
-//             language: 'en-US',
-//             pitch: voiceType === 'male' ? 0.9 : 1.1,
-//             rate: 0.9,
-//             volume: 1.0,
-//           };
-//           Speech.speak(fullNumberName, fullNameVoiceConfig);
-//         }, 20);
-//       }
-//     };
-    
-//     Speech.speak(digitsSpeechText, digitsVoiceConfig);
-//   };
-
-//   const getSingleDigitWord = (num) => {
-//     switch(num) {
-//       case 1: return 'one';
-//       case 2: return 'two';
-//       case 3: return 'three';
-//       case 4: return 'four';
-//       case 5: return 'five';
-//       case 6: return 'six';
-//       case 7: return 'seven';
-//       case 8: return 'eight';
-//       case 9: return 'nine';
-//       default: return 'zero';
-//     }
-//   };
-
-//   const getNumberName = (num) => {
-//     const numberNames = {
-//       1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
-//       6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten',
-//       11: 'eleven', 12: 'twelve', 13: 'thirteen', 14: 'fourteen', 15: 'fifteen',
-//       16: 'sixteen', 17: 'seventeen', 18: 'eighteen', 19: 'nineteen', 20: 'twenty',
-//       21: 'twenty-one', 22: 'twenty-two', 23: 'twenty-three', 24: 'twenty-four', 25: 'twenty-five',
-//       26: 'twenty-six', 27: 'twenty-seven', 28: 'twenty-eight', 29: 'twenty-nine', 30: 'thirty',
-//       31: 'thirty-one', 32: 'thirty-two', 33: 'thirty-three', 34: 'thirty-four', 35: 'thirty-five',
-//       36: 'thirty-six', 37: 'thirty-seven', 38: 'thirty-eight', 39: 'thirty-nine', 40: 'forty',
-//       41: 'forty-one', 42: 'forty-two', 43: 'forty-three', 44: 'forty-four', 45: 'forty-five',
-//       46: 'forty-six', 47: 'forty-seven', 48: 'forty-eight', 49: 'forty-nine', 50: 'fifty',
-//       51: 'fifty-one', 52: 'fifty-two', 53: 'fifty-three', 54: 'fifty-four', 55: 'fifty-five',
-//       56: 'fifty-six', 57: 'fifty-seven', 58: 'fifty-eight', 59: 'fifty-nine', 60: 'sixty',
-//       61: 'sixty-one', 62: 'sixty-two', 63: 'sixty-three', 64: 'sixty-four', 65: 'sixty-five',
-//       66: 'sixty-six', 67: 'sixty-seven', 68: 'sixty-eight', 69: 'sixty-nine', 70: 'seventy',
-//       71: 'seventy-one', 72: 'seventy-two', 73: 'seventy-three', 74: 'seventy-four', 75: 'seventy-five',
-//       76: 'seventy-six', 77: 'seventy-seven', 78: 'seventy-eight', 79: 'seventy-nine', 80: 'eighty',
-//       81: 'eighty-one', 82: 'eighty-two', 83: 'eighty-three', 84: 'eighty-four', 85: 'eighty-five',
-//       86: 'eighty-six', 87: 'eighty-seven', 88: 'eighty-eight', 89: 'eighty-nine', 90: 'ninety'
-//     };
-    
-//     return numberNames[num] || num.toString();
-//   };
-
-//   useEffect(() => {
-//     if (calledNumbers.length > 0) {
-//       const latestNumber = calledNumbers[calledNumbers.length - 1];
-      
-//       if (lastCalledRef.current !== latestNumber) {
-//         lastCalledRef.current = latestNumber;
-        
-//         setTimeout(() => {
-//           speakNumber(latestNumber);
-//         }, 500);
-//       }
-//     }
-//   }, [calledNumbers]);
-
-//   const markNumberOnTicket = async (ticketId, number) => {
-//     try {
-//       setMarkingLoading(true);
-//       const token = await AsyncStorage.getItem("token");
-      
-//       await axios.post(
-//         "https://exilance.com/tambolatimez/public/api/user/tickets/mark-multiple",
-//         {
-//           ticket_marks: [
-//             {
-//               ticket_id: ticketId,
-//               numbers: [number]
-//             }
-//           ]
-//         },
-//         {
-//           headers: {
-//             Authorization: `Bearer ${token}`,
-//             Accept: "application/json",
-//             "Content-Type": "application/json"
-//           }
-//         }
-//       );
-
-//       updateTicketState(ticketId, number, true);
-      
-//     } catch (error) {
-//       console.log("Error marking number:", error);
-//     } finally {
-//       setMarkingLoading(false);
-//     }
-//   };
-
-//   const unmarkNumberOnTicket = async (ticketId, number) => {
-//     try {
-//       setMarkingLoading(true);
-//       const token = await AsyncStorage.getItem("token");
-      
-//       await axios.post(
-//         `https://exilance.com/tambolatimez/public/api/user/tickets/${ticketId}/unmark`,
-//         {
-//           number: number
-//         },
-//         {
-//           headers: {
-//             Authorization: `Bearer ${token}`,
-//             Accept: "application/json",
-//             "Content-Type": "application/json"
-//           }
-//         }
-//       );
-
-//       updateTicketState(ticketId, number, false);
-      
-//     } catch (error) {
-//       console.log("Error unmarking number:", error);
-//     } finally {
-//       setMarkingLoading(false);
-//     }
-//   };
-
-//   const updateTicketState = (ticketId, number, isMarked) => {
-//     setMyTickets(prevTickets => 
-//       prevTickets.map(ticket => {
-//         if (ticket.id === ticketId) {
-//           const updatedTicketData = ticket.ticket_data.map(row =>
-//             row.map(cell => {
-//               if (cell.number === number) {
-//                 return { ...cell, is_marked: isMarked };
-//               }
-//               return cell;
-//             })
-//           );
-          
-//           return { 
-//             ...ticket, 
-//             ticket_data: updatedTicketData 
-//           };
-//         }
-//         return ticket;
-//       })
-//     );
-//   };
-
-//   const handleNumberClick = async (ticketId, cellNumber, isCurrentlyMarked) => {
-//     if (cellNumber === null || markingLoading) return;
-    
-//     if (isCurrentlyMarked) {
-//       await unmarkNumberOnTicket(ticketId, cellNumber);
-//     } else {
-//       await markNumberOnTicket(ticketId, cellNumber);
-//     }
-//   };
-
-//   const processTicketData = (ticketData) => {
-//     if (!ticketData || !Array.isArray(ticketData)) return Array(3).fill(Array(9).fill(null));
-    
-//     if (ticketData[0] && Array.isArray(ticketData[0]) && ticketData[0][0] && typeof ticketData[0][0] === 'object') {
-//       const processedGrid = Array(3).fill().map(() => Array(9).fill(null));
-      
-//       ticketData.forEach((row, rowIndex) => {
-//         row.forEach((cell) => {
-//           if (cell && cell.number !== null && cell.column !== undefined) {
-//             processedGrid[rowIndex][cell.column] = cell;
-//           }
-//         });
-//       });
-      
-//       return processedGrid;
-//     } else if (ticketData[0] && Array.isArray(ticketData[0])) {
-//       return ticketData.map(row => row.map(cell => cell));
-//     }
-    
-//     return Array(3).fill(Array(9).fill(null));
-//   };
-
-//   const renderTicketGrid = (ticketData, ticketId) => {
-//     const processedData = processTicketData(ticketData);
-    
-//     return (
-//       <View style={[styles.ticketGridContainer, { height: TICKET_GRID_HEIGHT }]}>
-//         {processedData.map((row, rowIndex) => (
-//           <View key={`row-${rowIndex}`} style={styles.ticketRow}>
-//             {row.map((cell, colIndex) => {
-//               const cellObj = cell;
-//               const cellNumber = cellObj?.number;
-//               const isMarked = cellObj?.is_marked || false;
-//               const isEmpty = cellNumber === null || cellNumber === undefined;
-              
-//               let cellBackgroundColor;
-//               let textColor;
-              
-//               if (isEmpty) {
-//                 cellBackgroundColor = "#F5F5F5";
-//                 textColor = "transparent";
-//               } else if (isMarked) {
-//                 cellBackgroundColor = "#4CAF50";
-//                 textColor = "#FFFFFF";
-//               } else {
-//                 cellBackgroundColor = "#80CBC4";
-//                 textColor = "#FFFFFF";
-//               }
-              
-//               return (
-//                 <TouchableOpacity
-//                   key={`cell-${rowIndex}-${colIndex}`}
-//                   style={[
-//                     styles.ticketCell,
-//                     { 
-//                       width: CELL_SIZE,
-//                       height: CELL_SIZE,
-//                       backgroundColor: cellBackgroundColor,
-//                     },
-//                     isEmpty && styles.emptyCell,
-//                     isMarked && styles.markedCell,
-//                     !isEmpty && !isMarked && styles.numberCell,
-//                   ]}
-//                   onPress={() => cellNumber && handleNumberClick(ticketId, cellNumber, isMarked)}
-//                   onLongPress={() => cellNumber && speakNumber(cellNumber)}
-//                   disabled={isEmpty || markingLoading}
-//                 >
-//                   {!isEmpty && (
-//                     <Text style={[styles.cellNumber, { color: textColor }]}>
-//                       {cellNumber}
-//                     </Text>
-//                   )}
-//                 </TouchableOpacity>
-//               );
-//             })}
-//           </View>
-//         ))}
-//       </View>
-//     );
-//   };
-
-//   const renderTicketItem = ({ item, index }) => (
-//     <View style={styles.ticketItemContainer}>
-//       <View style={styles.ticketHeader}>
-//         <View style={styles.ticketNumberContainer}>
-//           <Image
-//             source={{ uri: GAME_IMAGES.ticket }}
-//             style={styles.ticketIcon}
-//           />
-//           <Text style={styles.ticketNumber}>Ticket #{item.ticket_number}</Text>
-//         </View>
-        
-//         <TouchableOpacity
-//           style={styles.menuButton}
-//           onPress={() => openMenu(item.id)}
-//           ref={el => menuRefs.current[index] = el}
-//         >
-//           <Ionicons name="ellipsis-vertical" size={20} color="#6C757D" />
-//         </TouchableOpacity>
-//       </View>
-
-//       <View style={styles.ticketGridWrapper}>
-//         {renderTicketGrid(item.ticket_data, item.id)}
-//       </View>
-//     </View>
-//   );
-
-//   const renderPatternMenu = () => {
-//     if (!selectedTicket) return null;
-
-//     const ticketPatterns = patternsByTicket[selectedTicket] || {};
-//     const availablePatterns = patternRewards.filter(pattern => {
-//       const patternCount = totalPatternCounts[pattern.pattern_id];
-//       const patternOnTicket = ticketPatterns[pattern.pattern_id];
-      
-//       // Pattern is disabled if:
-//       // 1. Already claimed on this ticket (and not rejected)
-//       // 2. Global limit is reached
-//       return !(
-//         (patternOnTicket && patternOnTicket.status !== 'rejected') ||
-//         (patternCount && patternCount.total > 0 && patternCount.claimed >= patternCount.total)
-//       );
-//     });
-
-//     return (
-//       <Modal
-//         transparent={true}
-//         visible={menuVisible}
-//         animationType="fade"
-//         onRequestClose={closeMenu}
-//       >
-//         <TouchableOpacity
-//           style={styles.menuOverlay}
-//           activeOpacity={1}
-//           onPress={closeMenu}
-//         >
-//           <View style={styles.menuContainer}>
-//             <View style={styles.menuHeader}>
-//               <Text style={styles.menuTitle}>Submit Claim</Text>
-//               <TouchableOpacity onPress={closeMenu}>
-//                 <Ionicons name="close" size={24} color="#6C757D" />
-//               </TouchableOpacity>
-//             </View>
-            
-//             <ScrollView style={styles.patternsMenuScroll}>
-//               {availablePatterns.length === 0 ? (
-//                 <View style={styles.noPatternsContainer}>
-//                   <Ionicons name="alert-circle-outline" size={40} color="#FFD700" />
-//                   <Text style={styles.noPatternsText}>No available patterns for this ticket</Text>
-//                   <Text style={styles.noPatternsSubtext}>
-//                     All patterns have been claimed or limits reached
-//                   </Text>
-//                 </View>
-//               ) : (
-//                 availablePatterns.map((pattern, index) => {
-//                   const patternCount = totalPatternCounts[pattern.pattern_id] || {};
-//                   const patternOnTicket = ticketPatterns[pattern.pattern_id];
-//                   const isDisabled = patternOnTicket && patternOnTicket.status !== 'rejected';
-//                   const isLimitReached = patternCount.total > 0 && patternCount.claimed >= patternCount.total;
-                  
-//                   return (
-//                     <TouchableOpacity
-//                       key={index}
-//                       style={[
-//                         styles.patternMenuItem,
-//                         isDisabled && styles.disabledPatternItem
-//                       ]}
-//                       onPress={() => submitClaim(selectedTicket, pattern)}
-//                       disabled={submittingClaim || isDisabled || isLimitReached}
-//                     >
-//                       <View style={styles.patternMenuItemContent}>
-//                         <Ionicons 
-//                           name={isDisabled ? "checkmark-circle" : "trophy-outline"} 
-//                           size={20} 
-//                           color={isDisabled ? SUCCESS_COLOR : SECONDARY_COLOR} 
-//                         />
-//                         <View style={styles.patternMenuItemInfo}>
-//                           <Text style={styles.patternMenuItemName}>
-//                             {pattern.reward_name}
-//                             {isDisabled && (
-//                               <Text style={styles.claimedBadge}> ✓ Claimed</Text>
-//                             )}
-//                           </Text>
-//                           <Text style={styles.patternMenuItemDesc} numberOfLines={2}>
-//                             Prize: ₹{pattern.amount}
-//                             {patternCount.total > 0 && (
-//                               <Text style={styles.patternLimitText}>
-//                                 {" "}• Limit: {patternCount.claimed}/{patternCount.total}
-//                               </Text>
-//                             )}
-//                           </Text>
-//                         </View>
-//                         {submittingClaim && patternOnTicket ? (
-//                           <ActivityIndicator size="small" color={SECONDARY_COLOR} />
-//                         ) : (
-//                           <View style={styles.patternStatusContainer}>
-//                             {isLimitReached && (
-//                               <Ionicons name="lock-closed" size={16} color={DANGER_COLOR} />
-//                             )}
-//                           </View>
-//                         )}
-//                       </View>
-//                     </TouchableOpacity>
-//                   );
-//                 })
-//               )}
-//             </ScrollView>
-//           </View>
-//         </TouchableOpacity>
-//       </Modal>
-//     );
-//   };
-
-//   const renderWinningCelebration = () => {
-//     if (!showWinningCelebration) return null;
-
-//     return (
-//       <Modal
-//         transparent={true}
-//         visible={showWinningCelebration}
-//         animationType="fade"
-//         onRequestClose={stopWinningCelebration}
-//       >
-//         <View style={styles.winningOverlay}>
-//           {/* Confetti Animation */}
-//           {confettiTranslateY.current.map((anim, index) => (
-//             <Animated.View
-//               key={`confetti-${index}`}
-//               style={[
-//                 styles.confettiParticle,
-//                 {
-//                   left: `${(index * 5) % 100}%`,
-//                   transform: [{ translateY: anim }],
-//                   backgroundColor: ['#FF6B35', '#40E0D0', '#FFD700', '#4CAF50'][index % 4],
-//                 }
-//               ]}
-//             />
-//           ))}
-
-//           {/* Celebration Popup */}
-//           <Animated.View style={[
-//             styles.celebrationContent,
-//             {
-//               opacity: celebrationOpacity,
-//               transform: [
-//                 { scale: celebrationScale },
-//                 { translateY: celebrationTranslateY }
-//               ],
-//             }
-//           ]}>
-//             <View style={styles.celebrationInner}>
-//               <Ionicons name="trophy" size={40} color="#FFD700" style={styles.trophyIcon} />
-              
-//               <Text style={styles.winningTitle}>{winningMessage}</Text>
-              
-//               <View style={styles.winnerInfo}>
-//                 <Text style={styles.winnerName}>{winningUser}</Text>
-//                 <Text style={styles.winnerPattern}>{winningPattern}</Text>
-//               </View>
-              
-//               <View style={styles.prizeAmountContainer}>
-//                 <Text style={styles.prizeAmount}>₹{winningAmount}</Text>
-//                 <Text style={styles.prizeLabel}>WINNINGS</Text>
-//               </View>
-              
-//               <View style={styles.celebrationMessage}>
-//                 <Ionicons name="sparkles" size={16} color="#FFD700" />
-//                 <Text style={styles.celebrationText}>CONGRATULATIONS!</Text>
-//                 <Ionicons name="sparkles" size={16} color="#FFD700" />
-//               </View>
-//             </View>
-
-//             <TouchableOpacity
-//               style={styles.closeCelebrationButton}
-//               onPress={stopWinningCelebration}
-//             >
-//               <Text style={styles.closeCelebrationText}>Continue</Text>
-//             </TouchableOpacity>
-//           </Animated.View>
-//         </View>
-//       </Modal>
-//     );
-//   };
-
-//   const getSnackbarStyle = () => {
-//     switch (snackbarType) {
-//       case 'success':
-//         return { backgroundColor: '#4CAF50' };
-//       case 'error':
-//         return { backgroundColor: '#FF5252' };
-//       case 'warning':
-//         return { backgroundColor: '#FF9800' };
-//       default:
-//         return { backgroundColor: '#40E0D0' };
-//     }
-//   };
-
-//   if (loading) {
-//     return (
-//       <View style={styles.loadingContainer}>
-//         <ActivityIndicator size="large" color="#40E0D0" />
-//         <Text style={styles.loadingText}>Loading Game Room...</Text>
-//       </View>
-//     );
-//   }
-
-//   return (
-//     <SafeAreaView style={styles.safeArea}>
-//       <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
-
-//       {/* Winning Celebration Modal */}
-//       {renderWinningCelebration()}
-
-//       {/* Game End Modal */}
-//       <Modal
-//         animationType="fade"
-//         transparent={true}
-//         visible={showGameEndModal}
-//         onRequestClose={handleCloseGameEndModal}
-//       >
-//         <View style={styles.gameEndModalOverlay}>
-//           <Animated.View 
-//             style={[
-//               styles.confettiContainer,
-//               {
-//                 transform: [{
-//                   translateY: confettiAnimation.interpolate({
-//                     inputRange: [0, 1],
-//                     outputRange: [0, -20]
-//                   })
-//                 }]
-//               }
-//             ]}
-//           >
-//             <Image
-//               source={{ uri: GAME_IMAGES.confetti }}
-//               style={styles.confettiImage}
-//             />
-//           </Animated.View>
-          
-//           <View style={styles.gameEndModalContent}>
-//             <View style={styles.gameEndModalHeader}>
-//               <Image
-//                 source={{ uri: GAME_IMAGES.trophy }}
-//                 style={styles.gameEndTrophy}
-//               />
-//               <Text style={styles.gameEndModalTitle}>Game Complete! 🎉</Text>
-//             </View>
-            
-//             <View style={styles.gameEndModalBody}>
-//               <Text style={styles.gameEndCongratulations}>
-//                 Congratulations!
-//               </Text>
-//               <Text style={styles.gameEndMessage}>
-//                 All 90 numbers have been called! The game has ended.
-//               </Text>
-              
-//               <View style={styles.gameEndStats}>
-//                 <View style={styles.endStatItem}>
-//                   <Text style={styles.endStatValue}>{calledNumbers.length}</Text>
-//                   <Text style={styles.endStatLabel}>Numbers Called</Text>
-//                 </View>
-//                 <View style={styles.endStatItem}>
-//                   <Text style={styles.endStatValue}>{myTickets.length}</Text>
-//                   <Text style={styles.endStatLabel}>Your Tickets</Text>
-//                 </View>
-//                 <View style={styles.endStatItem}>
-//                   <Text style={styles.endStatValue}>
-//                     {myTickets.flatMap(t => 
-//                       t.ticket_data.flat().filter(cell => cell.is_marked)
-//                     ).length}
-//                   </Text>
-//                   <Text style={styles.endStatLabel}>Marked Numbers</Text>
-//                 </View>
-//               </View>
-              
-//               <Text style={styles.gameEndThanks}>
-//                 Thank you for playing! Check out the winners and claim your prizes.
-//               </Text>
-//             </View>
-            
-//             <View style={styles.gameEndModalFooter}>
-//               <TouchableOpacity
-//                 style={styles.viewWinnersButton}
-//                 onPress={handleViewWinners}
-//               >
-//                 <Ionicons name="trophy" size={20} color="#FFF" />
-//                 <Text style={styles.viewWinnersButtonText}>View Winners</Text>
-//               </TouchableOpacity>
-              
-//               <TouchableOpacity
-//                 style={styles.closeButton}
-//                 onPress={handleCloseGameEndModal}
-//               >
-//                 <Text style={styles.closeButtonText}>Exit Game Room</Text>
-//               </TouchableOpacity>
-//             </View>
-//           </View>
-//         </View>
-//       </Modal>
-
-//       {/* Voice Selection Modal */}
-//       <Modal
-//         animationType="slide"
-//         transparent={true}
-//         visible={showVoiceModal}
-//         onRequestClose={() => setShowVoiceModal(false)}
-//       >
-//         <View style={styles.modalOverlay}>
-//           <View style={styles.modalContent}>
-//             <View style={styles.modalHeader}>
-//               <Text style={styles.modalTitle}>Select Voice Type</Text>
-//               <TouchableOpacity
-//                 onPress={() => setShowVoiceModal(false)}
-//                 style={styles.modalCloseButton}
-//               >
-//                 <Ionicons name="close" size={24} color="#6C757D" />
-//               </TouchableOpacity>
-//             </View>
-            
-//             <Text style={styles.modalSubtitle}>
-//               Choose your preferred voice for number announcements
-//             </Text>
-            
-//             <TouchableOpacity
-//               style={[
-//                 styles.voiceOption,
-//                 voiceType === 'female' && styles.selectedVoiceOption
-//               ]}
-//               onPress={() => saveVoicePreference('female')}
-//             >
-//               <View style={styles.voiceOptionIcon}>
-//                 <Ionicons 
-//                   name="female" 
-//                   size={24} 
-//                   color={voiceType === 'female' ? "#40E0D0" : "#6C757D"} 
-//                 />
-//               </View>
-//               <View style={styles.voiceOptionInfo}>
-//                 <Text style={styles.voiceOptionName}>Female Voice</Text>
-//                 <Text style={styles.voiceOptionDesc}>Higher pitch, clear pronunciation</Text>
-//               </View>
-//               {voiceType === 'female' && (
-//                 <Ionicons name="checkmark-circle" size={24} color="#40E0D0" />
-//               )}
-//             </TouchableOpacity>
-            
-//             <TouchableOpacity
-//               style={[
-//                 styles.voiceOption,
-//                 voiceType === 'male' && styles.selectedVoiceOption
-//               ]}
-//               onPress={() => saveVoicePreference('male')}
-//             >
-//               <View style={styles.voiceOptionIcon}>
-//                 <Ionicons 
-//                   name="male" 
-//                   size={24} 
-//                   color={voiceType === 'male' ? "#40E0D0" : "#6C757D"} 
-//                 />
-//               </View>
-//               <View style={styles.voiceOptionInfo}>
-//                 <Text style={styles.voiceOptionName}>Male Voice</Text>
-//                 <Text style={styles.voiceOptionDesc}>Lower pitch, deeper tone</Text>
-//               </View>
-//               {voiceType === 'male' && (
-//                 <Ionicons name="checkmark-circle" size={24} color="#40E0D0" />
-//               )}
-//             </TouchableOpacity>
-            
-//             <TouchableOpacity
-//               style={styles.testVoiceButton}
-//               onPress={() => {
-//                 if (calledNumbers.length > 0) {
-//                   speakNumber(calledNumbers[calledNumbers.length - 1]);
-//                 } else {
-//                   speakNumber(25);
-//                 }
-//               }}
-//             >
-//               <Ionicons name="volume-high" size={20} color="#FFF" />
-//               <Text style={styles.testVoiceButtonText}>Test Voice</Text>
-//             </TouchableOpacity>
-//           </View>
-//         </View>
-//       </Modal>
-
-//       {/* Pattern Menu Modal */}
-//       {renderPatternMenu()}
-
-//       {/* Header */}
-//       <View style={styles.header}>
-//         <View style={styles.headerTop}>
-//           <TouchableOpacity
-//             style={styles.backButton}
-//             onPress={() => navigation.goBack()}
-//           >
-//             <Ionicons name="arrow-back" size={24} color="#40E0D0" />
-//           </TouchableOpacity>
-          
-//           <View style={styles.headerTextContainer}>
-//             <Text style={styles.gameName} numberOfLines={1}>
-//               {gameName}
-//             </Text>
-//             <View style={styles.gameCodeContainer}>
-//               <Ionicons name="game-controller" size={16} color="#6C757D" />
-//               <Text style={styles.gameCode}>Game Room</Text>
-//             </View>
-//           </View>
-
-//           <View style={styles.headerActions}>
-//             <TouchableOpacity
-//               style={styles.voiceButton}
-//               onPress={() => setShowVoiceModal(true)}
-//             >
-//               <Image
-//                 source={{ uri: GAME_IMAGES.voice }}
-//                 style={styles.voiceButtonIcon}
-//               />
-//               <Text style={styles.voiceButtonText}>
-//                 {voiceType === 'male' ? 'Male' : 'Female'}
-//               </Text>
-//             </TouchableOpacity>
-//           </View>
-//         </View>
-//       </View>
-
-//       <ScrollView
-//         style={styles.container}
-//         showsVerticalScrollIndicator={false}
-//         refreshControl={
-//           <RefreshControl
-//             refreshing={refreshing}
-//             onRefresh={onRefresh}
-//             tintColor="#40E0D0"
-//             colors={["#40E0D0"]}
-//             progressViewOffset={20}
-//           />
-//         }
-//         contentContainerStyle={styles.scrollContent}
-//       >
-//         {/* Content */}
-//         <View style={styles.content}>
-//           {/* Last Called Number Card */}
-//           <View style={styles.card}>
-//             <View style={styles.cardPattern} />
-            
-//             {calledNumbers.length > 0 ? (
-//               <View style={styles.compactNumberDisplay}>
-//                 {/* Left side - Last Called Number */}
-//                 <View style={styles.lastNumberLeft}>
-//                   <View style={styles.sectionHeader}>
-//                     <Image
-//                       source={{ uri: GAME_IMAGES.megaphone }}
-//                       style={styles.sectionIcon}
-//                     />
-//                     <Text style={styles.sectionTitle}>Last Called</Text>
-//                   </View>
-                  
-//                   <TouchableOpacity
-//                     style={styles.compactLastNumberContainer}
-//                     onPress={() => speakNumber(calledNumbers[calledNumbers.length - 1])}
-//                     activeOpacity={0.8}
-//                   >
-//                     <Text style={styles.compactLastNumber}>
-//                       {calledNumbers[calledNumbers.length - 1]}
-//                     </Text>
-//                     <Text style={styles.compactLastNumberLabel}>
-//                       {calledNumbers.length >= 90 
-//                         ? "Game Completed" 
-//                         : `Tap to hear`}
-//                     </Text>
-//                   </TouchableOpacity>
-//                 </View>
-
-//                 {/* Right side - Recent Numbers */}
-//                 <View style={styles.recentNumbersRight}>
-//                   <View style={styles.sectionHeader}>
-//                     <Image
-//                       source={{ uri: GAME_IMAGES.numbers }}
-//                       style={styles.sectionIcon}
-//                     />
-//                     <Text style={styles.sectionTitle}>Recent</Text>
-//                     <TouchableOpacity
-//                       style={styles.voiceIndicator}
-//                       onPress={() => setShowVoiceModal(true)}
-//                     >
-//                       <Ionicons 
-//                         name={voiceType === 'male' ? "male" : "female"} 
-//                         size={16} 
-//                         color="#40E0D0" 
-//                       />
-//                     </TouchableOpacity>
-//                   </View>
-                  
-//                   <View style={styles.recentNumbersGrid}>
-//                     {calledNumbers.slice(-4).reverse().map((num, index) => (
-//                       <TouchableOpacity
-//                         key={index}
-//                         style={[
-//                           styles.numberChip,
-//                           index === 0 && styles.latestChip
-//                         ]}
-//                         onPress={() => speakNumber(num)}
-//                       >
-//                         <Text style={[
-//                           styles.numberChipText,
-//                           index === 0 && styles.latestChipText
-//                         ]}>
-//                           {num}
-//                         </Text>
-//                       </TouchableOpacity>
-//                     ))}
-                    
-//                     {calledNumbers.length > 4 && (
-//                       <TouchableOpacity
-//                         style={styles.viewMoreButton}
-//                         onPress={handleViewAllCalledNumbers}
-//                       >
-//                         <Text style={styles.viewMoreText}>View More</Text>
-//                         <Ionicons name="chevron-forward" size={14} color="#40E0D0" />
-//                       </TouchableOpacity>
-//                     )}
-//                   </View>
-//                 </View>
-//               </View>
-//             ) : (
-//               <View style={styles.waitingSection}>
-//                 <Ionicons name="hourglass-outline" size={40} color="#FFD700" />
-//                 <Text style={styles.waitingText}>
-//                   Waiting for numbers to be called...
-//                 </Text>
-//               </View>
-//             )}
-//           </View>
-
-//           {/* My Tickets Section */}
-//           <View style={styles.ticketsSection}>
-//             {myTickets.length === 0 ? (
-//               <View style={styles.emptyTicketsContainer}>
-//                 <Image
-//                   source={{ uri: GAME_IMAGES.empty }}
-//                   style={styles.emptyIcon}
-//                 />
-//                 <Text style={styles.emptyTitle}>No Tickets Allocated</Text>
-//                 <Text style={styles.emptySubtitle}>
-//                   You haven't been allocated any tickets for this game yet
-//                 </Text>
-//               </View>
-//             ) : (
-//               <>
-//                 {/* Tickets List */}
-//                 <View style={styles.ticketsList}>
-//                   {myTickets.map((ticket, index) => (
-//                     <View key={ticket.id} style={styles.ticketWrapper}>
-//                       {renderTicketItem({ item: ticket, index })}
-//                     </View>
-//                   ))}
-//                 </View>
-
-//                 <Text style={styles.ticketsHint}>
-//                   Tap numbers to mark/unmark them • Long press to hear number • Tap ⋮ to submit claim
-//                 </Text>
-//               </>
-//             )}
-//           </View>
-//         </View>
-
-//         {/* Bottom Space */}
-//         <View style={styles.bottomSpace} />
-//       </ScrollView>
-
-//       {/* Floating Chat Button */}
-//       <TouchableOpacity
-//         style={styles.floatingChatButton}
-//         onPress={joinChat}
-//         activeOpacity={0.9}
-//       >
-//         <View style={styles.chatButtonContent}>
-//           <Ionicons name="chatbubble-ellipses" size={22} color="#FFF" />
-//           {participantCount > 0 && (
-//             <View style={styles.chatBadge}>
-//               <Text style={styles.chatBadgeText}>
-//                 {participantCount > 99 ? '99+' : participantCount}
-//               </Text>
-//             </View>
-//           )}
-//         </View>
-//         <Text style={styles.chatButtonText}>
-//           {isChatJoined ? 'Live Chat' : 'Join Chat'}
-//         </Text>
-//       </TouchableOpacity>
-
-//       {/* Snackbar for Notifications */}
-//       <Snackbar
-//         visible={snackbarVisible}
-//         onDismiss={() => setSnackbarVisible(false)}
-//         duration={5000}
-//         style={[styles.snackbar, getSnackbarStyle()]}
-//       >
-//         <View style={styles.snackbarContent}>
-//           {snackbarType === 'success' && (
-//             <Ionicons name="trophy" size={20} color="#FFF" style={styles.snackbarIcon} />
-//           )}
-//           {snackbarType === 'error' && (
-//             <Ionicons name="close-circle" size={20} color="#FFF" style={styles.snackbarIcon} />
-//           )}
-//           {snackbarType === 'info' && (
-//             <Ionicons name="information-circle" size={20} color="#FFF" style={styles.snackbarIcon} />
-//           )}
-//           <Text style={styles.snackbarText}>{snackbarMessage}</Text>
-//         </View>
-//       </Snackbar>
-//     </SafeAreaView>
-//   );
-// };
-
-// const styles = StyleSheet.create({
-//   safeArea: {
-//     flex: 1,
-//     backgroundColor: "#F8F9FA",
-//   },
-//   container: {
-//     flex: 1,
-//   },
-//   scrollContent: {
-//     paddingBottom: 20,
-//   },
-//   content: {
-//     padding: 12,
-//     zIndex: 1,
-//   },
-//   // Winning Celebration Styles
-//   winningOverlay: {
-//     flex: 1,
-//     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     position: 'absolute',
-//     top: 0,
-//     left: 0,
-//     right: 0,
-//     bottom: 0,
-//     zIndex: 9999,
-//   },
-//   celebrationContent: {
-//     backgroundColor: '#FFFFFF',
-//     borderRadius: 20,
-//     padding: 20,
-//     alignItems: 'center',
-//     width: '80%',
-//     maxWidth: 320,
-//     shadowColor: '#FFD700',
-//     shadowOffset: { width: 0, height: 10 },
-//     shadowOpacity: 0.4,
-//     shadowRadius: 15,
-//     elevation: 15,
-//     borderWidth: 3,
-//     borderColor: '#FFD700',
-//   },
-//   celebrationInner: {
-//     alignItems: 'center',
-//     marginBottom: 15,
-//     width: '100%',
-//   },
-//   trophyIcon: {
-//     marginBottom: 10,
-//     shadowColor: '#FFD700',
-//     shadowOffset: { width: 0, height: 2 },
-//     shadowOpacity: 0.6,
-//     shadowRadius: 4,
-//   },
-//   winningTitle: {
-//     fontSize: 20,
-//     fontWeight: '900',
-//     color: '#FF6B35',
-//     textAlign: 'center',
-//     marginBottom: 12,
-//     textShadowColor: 'rgba(255, 215, 0, 0.3)',
-//     textShadowOffset: { width: 1, height: 1 },
-//     textShadowRadius: 2,
-//   },
-//   winnerInfo: {
-//     backgroundColor: 'rgba(64, 224, 208, 0.1)',
-//     padding: 12,
-//     borderRadius: 12,
-//     alignItems: 'center',
-//     marginBottom: 15,
-//     borderWidth: 1,
-//     borderColor: '#40E0D0',
-//     width: '100%',
-//   },
-//   winnerName: {
-//     fontSize: 18,
-//     fontWeight: '800',
-//     color: '#212529',
-//     marginBottom: 4,
-//     textAlign: 'center',
-//   },
-//   winnerPattern: {
-//     fontSize: 14,
-//     color: '#FF6B35',
-//     fontWeight: '600',
-//     textAlign: 'center',
-//   },
-//   prizeAmountContainer: {
-//     backgroundColor: 'rgba(255, 107, 53, 0.1)',
-//     padding: 15,
-//     borderRadius: 15,
-//     alignItems: 'center',
-//     marginBottom: 15,
-//     borderWidth: 2,
-//     borderColor: '#FF6B35',
-//     width: '100%',
-//   },
-//   prizeAmount: {
-//     fontSize: 32,
-//     fontWeight: '900',
-//     color: '#FF6B35',
-//     textShadowColor: 'rgba(255, 107, 53, 0.2)',
-//     textShadowOffset: { width: 1, height: 1 },
-//     textShadowRadius: 2,
-//     marginBottom: 4,
-//   },
-//   prizeLabel: {
-//     fontSize: 12,
-//     fontWeight: '700',
-//     color: '#6C757D',
-//     letterSpacing: 1,
-//   },
-//   celebrationMessage: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     backgroundColor: 'rgba(255, 215, 0, 0.1)',
-//     paddingHorizontal: 15,
-//     paddingVertical: 8,
-//     borderRadius: 20,
-//     borderWidth: 1,
-//     borderColor: '#FFD700',
-//   },
-//   celebrationText: {
-//     fontSize: 14,
-//     fontWeight: '800',
-//     color: '#212529',
-//     marginHorizontal: 8,
-//   },
-//   closeCelebrationButton: {
-//     backgroundColor: '#40E0D0',
-//     paddingHorizontal: 25,
-//     paddingVertical: 10,
-//     borderRadius: 20,
-//     borderWidth: 2,
-//     borderColor: '#FFFFFF',
-//     width: '100%',
-//     alignItems: 'center',
-//   },
-//   closeCelebrationText: {
-//     color: '#FFFFFF',
-//     fontSize: 16,
-//     fontWeight: 'bold',
-//   },
-//   confettiParticle: {
-//     width: 8,
-//     height: 8,
-//     borderRadius: 1,
-//     position: 'absolute',
-//     top: -50,
-//   },
-//   // Header Styles
-//   header: {
-//     backgroundColor: "#40E0D0",
-//     paddingTop: 20,
-//     paddingHorizontal: 20,
-//     borderBottomWidth: 1,
-//     borderBottomColor: "#E9ECEF",
-//     zIndex: 1,
-//   },
-//   headerTop: {
-//     flexDirection: "row",
-//     justifyContent: "space-between",
-//     alignItems: "center",
-//     marginBottom: 15,
-//   },
-//   backButton: {
-//     width: 40,
-//     height: 40,
-//     borderRadius: 20,
-//     backgroundColor: "#F8F9FA",
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     marginRight: 12,
-//     borderWidth: 1,
-//     borderColor: "#E9ECEF",
-//   },
-//   headerTextContainer: {
-//     flex: 1,
-//   },
-//   gameName: {
-//     fontSize: 24,
-//     fontWeight: "700",
-//     color: "#FFFFFF",
-//     letterSpacing: -0.5,
-//   },
-//   gameCodeContainer: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     gap: 6,
-//     marginTop: 2,
-//   },
-//   gameCode: {
-//     fontSize: 14,
-//     color: "#6C757D",
-//     fontWeight: "500",
-//   },
-//   headerActions: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     gap: 8,
-//   },
-//   voiceButton: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     backgroundColor: "#F8F9FA",
-//     paddingHorizontal: 10,
-//     paddingVertical: 6,
-//     borderRadius: 15,
-//     borderWidth: 1,
-//     borderColor: "#E9ECEF",
-//     gap: 4,
-//   },
-//   voiceButtonIcon: {
-//     width: 16,
-//     height: 16,
-//   },
-//   voiceButtonText: {
-//     fontSize: 12,
-//     color: "#40E0D0",
-//     fontWeight: "600",
-//   },
-//   // Menu Styles
-//   menuOverlay: {
-//     flex: 1,
-//     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-//   menuContainer: {
-//     backgroundColor: '#FFFFFF',
-//     borderRadius: 16,
-//     width: '80%',
-//     maxHeight: '60%',
-//     overflow: 'hidden',
-//   },
-//   menuHeader: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     padding: 16,
-//     borderBottomWidth: 1,
-//     borderBottomColor: '#E9ECEF',
-//   },
-//   menuTitle: {
-//     fontSize: 18,
-//     fontWeight: '700',
-//     color: '#212529',
-//   },
-//   patternsMenuScroll: {
-//     maxHeight: 300,
-//   },
-//   patternMenuItem: {
-//     padding: 16,
-//     borderBottomWidth: 1,
-//     borderBottomColor: '#E9ECEF',
-//   },
-//   disabledPatternItem: {
-//     backgroundColor: '#F8F9FA',
-//     opacity: 0.7,
-//   },
-//   patternMenuItemContent: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//   },
-//   patternMenuItemInfo: {
-//     flex: 1,
-//     marginLeft: 12,
-//   },
-//   patternMenuItemName: {
-//     fontSize: 16,
-//     fontWeight: '600',
-//     color: '#212529',
-//     marginBottom: 4,
-//   },
-//   patternMenuItemDesc: {
-//     fontSize: 12,
-//     color: '#6C757D',
-//   },
-//   patternStatusContainer: {
-//     marginLeft: 8,
-//   },
-//   patternLimitText: {
-//     color: '#FF6B35',
-//     fontWeight: '600',
-//   },
-//   claimedBadge: {
-//     fontSize: 12,
-//     color: '#4CAF50',
-//     fontWeight: '600',
-//     marginLeft: 6,
-//   },
-//   noPatternsContainer: {
-//     alignItems: 'center',
-//     padding: 32,
-//   },
-//   noPatternsText: {
-//     fontSize: 14,
-//     color: '#6C757D',
-//     marginTop: 12,
-//     textAlign: 'center',
-//     fontWeight: '600',
-//   },
-//   noPatternsSubtext: {
-//     fontSize: 12,
-//     color: '#FF6B35',
-//     textAlign: 'center',
-//     marginTop: 4,
-//     fontStyle: 'italic',
-//   },
-//   // Game End Modal Styles
-//   gameEndModalOverlay: {
-//     flex: 1,
-//     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     padding: 20,
-//   },
-//   confettiContainer: {
-//     position: 'absolute',
-//     top: 0,
-//     left: 0,
-//     right: 0,
-//     alignItems: 'center',
-//   },
-//   confettiImage: {
-//     width: 200,
-//     height: 200,
-//     opacity: 0.7,
-//   },
-//   gameEndModalContent: {
-//     backgroundColor: '#FFFFFF',
-//     borderRadius: 24,
-//     padding: 24,
-//     width: '100%',
-//     maxWidth: 400,
-//     shadowColor: '#000',
-//     shadowOffset: { width: 0, height: 10 },
-//     shadowOpacity: 0.3,
-//     shadowRadius: 20,
-//     elevation: 10,
-//     borderWidth: 1,
-//     borderColor: '#E9ECEF',
-//   },
-//   gameEndModalHeader: {
-//     alignItems: 'center',
-//     marginBottom: 24,
-//   },
-//   gameEndTrophy: {
-//     width: 80,
-//     height: 80,
-//     marginBottom: 16,
-//   },
-//   gameEndModalTitle: {
-//     fontSize: 28,
-//     fontWeight: '900',
-//     color: '#FF6B35',
-//     textAlign: 'center',
-//     letterSpacing: -0.5,
-//   },
-//   gameEndModalBody: {
-//     marginBottom: 24,
-//   },
-//   gameEndCongratulations: {
-//     fontSize: 22,
-//     fontWeight: '800',
-//     color: '#40E0D0',
-//     textAlign: 'center',
-//     marginBottom: 12,
-//   },
-//   gameEndMessage: {
-//     fontSize: 16,
-//     color: '#6C757D',
-//     textAlign: 'center',
-//     marginBottom: 24,
-//     lineHeight: 24,
-//   },
-//   gameEndStats: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-around',
-//     backgroundColor: '#F8F9FA',
-//     borderRadius: 16,
-//     padding: 16,
-//     marginBottom: 24,
-//     borderWidth: 1,
-//     borderColor: '#E9ECEF',
-//   },
-//   endStatItem: {
-//     alignItems: 'center',
-//     flex: 1,
-//   },
-//   endStatValue: {
-//     fontSize: 24,
-//     fontWeight: '900',
-//     color: '#212529',
-//     marginBottom: 4,
-//   },
-//   endStatLabel: {
-//     fontSize: 12,
-//     color: '#6C757D',
-//     fontWeight: '600',
-//   },
-//   gameEndThanks: {
-//     fontSize: 14,
-//     color: '#212529',
-//     textAlign: 'center',
-//     fontStyle: 'italic',
-//     lineHeight: 20,
-//   },
-//   gameEndModalFooter: {
-//     gap: 12,
-//   },
-//   viewWinnersButton: {
-//     backgroundColor: '#FF6B35',
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//     paddingVertical: 16,
-//     borderRadius: 12,
-//     gap: 8,
-//   },
-//   viewWinnersButtonText: {
-//     color: '#FFF',
-//     fontSize: 16,
-//     fontWeight: '700',
-//   },
-//   closeButton: {
-//     backgroundColor: '#F8F9FA',
-//     paddingVertical: 16,
-//     borderRadius: 12,
-//     alignItems: 'center',
-//     borderWidth: 1,
-//     borderColor: '#E9ECEF',
-//   },
-//   closeButtonText: {
-//     color: '#6C757D',
-//     fontSize: 16,
-//     fontWeight: '600',
-//   },
-//   // Modal Styles
-//   modalOverlay: {
-//     flex: 1,
-//     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-//   modalContent: {
-//     backgroundColor: '#FFFFFF',
-//     borderRadius: 20,
-//     padding: 24,
-//     width: '90%',
-//     maxWidth: 400,
-//   },
-//   modalHeader: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     marginBottom: 12,
-//   },
-//   modalTitle: {
-//     fontSize: 20,
-//     fontWeight: '700',
-//     color: '#212529',
-//   },
-//   modalCloseButton: {
-//     padding: 4,
-//   },
-//   modalSubtitle: {
-//     fontSize: 14,
-//     color: '#6C757D',
-//     marginBottom: 24,
-//     lineHeight: 20,
-//   },
-//   voiceOption: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     padding: 16,
-//     borderRadius: 12,
-//     borderWidth: 1,
-//     borderColor: '#E9ECEF',
-//     marginBottom: 12,
-//   },
-//   selectedVoiceOption: {
-//     borderColor: '#40E0D0',
-//     backgroundColor: 'rgba(64, 224, 208, 0.05)',
-//   },
-//   voiceOptionIcon: {
-//     marginRight: 16,
-//   },
-//   voiceOptionInfo: {
-//     flex: 1,
-//   },
-//   voiceOptionName: {
-//     fontSize: 16,
-//     fontWeight: '600',
-//     color: '#212529',
-//     marginBottom: 4,
-//   },
-//   voiceOptionDesc: {
-//     fontSize: 12,
-//     color: '#6C757D',
-//   },
-//   testVoiceButton: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//     backgroundColor: '#40E0D0',
-//     paddingVertical: 14,
-//     borderRadius: 12,
-//     marginTop: 16,
-//     gap: 8,
-//   },
-//   testVoiceButtonText: {
-//     color: '#FFF',
-//     fontSize: 16,
-//     fontWeight: '600',
-//   },
-//   // Card Styles
-//   card: {
-//     backgroundColor: "#FFFFFF",
-//     borderRadius: 16,
-//     padding: 12,
-//     marginBottom: 12,
-//     borderWidth: 1,
-//     borderColor: "#E9ECEF",
-//     position: 'relative',
-//     overflow: 'hidden',
-//   },
-//   cardPattern: {
-//     position: 'absolute',
-//     bottom: 0,
-//     left: 0,
-//     width: 50,
-//     height: 50,
-//     borderBottomLeftRadius: 16,
-//     borderTopRightRadius: 25,
-//     backgroundColor: 'rgba(64, 224, 208, 0.03)',
-//   },
-//   compactNumberDisplay: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'flex-start',
-//     gap: 12,
-//   },
-//   lastNumberLeft: {
-//     flex: 1,
-//     minWidth: 120,
-//   },
-//   recentNumbersRight: {
-//     flex: 1,
-//     minWidth: 120,
-//   },
-//   sectionHeader: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     marginBottom: 8,
-//     paddingHorizontal: 4,
-//     gap: 6,
-//   },
-//   sectionIcon: {
-//     width: 18,
-//     height: 18,
-//   },
-//   sectionTitle: {
-//     fontSize: 14,
-//     fontWeight: "700",
-//     color: "#212529",
-//   },
-//   voiceIndicator: {
-//     marginLeft: 'auto',
-//   },
-//   compactLastNumberContainer: {
-//     alignItems: "center",
-//     backgroundColor: "#F3F0FF",
-//     padding: 10,
-//     borderRadius: 10,
-//     borderWidth: 2,
-//     borderColor: "#40E0D0",
-//     marginBottom: 8,
-//   },
-//   compactLastNumber: {
-//     fontSize: 32,
-//     fontWeight: "900",
-//     color: "#40E0D0",
-//     marginBottom: 2,
-//   },
-//   compactLastNumberLabel: {
-//     fontSize: 10,
-//     color: "#6C757D",
-//     fontStyle: "italic",
-//     textAlign: 'center',
-//   },
-//   recentNumbersGrid: {
-//     flexDirection: "row",
-//     flexWrap: "wrap",
-//     gap: 6,
-//     marginTop: 4,
-//   },
-//   numberChip: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     justifyContent: 'center',
-//     backgroundColor: "#F8F9FA",
-//     paddingHorizontal: 8,
-//     paddingVertical: 4,
-//     borderRadius: 6,
-//     width: 36,
-//     height: 36,
-//     borderWidth: 1,
-//     borderColor: "#E9ECEF",
-//   },
-//   latestChip: {
-//     backgroundColor: "#40E0D0",
-//     borderColor: "#40E0D0",
-//   },
-//   numberChipText: {
-//     fontSize: 14,
-//     fontWeight: "600",
-//     color: "#6C757D",
-//   },
-//   latestChipText: {
-//     color: "#FFFFFF",
-//   },
-//   viewMoreButton: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     justifyContent: 'center',
-//     backgroundColor: "#FFFFFF",
-//     paddingHorizontal: 12,
-//     paddingVertical: 6,
-//     borderRadius: 8,
-//     borderWidth: 1,
-//     borderColor: "#40E0D0",
-//     gap: 4,
-//     height: 36,
-//     minWidth: 100,
-//   },
-//   viewMoreText: {
-//     fontSize: 12,
-//     color: "#40E0D0",
-//     fontWeight: "600",
-//   },
-//   waitingSection: {
-//     alignItems: "center",
-//     paddingVertical: 20,
-//   },
-//   waitingText: {
-//     fontSize: 14,
-//     color: "#FF6B35",
-//     textAlign: "center",
-//     marginTop: 12,
-//     fontStyle: "italic",
-//   },
-//   // Tickets Section
-//   ticketsSection: {
-//     marginBottom: 16,
-//   },
-//   // Empty Tickets
-//   emptyTicketsContainer: {
-//     alignItems: "center",
-//     paddingVertical: 40,
-//     backgroundColor: "#FFFFFF",
-//     borderRadius: 16,
-//     borderWidth: 1,
-//     borderColor: "#E9ECEF",
-//     marginTop: 12,
-//   },
-//   emptyIcon: {
-//     width: 80,
-//     height: 80,
-//     marginBottom: 16,
-//     opacity: 0.7,
-//   },
-//   emptyTitle: {
-//     fontSize: 16,
-//     fontWeight: "700",
-//     color: "#212529",
-//     marginBottom: 8,
-//   },
-//   emptySubtitle: {
-//     fontSize: 14,
-//     color: "#6C757D",
-//     textAlign: "center",
-//     marginBottom: 25,
-//     paddingHorizontal: 20,
-//   },
-//   // Tickets List
-//   ticketsList: {
-    
-//   },
-//   ticketWrapper: {
-//     marginBottom: 0,
-//     position: 'relative',
-//   },
-//   // Ticket Item Container
-//   ticketItemContainer: {
-//     marginBottom: 0,
-//     padding: 0,
-//   },
-//   // Ticket Header with Ticket Number and Menu Button
-//   ticketHeader: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     marginBottom: 8,
-//     paddingHorizontal: 4,
-//   },
-//   ticketNumberContainer: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     gap: 6,
-//   },
-//   ticketIcon: {
-//     width: 16,
-//     height: 16,
-//   },
-//   ticketNumber: {
-//     fontSize: 14,
-//     fontWeight: '600',
-//     color: '#212529',
-//   },
-//   menuButton: {
-//     padding: 6,
-//     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-//     borderRadius: 12,
-//     width: 36,
-//     height: 36,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     borderWidth: 1,
-//     borderColor: '#E9ECEF',
-//     shadowColor: '#000',
-//     shadowOffset: { width: 0, height: 2 },
-//     shadowOpacity: 0.1,
-//     shadowRadius: 2,
-//     elevation: 2,
-//   },
-//   // Ticket Grid Wrapper
-//   ticketGridWrapper: {
-//     backgroundColor: "#FFFFFF",
-//     borderRadius: 8,
-//     padding: 8,
-//     borderWidth: 1,
-//     borderColor: "#E0E0E0",
-//     shadowColor: "#000",
-//     shadowOffset: {
-//       width: 0,
-//       height: 2,
-//     },
-//     shadowOpacity: 0.1,
-//     shadowRadius: 4,
-//     elevation: 3,
-//     marginBottom: 8,
-//     alignItems: 'center',
-//   },
-//   ticketGridContainer: {
-//     overflow: 'hidden',
-//     borderRadius: 6,
-//     borderWidth: 1,
-//     borderColor: "#E0E0E0",
-//     width: CELL_SIZE * 9,
-//   },
-//   ticketRow: {
-//     flexDirection: "row",
-//   },
-//   ticketCell: {
-//     justifyContent: "center",
-//     alignItems: "center",
-//     borderWidth: 0.5,
-//     borderColor: "#E0E0E0",
-//   },
-//   emptyCell: {
-//     backgroundColor: "#F5F5F5",
-//   },
-//   markedCell: {
-//     backgroundColor: "#FF6B35",
-//     borderColor: "#FF6B35",
-//   },
-//   numberCell: {
-//     backgroundColor: "#80CBC4",
-//   },
-//   cellNumber: {
-//     fontSize: 16,
-//     fontWeight: "700",
-//     textShadowColor: 'rgba(0, 0, 0, 0.2)',
-//     textShadowOffset: { width: 0, height: 1 },
-//     textShadowRadius: 1,
-//   },
-//   ticketsHint: {
-//     fontSize: 12,
-//     color: "#6C757D",
-//     textAlign: "center",
-//     marginTop: 16,
-//     fontStyle: "italic",
-//     lineHeight: 16,
-//     paddingHorizontal: 4,
-//   },
-//   bottomSpace: {
-//     height: 20,
-//   },
-//   // Floating Chat Button
-//   floatingChatButton: {
-//     position: 'absolute',
-//     bottom: 20,
-//     right: 20,
-//     backgroundColor: '#40E0D0',
-//     borderRadius: 25,
-//     paddingVertical: 12,
-//     paddingHorizontal: 16,
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//     shadowColor: '#000',
-//     shadowOffset: { width: 0, height: 4 },
-//     shadowOpacity: 0.1,
-//     shadowRadius: 8,
-//     elevation: 5,
-//     borderWidth: 1,
-//     borderColor: '#E9ECEF',
-//   },
-//   chatButtonContent: {
-//     position: 'relative',
-//     marginRight: 8,
-//   },
-//   chatBadge: {
-//     position: 'absolute',
-//     top: -6,
-//     right: -6,
-//     backgroundColor: '#FF6B35',
-//     borderRadius: 8,
-//     minWidth: 16,
-//     height: 16,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     borderWidth: 1,
-//     borderColor: '#FFF',
-//   },
-//   chatBadgeText: {
-//     color: '#FFF',
-//     fontSize: 9,
-//     fontWeight: 'bold',
-//     paddingHorizontal: 3,
-//   },
-//   chatButtonText: {
-//     color: '#FFF',
-//     fontSize: 14,
-//     fontWeight: 'bold',
-//   },
-//   // Loading
-//   loadingContainer: {
-//     flex: 1,
-//     justifyContent: "center",
-//     alignItems: "center",
-//     backgroundColor: "#F8F9FA",
-//   },
-//   loadingText: {
-//     marginTop: 16,
-//     fontSize: 16,
-//     color: "#6C757D",
-//     fontWeight: "500",
-//   },
-//   // Snackbar Styles
-//   snackbar: {
-//     borderRadius: 8,
-//     margin: 16,
-//   },
-//   snackbarContent: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//   },
-//   snackbarIcon: {
-//     marginRight: 8,
-//   },
-//   snackbarText: {
-//     color: '#FFFFFF',
-//     fontSize: 14,
-//     fontWeight: '600',
-//     flex: 1,
-//   },
-// });
-
-// export default UserGameRoom;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
@@ -2580,16 +14,19 @@ import {
   Modal,
   Animated,
   Easing,
+  Vibration,
+  Platform,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
 import { Snackbar } from 'react-native-paper';
 
 const { width, height } = Dimensions.get("window");
-const TICKET_WIDTH = width - 24;
-const CELL_SIZE = Math.min((TICKET_WIDTH - 16) / 9, 50);
+const TICKET_WIDTH = width - 32;
+const CELL_SIZE = Math.max(28, Math.min((TICKET_WIDTH - 40) / 9, 32));
 const TICKET_GRID_HEIGHT = CELL_SIZE * 3;
 
 const UserGameRoom = ({ navigation, route }) => {
@@ -2622,21 +59,21 @@ const UserGameRoom = ({ navigation, route }) => {
   const [winningAmount, setWinningAmount] = useState(0);
   const [winningPattern, setWinningPattern] = useState('');
   
-  // New state for tracking patterns per ticket
   const [patternsByTicket, setPatternsByTicket] = useState({});
   const [totalPatternCounts, setTotalPatternCounts] = useState({});
   const [processingCells, setProcessingCells] = useState(new Set());
   
-  // New state for pattern viewing
   const [showPatternsModal, setShowPatternsModal] = useState(false);
   const [availablePatterns, setAvailablePatterns] = useState([]);
+  const [menuPatterns, setMenuPatterns] = useState([]);
   const [loadingPatterns, setLoadingPatterns] = useState(false);
   const [selectedPatternForView, setSelectedPatternForView] = useState(null);
   
-  // Global blinking states
-  const [blinkingPattern, setBlinkingPattern] = useState(null); // Stores the current blinking pattern
-  const [blinkingCells, setBlinkingCells] = useState({}); // Stores blinking cells for ALL tickets
-  const [blinkingAnimations, setBlinkingAnimations] = useState({}); // Stores animations for ALL tickets
+  const [blinkingPattern, setBlinkingPattern] = useState(null);
+  const [blinkingCells, setBlinkingCells] = useState({});
+  const [blinkingAnimations, setBlinkingAnimations] = useState({});
+  
+  const [clickSound, setClickSound] = useState(null);
   
   const lastCalledRef = useRef(null);
   const confettiAnimation = useRef(new Animated.Value(0)).current;
@@ -2646,17 +83,41 @@ const UserGameRoom = ({ navigation, route }) => {
   const audioEnabled = useRef(true);
   const blinkingIntervals = useRef({});
   const blinkingTimeouts = useRef({});
+  const gameEndShownRef = useRef(false);
+  const announcedClaimIds = useRef(new Set()); // Track announced claims
+  const isSubmittingClaimRef = useRef(false); // Prevent multiple submissions
 
-  // Celebration animations
   const celebrationOpacity = useRef(new Animated.Value(0)).current;
   const celebrationScale = useRef(new Animated.Value(0.5)).current;
   const celebrationTranslateY = useRef(new Animated.Value(50)).current;
   const confettiTranslateY = useRef([]);
 
-  // Initialize confetti animations
+  const floatAnim1 = useRef(new Animated.Value(0)).current;
+  const floatAnim2 = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
-    confettiTranslateY.current = Array(20).fill().map(() => new Animated.Value(-50));
+    confettiTranslateY.current = Array(15).fill().map(() => new Animated.Value(-50));
+    startAnimations();
   }, []);
+
+  const PRIMARY_COLOR = "#4A90E2";
+  const SUCCESS_COLOR = "#27AE60";
+  const WARNING_COLOR = "#F39C12";
+  const DANGER_COLOR = "#E74C3C";
+  const GRAY_COLOR = "#6C757D";
+  const LIGHT_GRAY = "#F8F9FA";
+  const BORDER_COLOR = "#E9ECEF";
+  const BACKGROUND_COLOR = "#FFFFFF";
+  const SECONDARY_COLOR = "#5DADE2";
+  const LIGHT_BLUE = "#F0F8FF";
+
+  const EMPTY_CELL_BG = "#F5F5F5";
+  const EMPTY_CELL_BORDER = "#E0E0E0";
+  const FILLED_CELL_BG = "#FFF9C4";
+  const FILLED_CELL_BORDER = "#FFD600";
+  const CELL_TEXT_COLOR = "#2C3E50";
+  const MARKED_CELL_BG = "#E74C3C";
+  const MARKED_CELL_BORDER = "#C0392B";
 
   const GAME_IMAGES = {
     ticket: "https://cdn-icons-png.flaticon.com/512/2589/2589909.png",
@@ -2676,17 +137,85 @@ const UserGameRoom = ({ navigation, route }) => {
     star: "https://cdn-icons-png.flaticon.com/512/1828/1828970.png",
   };
 
-  const PRIMARY_COLOR = "#40E0D0";
-  const SUCCESS_COLOR = "#4CAF50";
-  const WARNING_COLOR = "#FFD700";
-  const DANGER_COLOR = "#FF5252";
-  const GRAY_COLOR = "#6C757D";
-  const LIGHT_GRAY = "#F8F9FA";
-  const BORDER_COLOR = "#E9ECEF";
-  const BACKGROUND_COLOR = "#FFFFFF";
-  const SECONDARY_COLOR = "#FF6B35";
+  const startAnimations = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim1, {
+          toValue: 1,
+          duration: 4000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim1, {
+          toValue: 0,
+          duration: 4000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
 
-  // Clean up blinking intervals on unmount
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim2, {
+          toValue: 1,
+          duration: 5000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim2, {
+          toValue: 0,
+          duration: 5000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  const translateY1 = floatAnim1.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 10]
+  });
+
+  const translateY2 = floatAnim2.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -8]
+  });
+
+  useEffect(() => {
+    loadSounds();
+  }, []);
+
+  const loadSounds = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/click.mp3')
+      );
+      setClickSound(sound);
+    } catch (error) {
+      console.log("Error loading sounds:", error);
+    }
+  };
+
+  const playClickSound = async () => {
+    try {
+      if (clickSound) {
+        await clickSound.setPositionAsync(0);
+        await clickSound.playAsync();
+      } else {
+        if (Platform.OS !== 'web') {
+          Vibration.vibrate(50);
+        }
+      }
+    } catch (error) {
+      console.log("Error playing sound:", error);
+      if (Platform.OS !== 'web') {
+        Vibration.vibrate(50);
+      }
+    }
+  };
+
   useEffect(() => {
     return () => {
       Object.values(blinkingIntervals.current).forEach(interval => {
@@ -2695,262 +224,280 @@ const UserGameRoom = ({ navigation, route }) => {
       Object.values(blinkingTimeouts.current).forEach(timeout => {
         if (timeout) clearTimeout(timeout);
       });
+      if (clickSound) {
+        clickSound.unloadAsync();
+      }
+      announcedClaimIds.current.clear();
+      Speech.stop();
     };
   }, []);
 
   const stopAllBlinking = () => {
-    Object.values(blinkingIntervals.current).forEach(interval => {
-      if (interval) clearInterval(interval);
+    Object.values(blinkingIntervals.current).forEach(item => {
+      if (item && item.animation && item.animation.stop) {
+        item.animation.stop();
+      }
     });
+    
     Object.values(blinkingTimeouts.current).forEach(timeout => {
       if (timeout) clearTimeout(timeout);
     });
+    
     blinkingIntervals.current = {};
     blinkingTimeouts.current = {};
     setBlinkingCells({});
+    setBlinkingAnimations({});
     setSelectedPatternForView(null);
     setBlinkingPattern(null);
   };
 
-  const startBlinkingForAllTickets = (pattern, duration = 3000) => {
-    // Stop any existing blinking first
+  const startBlinkingForAllTickets = (pattern, duration = 5000) => {
     stopAllBlinking();
     
-    // Calculate blinking cells for ALL tickets
     const allBlinkingCells = {};
     const allAnimations = {};
     
     myTickets.forEach(ticket => {
       const patternCells = getPatternCells(ticket, pattern);
-      allBlinkingCells[ticket.id] = patternCells;
-      
-      // Create animation for each ticket
-      allAnimations[ticket.id] = new Animated.Value(0);
+      if (patternCells.length > 0) {
+        allBlinkingCells[ticket.id] = patternCells;
+        
+        const animValue = new Animated.Value(0);
+        allAnimations[ticket.id] = animValue;
+      }
     });
     
     setBlinkingCells(allBlinkingCells);
     setBlinkingAnimations(allAnimations);
+    setBlinkingPattern(pattern);
     
-    // Start blinking animation for each ticket
     Object.keys(allAnimations).forEach(ticketId => {
       const animValue = allAnimations[ticketId];
       
-      // Start blinking animation
-      blinkingIntervals.current[ticketId] = setInterval(() => {
-        Animated.sequence([
-          Animated.timing(animValue, {
-            toValue: 1,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(animValue, {
-            toValue: 0,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      }, 1000);
+      const startBlink = () => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(animValue, {
+              toValue: 1,
+              duration: 500,
+              useNativeDriver: true,
+              easing: Easing.ease,
+            }),
+            Animated.timing(animValue, {
+              toValue: 0,
+              duration: 500,
+              useNativeDriver: true,
+              easing: Easing.ease,
+            }),
+          ]),
+          { iterations: -1 }
+        ).start();
+      };
+      
+      blinkingIntervals.current[ticketId] = {
+        animation: startBlink,
+        start: () => startBlink()
+      };
+      
+      startBlink();
     });
 
-    // Auto stop after duration
     blinkingTimeouts.current.global = setTimeout(() => {
       stopAllBlinking();
     }, duration);
   };
 
-  const stopBlinkingForTicket = (ticketId) => {
-    if (blinkingIntervals.current[ticketId]) {
-      clearInterval(blinkingIntervals.current[ticketId]);
-      delete blinkingIntervals.current[ticketId];
-    }
+  const getPatternCells = (ticket, pattern) => {
+    const processedData = processTicketData(ticket.ticket_data);
+    const cells = [];
     
-    setBlinkingAnimations(prev => {
-      const newAnimations = { ...prev };
-      delete newAnimations[ticketId];
-      return newAnimations;
-    });
-    
-    setBlinkingCells(prev => {
-      const newCells = { ...prev };
-      delete newCells[ticketId];
-      return newCells;
-    });
-  };
-
-const getPatternCells = (ticket, pattern) => {
-  const processedData = processTicketData(ticket.ticket_data);
-  const cells = [];
-  
-  switch(pattern.pattern_name) {
-    case 'bamboo':
-      // Each row's 3rd number from those that have numbers (not empty)
-      for (let row = 0; row < 3; row++) {
-        // Get all non-empty cells in this row
-        const nonEmptyCells = [];
+    switch(pattern.pattern_name) {
+      case 'bamboo':
+        for (let row = 0; row < 3; row++) {
+          const nonEmptyCells = [];
+          for (let col = 0; col < 9; col++) {
+            const cell = processedData[row][col];
+            if (cell && cell.number !== null) {
+              nonEmptyCells.push({ row, col, cell });
+            }
+          }
+          if (nonEmptyCells.length >= 3) {
+            cells.push({ row: nonEmptyCells[2].row, col: nonEmptyCells[2].col });
+          }
+        }
+        break;
+        
+      case 'bottom_line':
         for (let col = 0; col < 9; col++) {
-          const cell = processedData[row][col];
+          const cell = processedData[2][col];
           if (cell && cell.number !== null) {
-            nonEmptyCells.push({ row, col, cell });
+            cells.push({ row: 2, col });
+          }
+        }
+        break;
+        
+      case 'breakfast':
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 9; col++) {
+            const cell = processedData[row][col];
+            if (cell && cell.number !== null && cell.number >= 1 && cell.number <= 30) {
+              cells.push({ row, col });
+            }
+          }
+        }
+        break;
+        
+      case 'dinner':
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 9; col++) {
+            const cell = processedData[row][col];
+            if (cell && cell.number !== null && cell.number >= 61 && cell.number <= 90) {
+              cells.push({ row, col });
+            }
+          }
+        }
+        break;
+        
+      case 'early_five':
+        const ticketNumbers = [];
+        const ticketNumberPositions = {};
+        
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 9; col++) {
+            const cell = processedData[row][col];
+            if (cell && cell.number !== null) {
+              ticketNumbers.push(cell.number);
+              ticketNumberPositions[cell.number] = { row, col };
+            }
           }
         }
         
-        // Get the 3rd non-empty cell in this row (index 2)
-        if (nonEmptyCells.length >= 3) {
-          cells.push({ row: nonEmptyCells[2].row, col: nonEmptyCells[2].col });
-        }
-      }
-      break;
-      
-    case 'bottom_line':
-      // All numbers in bottom row (row index 2)
-      for (let col = 0; col < 9; col++) {
-        const cell = processedData[2][col];
-        if (cell && cell.number !== null) {
-          cells.push({ row: 2, col });
-        }
-      }
-      break;
-      
-    case 'breakfast':
-      // Numbers 1-30
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 9; col++) {
-          const cell = processedData[row][col];
-          if (cell && cell.number !== null && cell.number >= 1 && cell.number <= 30) {
-            cells.push({ row, col });
+        let foundCount = 0;
+        for (const calledNumber of calledNumbers) {
+          if (ticketNumberPositions[calledNumber] && foundCount < 5) {
+            const position = ticketNumberPositions[calledNumber];
+            cells.push({ row: position.row, col: position.col });
+            foundCount++;
           }
+          if (foundCount >= 5) break;
         }
-      }
-      break;
-      
-    case 'dinner':
-      // Numbers 61-90
-      for (let row = 0; row < 3; row++) {
+        break;
+        
+      case 'four_corners':
+        const firstRowCells = [];
         for (let col = 0; col < 9; col++) {
-          const cell = processedData[row][col];
-          if (cell && cell.number !== null && cell.number >= 61 && cell.number <= 90) {
-            cells.push({ row, col });
-          }
-        }
-      }
-      break;
-      
-    case 'early_five':
-      // Find the first 5 called numbers that exist on this ticket
-      // Get all numbers on the ticket
-      const ticketNumbers = [];
-      const ticketNumberPositions = {};
-      
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 9; col++) {
-          const cell = processedData[row][col];
+          const cell = processedData[0][col];
           if (cell && cell.number !== null) {
-            ticketNumbers.push(cell.number);
-            ticketNumberPositions[cell.number] = { row, col };
+            firstRowCells.push({ row: 0, col, cell });
           }
         }
-      }
-      
-      // Find first 5 called numbers that exist on ticket
-      let foundCount = 0;
-      for (const calledNumber of calledNumbers) {
-        if (ticketNumberPositions[calledNumber] && foundCount < 5) {
-          const position = ticketNumberPositions[calledNumber];
-          cells.push({ row: position.row, col: position.col });
-          foundCount++;
+        if (firstRowCells.length > 0) {
+          cells.push({ row: 0, col: firstRowCells[0].col });
+          cells.push({ row: 0, col: firstRowCells[firstRowCells.length - 1].col });
         }
-        if (foundCount >= 5) break;
-      }
-      break;
-      
-    case 'four_corners':
-      // First row: first and last number (from non-empty cells)
-      // Last row: first and last number (from non-empty cells)
-      
-      // First row corners
-      const firstRowCells = [];
-      for (let col = 0; col < 9; col++) {
-        const cell = processedData[0][col];
-        if (cell && cell.number !== null) {
-          firstRowCells.push({ row: 0, col, cell });
-        }
-      }
-      if (firstRowCells.length > 0) {
-        // First number in first row
-        cells.push({ row: 0, col: firstRowCells[0].col });
-        // Last number in first row
-        cells.push({ row: 0, col: firstRowCells[firstRowCells.length - 1].col });
-      }
-      
-      // Last row corners
-      const lastRowCells = [];
-      for (let col = 0; col < 9; col++) {
-        const cell = processedData[2][col];
-        if (cell && cell.number !== null) {
-          lastRowCells.push({ row: 2, col, cell });
-        }
-      }
-      if (lastRowCells.length > 0) {
-        // First number in last row
-        cells.push({ row: 2, col: lastRowCells[0].col });
-        // Last number in last row
-        cells.push({ row: 2, col: lastRowCells[lastRowCells.length - 1].col });
-      }
-      break;
-      
-    case 'full_house':
-    case 'non_claimers':
-      // All numbers
-      for (let row = 0; row < 3; row++) {
+        
+        const lastRowCells = [];
         for (let col = 0; col < 9; col++) {
-          const cell = processedData[row][col];
+          const cell = processedData[2][col];
           if (cell && cell.number !== null) {
-            cells.push({ row, col });
+            lastRowCells.push({ row: 2, col, cell });
           }
         }
-      }
-      break;
-      
-    case 'lunch':
-      // Numbers 31-60
-      for (let row = 0; row < 3; row++) {
+        if (lastRowCells.length > 0) {
+          cells.push({ row: 2, col: lastRowCells[0].col });
+          cells.push({ row: 2, col: lastRowCells[lastRowCells.length - 1].col });
+        }
+        break;
+        
+      case 'full_house':
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 9; col++) {
+            const cell = processedData[row][col];
+            if (cell && cell.number !== null) {
+              cells.push({ row, col });
+            }
+          }
+        }
+        break;
+        
+      case 'lunch':
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 9; col++) {
+            const cell = processedData[row][col];
+            if (cell && cell.number !== null && cell.number >= 31 && cell.number <= 60) {
+              cells.push({ row, col });
+            }
+          }
+        }
+        break;
+        
+      case 'middle_line':
         for (let col = 0; col < 9; col++) {
-          const cell = processedData[row][col];
-          if (cell && cell.number !== null && cell.number >= 31 && cell.number <= 60) {
-            cells.push({ row, col });
+          const cell = processedData[1][col];
+          if (cell && cell.number !== null) {
+            cells.push({ row: 1, col });
           }
         }
-      }
-      break;
-      
-    case 'middle_line':
-      // All numbers in middle row (row index 1)
-      for (let col = 0; col < 9; col++) {
-        const cell = processedData[1][col];
-        if (cell && cell.number !== null) {
-          cells.push({ row: 1, col });
+        break;
+        
+      case 'top_line':
+        for (let col = 0; col < 9; col++) {
+          const cell = processedData[0][col];
+          if (cell && cell.number !== null) {
+            cells.push({ row: 0, col });
+          }
         }
-      }
-      break;
-      
-    case 'top_line':
-      // All numbers in top row (row index 0)
-      for (let col = 0; col < 9; col++) {
-        const cell = processedData[0][col];
-        if (cell && cell.number !== null) {
-          cells.push({ row: 0, col });
-        }
-      }
-      break;
-      
-    default:
-      break;
-  }
-  
-  return cells;
-};
+        break;
+        
+      default:
+        break;
+    }
+    
+    return cells;
+  };
 
-  const fetchAvailablePatterns = async () => {
+  const getPatternDescription = (patternName) => {
+    const descriptions = {
+      'full_house': 'Mark all numbers on your ticket',
+      'early_five': 'First 5 numbers called on your ticket',
+      'top_line': 'All numbers in the top row',
+      'middle_line': 'All numbers in the middle row',
+      'bottom_line': 'All numbers in the bottom row',
+      'four_corners': 'Four corner numbers of your ticket',
+      'bamboo': 'Third number in each row',
+      'breakfast': 'Numbers 1-30',
+      'lunch': 'Numbers 31-60',
+      'dinner': 'Numbers 61-90',
+    };
+    
+    return descriptions[patternName] || 'Complete this pattern to win prize';
+  };
+
+  const fetchPatternRewardCounts = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const response = await axios.get(
+        `https://exilance.com/tambolatimez/public/api/user/game/${gameId}/reward-counts`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data.status) {
+        return response.data.data.patterns || [];
+      }
+      return [];
+    } catch (error) {
+      console.log("Error fetching pattern reward counts:", error);
+      showSnackbar("Failed to load pattern counts", 'error');
+      return [];
+    }
+  };
+
+  const fetchAllPatternsForViewing = async () => {
     try {
       setLoadingPatterns(true);
       const token = await AsyncStorage.getItem("token");
@@ -2965,10 +512,19 @@ const getPatternCells = (ticket, pattern) => {
       );
 
       if (response.data.status) {
-        setAvailablePatterns(response.data.data.patterns || []);
+        const patterns = response.data.data.patterns || [];
+        
+        const transformedPatterns = patterns.map(pattern => ({
+          ...pattern,
+          display_name: pattern.pattern_name.replace(/_/g, ' ').split(' ').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1)
+          ).join(' ')
+        }));
+        
+        setAvailablePatterns(transformedPatterns);
       }
     } catch (error) {
-      console.log("Error fetching available patterns:", error);
+      console.log("Error fetching patterns for viewing:", error);
       showSnackbar("Failed to load patterns", 'error');
     } finally {
       setLoadingPatterns(false);
@@ -2977,37 +533,38 @@ const getPatternCells = (ticket, pattern) => {
 
   const handleViewPatterns = (ticketId) => {
     setSelectedTicket(ticketId);
-    fetchAvailablePatterns();
     setShowPatternsModal(true);
+    
+    fetchAllPatternsForViewing();
   };
 
   const handlePatternSelect = (pattern) => {
     setSelectedPatternForView(pattern);
     setBlinkingPattern(pattern);
+    setShowPatternsModal(false);
     
-    // Start blinking for ALL tickets
-    startBlinkingForAllTickets(pattern, 3000);
+    showSnackbar(`Showing ${pattern.display_name} pattern on all tickets`, 'info');
     
-    // Show special note for early five pattern
-    if (pattern.pattern_name === 'early_five') {
-      showSnackbar("Early Five: Shows the first 5 called numbers that appear on each ticket", 'info');
-    }
-    
-    // Close modal immediately after selection
     setTimeout(() => {
-      setShowPatternsModal(false);
+      startBlinkingForAllTickets(pattern, 5000);
     }, 300);
+  };
+  
+  const checkGameCompletion = () => {
+    const isNumbersCompleted = calledNumbers.length >= 90;
+    const isGameStatusCompleted = gameStatus?.status === 'completed';
+    
+    if ((isNumbersCompleted || isGameStatusCompleted) && !gameEndShownRef.current) {
+      gameEndShownRef.current = true;
+      setGameCompleted(true);
+      setShowGameEndModal(true);
+      startConfettiAnimation();
+    }
   };
 
   useEffect(() => {
-    if (calledNumbers.length >= 90 && !gameCompleted) {
-      setGameCompleted(true);
-      setTimeout(() => {
-        setShowGameEndModal(true);
-        startConfettiAnimation();
-      }, 1000);
-    }
-  }, [calledNumbers]);
+    checkGameCompletion();
+  }, [calledNumbers, gameStatus?.status]);
 
   useEffect(() => {
     fetchGameStatus();
@@ -3015,6 +572,7 @@ const getPatternCells = (ticket, pattern) => {
     checkChatStatus();
     fetchClaims();
     fetchPatternRewards();
+    fetchAllPatternsForViewing();
 
     const statusInterval = setInterval(fetchGameStatus, 3000);
     const claimsInterval = setInterval(fetchClaims, 3000);
@@ -3033,40 +591,34 @@ const getPatternCells = (ticket, pattern) => {
     claimsRef.current = claims;
   }, [claims]);
 
-  // Helper function to process claims and update pattern counts
   const updatePatternCounts = (claimsData) => {
     const ticketPatterns = {};
     const patternCounts = {};
 
-    // Initialize pattern counts from patternRewards
     patternRewards.forEach(pattern => {
       patternCounts[pattern.pattern_id] = {
         claimed: 0,
-        total: pattern.limit_count || 0, // Get limit from pattern rewards
+        total: pattern.limit_count || 0,
         patternName: pattern.reward_name,
       };
     });
 
-    // Process claims
     claimsData.forEach(claim => {
       const ticketId = claim.ticket_id;
       const patternId = claim.game_pattern_id;
       
       if (!ticketId || !patternId) return;
 
-      // Initialize ticket entry if not exists
       if (!ticketPatterns[ticketId]) {
         ticketPatterns[ticketId] = {};
       }
 
-      // Add pattern to ticket's claimed patterns (only count approved/pending)
       if (claim.claim_status === 'approved' || claim.claim_status === 'pending') {
         ticketPatterns[ticketId][patternId] = {
           count: (ticketPatterns[ticketId][patternId]?.count || 0) + 1,
           status: claim.claim_status,
         };
 
-        // Update global pattern count for approved claims only
         if (claim.claim_status === 'approved' && patternCounts[patternId]) {
           patternCounts[patternId].claimed += 1;
         }
@@ -3097,7 +649,6 @@ const getPatternCells = (ticket, pattern) => {
         if (currentGame && currentGame.pattern_rewards) {
           setPatternRewards(currentGame.pattern_rewards);
           
-          // Initialize pattern counts
           const initialCounts = {};
           currentGame.pattern_rewards.forEach(pattern => {
             initialCounts[pattern.pattern_id] = {
@@ -3131,17 +682,19 @@ const getPatternCells = (ticket, pattern) => {
         const newClaims = response.data.data.claims || [];
         const previousClaims = claimsRef.current;
         
-        // Update pattern counts
         updatePatternCounts(newClaims);
         
-        // Check for new or updated claims
+        // Clear announced claims when claims list is reset
+        if (!initialClaimsFetched) {
+          announcedClaimIds.current.clear();
+        }
+        
         const notifications = [];
         
         newClaims.forEach(newClaim => {
           const oldClaim = previousClaims.find(old => old.id === newClaim.id);
           
           if (!oldClaim) {
-            // New claim submission
             if (newClaim.claim_status === 'pending') {
               notifications.push({
                 type: 'new_claim',
@@ -3150,16 +703,13 @@ const getPatternCells = (ticket, pattern) => {
               });
             }
           } else {
-            // Check for status changes
             if (oldClaim.claim_status === 'pending' && newClaim.claim_status === 'approved') {
-              // Claim got approved - WINNER!
               notifications.push({
                 type: 'claim_approved',
                 claim: newClaim,
                 message: `🏆 ${newClaim.user_name} WON ₹${newClaim.winning_amount} for ${newClaim.reward_name}! CONGRATULATIONS! 🎊`
               });
             } else if (oldClaim.claim_status === 'pending' && newClaim.claim_status === 'rejected') {
-              // Claim got rejected
               notifications.push({
                 type: 'claim_rejected',
                 claim: newClaim,
@@ -3169,12 +719,11 @@ const getPatternCells = (ticket, pattern) => {
           }
         });
         
-        // Show notifications with delays to prevent overlapping
         if (notifications.length > 0) {
           notifications.forEach((notification, index) => {
             setTimeout(() => {
               showNotification(notification);
-            }, index * 1500);
+            }, index * 2000);
           });
         }
         
@@ -3192,7 +741,19 @@ const getPatternCells = (ticket, pattern) => {
   const showNotification = (notification) => {
     const { type, claim, message } = notification;
     
-    // Set snackbar type based on notification type
+    // Skip if this claim was already announced
+    if (announcedClaimIds.current.has(claim.id)) {
+      return;
+    }
+    
+    // Mark this claim as announced
+    announcedClaimIds.current.add(claim.id);
+    
+    // Clean up old claim IDs after some time
+    setTimeout(() => {
+      announcedClaimIds.current.delete(claim.id);
+    }, 10000);
+    
     if (type === 'claim_approved') {
       setSnackbarType('success');
       startWinnerCelebration(claim);
@@ -3205,11 +766,12 @@ const getPatternCells = (ticket, pattern) => {
     setSnackbarMessage(message);
     setSnackbarVisible(true);
     
-    // Speak announcement
     if (audioEnabled.current) {
+      Speech.stop();
+      
       setTimeout(() => {
         speakClaimAnnouncement(claim, type);
-      }, 500);
+      }, 1000);
     }
   };
 
@@ -3219,15 +781,12 @@ const getPatternCells = (ticket, pattern) => {
     setWinningAmount(claim.winning_amount);
     setWinningPattern(claim.reward_name);
     
-    // Reset animations
     celebrationOpacity.setValue(0);
     celebrationScale.setValue(0.5);
     celebrationTranslateY.setValue(50);
 
-    // Show celebration
     setShowWinningCelebration(true);
 
-    // Animate in
     Animated.parallel([
       Animated.timing(celebrationOpacity, {
         toValue: 1,
@@ -3249,10 +808,8 @@ const getPatternCells = (ticket, pattern) => {
       }),
     ]).start();
 
-    // Start confetti animation
     startConfettiAnimationCelebration();
 
-    // Auto close after 2 seconds
     setTimeout(() => {
       stopWinningCelebration();
     }, 2000);
@@ -3300,24 +857,34 @@ const getPatternCells = (ticket, pattern) => {
     let announcement = '';
     
     if (type === 'claim_approved') {
-      announcement = `Congratulations! ${claim.user_name} has won ${claim.winning_amount} rupees for completing the ${claim.reward_name} pattern! Tambola!`;
+      const winningAmount = parseFloat(claim.winning_amount);
+      
+      let amountText;
+      if (winningAmount === 1) {
+        amountText = '1 rupee';
+      } else {
+        amountText = `${winningAmount} rupees`;
+      }
+      
+      announcement = `Congratulations! ${claim.user_name} has won ${amountText} for completing the ${claim.reward_name} pattern! Tambola!`;
       
       Speech.speak(announcement, {
         language: 'en-US',
         pitch: voiceType === 'male' ? 0.9 : 1.2,
         rate: 0.9,
         volume: 1.0,
+        onDone: () => {
+          setTimeout(() => {
+            const celebration = "Congratulations to the winner!";
+            Speech.speak(celebration, {
+              language: 'en-US',
+              pitch: voiceType === 'male' ? 1.0 : 1.3,
+              rate: 1.0,
+              volume: 1.0,
+            });
+          }, 500);
+        }
       });
-      
-      setTimeout(() => {
-        const celebration = "Congratulations to the winner!";
-        Speech.speak(celebration, {
-          language: 'en-US',
-          pitch: voiceType === 'male' ? 1.0 : 1.3,
-          rate: 1.0,
-          volume: 1.0,
-        });
-      }, 3000);
       
     } else if (type === 'new_claim') {
       const claimMessage = `${claim.user_name} has submitted a ${claim.reward_name} claim!`;
@@ -3326,17 +893,18 @@ const getPatternCells = (ticket, pattern) => {
         language: 'en-US',
         pitch: voiceType === 'male' ? 0.8 : 1.0,
         rate: 0.8,
+        onDone: () => {
+          setTimeout(() => {
+            const tambolaAnnouncement = "Tambola!";
+            Speech.speak(tambolaAnnouncement, {
+              language: 'en-US',
+              pitch: voiceType === 'male' ? 0.9 : 1.2,
+              rate: 0.9,
+              volume: 1.0,
+            });
+          }, 300);
+        }
       });
-
-      setTimeout(() => {
-        const tambolaAnnouncement = "Tambola!";
-        Speech.speak(tambolaAnnouncement, {
-          language: 'en-US',
-          pitch: voiceType === 'male' ? 0.9 : 1.2,
-          rate: 0.9,
-          volume: 1.0,
-        });
-      }, 1500);
     } else if (type === 'claim_rejected') {
       const rejectionMessage = `${claim.user_name}'s ${claim.reward_name} claim has been rejected.`;
       
@@ -3349,31 +917,43 @@ const getPatternCells = (ticket, pattern) => {
   };
 
   const submitClaim = async (ticketId, pattern) => {
+    if (isSubmittingClaimRef.current) {
+      showSnackbar("Please wait, processing previous claim...", 'warning');
+      return;
+    }
+    
     if (submittingClaim) return;
     
     try {
+      isSubmittingClaimRef.current = true;
       setSubmittingClaim(true);
       const token = await AsyncStorage.getItem("token");
       
       const ticket = myTickets.find(t => t.id === ticketId);
       if (!ticket) {
         showSnackbar("Ticket not found", 'error');
+        isSubmittingClaimRef.current = false;
         return;
       }
 
-      // Check if pattern can be claimed for this ticket
       const ticketPatterns = patternsByTicket[ticketId] || {};
       const patternOnTicket = ticketPatterns[pattern.pattern_id];
       
       if (patternOnTicket && patternOnTicket.status !== 'rejected') {
-        showSnackbar(`You have already claimed ${pattern.reward_name} on this ticket`, 'error');
+        showSnackbar(`You have already claimed ${pattern.reward_name || pattern.display_name} on this ticket`, 'error');
+        isSubmittingClaimRef.current = false;
         return;
       }
 
-      // Check if pattern limit is reached globally
-      const patternCount = totalPatternCounts[pattern.pattern_id];
-      if (patternCount && patternCount.total > 0 && patternCount.claimed >= patternCount.total) {
-        showSnackbar(`${pattern.reward_name} claim limit reached (${patternCount.claimed}/${patternCount.total})`, 'error');
+      if (pattern.available_reward_count !== undefined && pattern.available_reward_count <= 0) {
+        showSnackbar(`${pattern.reward_name || pattern.display_name} claims are no longer available`, 'error');
+        isSubmittingClaimRef.current = false;
+        return;
+      }
+
+      if (pattern.is_reward_available === false) {
+        showSnackbar(`${pattern.reward_name || pattern.display_name} is not available for claims`, 'error');
+        isSubmittingClaimRef.current = false;
         return;
       }
 
@@ -3382,9 +962,9 @@ const getPatternCells = (ticket, pattern) => {
         {
           game_id: parseInt(gameId),
           ticket_id: parseInt(ticketId),
-          reward_name: pattern.reward_name,
-          claim_evidence: `Pattern ${pattern.pattern_id} completed on ticket ${ticket.ticket_number}`,
-          game_pattern_id: pattern.pattern_id,
+          reward_name: pattern.reward_name || pattern.display_name,
+          claim_evidence: `Pattern ${pattern.game_pattern_id || pattern.pattern_id} completed on ticket ${ticket.ticket_number}`,
+          game_pattern_id: pattern.game_pattern_id || pattern.pattern_id,
         },
         {
           headers: {
@@ -3396,8 +976,43 @@ const getPatternCells = (ticket, pattern) => {
       );
 
       if (response.data.success) {
-        showSnackbar(`Claim submitted for ${pattern.reward_name}! Waiting for approval.`, 'info');
-        fetchClaims();
+        showSnackbar(`Claim submitted for ${pattern.reward_name || pattern.display_name}! Waiting for approval.`, 'info');
+        
+        await Promise.all([
+          fetchClaims(),
+          fetchPatternRewardCounts().then(rewardCountsData => {
+            if (rewardCountsData.length > 0) {
+              const patternsWithCounts = rewardCountsData.map(pattern => ({
+                id: pattern.game_pattern_id,
+                pattern_id: pattern.game_pattern_id,
+                pattern_name: pattern.pattern_name,
+                display_name: pattern.reward_name.replace(' Prize', '').replace(/_/g, ' ').split(' ').map(word => 
+                  word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' '),
+                amount: pattern.amount,
+                total_reward_count: pattern.total_reward_count,
+                approved_claims_count: pattern.approved_claims_count,
+                pending_claims_count: pattern.pending_claims_count,
+                available_reward_count: pattern.available_reward_count,
+                is_reward_available: pattern.is_reward_available,
+                reward_name: pattern.reward_name,
+                game_pattern_id: pattern.game_pattern_id
+              }));
+              setMenuPatterns(patternsWithCounts);
+            }
+          }),
+        ]);
+        
+        const updatedTicketPatterns = { ...patternsByTicket };
+        if (!updatedTicketPatterns[ticketId]) {
+          updatedTicketPatterns[ticketId] = {};
+        }
+        updatedTicketPatterns[ticketId][pattern.pattern_id] = {
+          count: 1,
+          status: 'pending',
+        };
+        setPatternsByTicket(updatedTicketPatterns);
+        
       } else {
         showSnackbar(response.data.message || "Failed to submit claim", 'error');
       }
@@ -3416,6 +1031,7 @@ const getPatternCells = (ticket, pattern) => {
 
       showSnackbar(errorMessage, 'error');
     } finally {
+      isSubmittingClaimRef.current = false;
       setSubmittingClaim(false);
       setMenuVisible(false);
       setSelectedTicket(null);
@@ -3460,20 +1076,6 @@ const getPatternCells = (ticket, pattern) => {
     navigation.goBack();
   };
 
-  const handleNavigateToClaim = () => {
-    stopConfettiAnimation();
-    setShowGameEndModal(false);
-    if (myTickets.length > 0) {
-      navigation.navigate('UserGameClaim', {
-        gameId,
-        gameName,
-        gameData: gameStatus
-      });
-    } else {
-      navigation.goBack();
-    }
-  };
-
   const handleViewWinners = () => {
     stopConfettiAnimation();
     setShowGameEndModal(false);
@@ -3495,8 +1097,35 @@ const getPatternCells = (ticket, pattern) => {
     });
   };
 
-  const openMenu = (ticketId) => {
+  const openMenu = async (ticketId) => {
     setSelectedTicket(ticketId);
+    setMenuVisible(false);
+    
+    try {
+      const rewardCountsData = await fetchPatternRewardCounts();
+      if (rewardCountsData.length > 0) {
+        const patternsWithCounts = rewardCountsData.map(pattern => ({
+          id: pattern.game_pattern_id,
+          pattern_id: pattern.game_pattern_id,
+          pattern_name: pattern.pattern_name,
+          display_name: pattern.reward_name.replace(' Prize', '').replace(/_/g, ' ').split(' ').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1)
+          ).join(' '),
+          amount: pattern.amount,
+          total_reward_count: pattern.total_reward_count,
+          approved_claims_count: pattern.approved_claims_count,
+          pending_claims_count: pattern.pending_claims_count,
+          available_reward_count: pattern.available_reward_count,
+          is_reward_available: pattern.is_reward_available,
+          reward_name: pattern.reward_name,
+          game_pattern_id: pattern.game_pattern_id
+        }));
+        setMenuPatterns(patternsWithCounts);
+      }
+    } catch (error) {
+      console.log("Error fetching pattern counts:", error);
+    }
+    
     setMenuVisible(true);
   };
 
@@ -3537,6 +1166,7 @@ const getPatternCells = (ticket, pattern) => {
     await checkChatStatus();
     await fetchClaims();
     await fetchPatternRewards();
+    await fetchAllPatternsForViewing();
     setRefreshing(false);
   };
 
@@ -3556,10 +1186,17 @@ const getPatternCells = (ticket, pattern) => {
 
       if (response.data.success) {
         const data = response.data.data;
+        const previousGameStatus = gameStatus?.status;
+        const newGameStatus = data.game?.status;
+        
         setGameStatus(data.game);
         setCallingStatus(data.calling);
         setCalledNumbers(data.numbers.called_numbers || []);
         setLoading(false);
+        
+        if (previousGameStatus !== 'completed' && newGameStatus === 'completed') {
+          checkGameCompletion();
+        }
       }
     } catch (error) {
       console.log("Error fetching game status:", error);
@@ -3754,15 +1391,14 @@ const getPatternCells = (ticket, pattern) => {
   const handleNumberClick = async (ticketId, cellNumber, isCurrentlyMarked) => {
     if (cellNumber === null || markingLoading) return;
     
+    playClickSound();
+    
     const cellKey = `${ticketId}-${cellNumber}`;
     
-    // Add to processing set
     setProcessingCells(prev => new Set(prev).add(cellKey));
     
-    // OPTIMISTIC UPDATE: Update UI immediately to new state
     updateTicketState(ticketId, cellNumber, !isCurrentlyMarked);
     
-    // Make API call in background
     makeMarkingApiCall(ticketId, cellNumber, isCurrentlyMarked, cellKey);
   };
 
@@ -3801,11 +1437,9 @@ const getPatternCells = (ticket, pattern) => {
     } catch (error) {
       console.log("Error marking/unmarking number:", error);
       
-      // REVERT on error
       showSnackbar("Failed to update number. Please try again.", 'error');
-      updateTicketState(ticketId, cellNumber, wasMarked); // Revert to original state
+      updateTicketState(ticketId, cellNumber, wasMarked);
     } finally {
-      // Remove from processing set
       setProcessingCells(prev => {
         const newSet = new Set(prev);
         newSet.delete(cellKey);
@@ -3818,7 +1452,6 @@ const getPatternCells = (ticket, pattern) => {
     setMyTickets(prevTickets => 
       prevTickets.map(ticket => {
         if (ticket.id === ticketId) {
-          // Create a deep copy to avoid mutating state
           const updatedTicketData = ticket.ticket_data.map(row =>
             row.map(cell => {
               if (cell && cell.number === number) {
@@ -3860,13 +1493,107 @@ const getPatternCells = (ticket, pattern) => {
     return Array(3).fill(Array(9).fill(null));
   };
 
+  const renderAllCalledNumbersSection = () => {
+    const allNumbers = Array.from({ length: 90 }, (_, i) => i + 1);
+    const numberRows = [];
+    for (let i = 0; i < 9; i++) {
+      numberRows.push(allNumbers.slice(i * 10, (i + 1) * 10));
+    }
+
+    return (
+      <View style={styles.allNumbersCard}>
+        <View style={styles.allNumbersHeader}>
+          <View style={styles.allNumbersTitleContainer}>
+            <Image
+              source={{ uri: GAME_IMAGES.numbers }}
+              style={styles.allNumbersIcon}
+            />
+            <Text style={styles.allNumbersTitle}>All Numbers (1-90)</Text>
+            <View style={styles.calledCountBadge}>
+              <Text style={styles.calledCountText}>{calledNumbers.length}/90</Text>
+            </View>
+          </View>
+          
+          <TouchableOpacity
+            style={styles.viewAllGridButton}
+            onPress={handleViewAllCalledNumbers}
+          >
+            <Text style={styles.viewAllGridButtonText}>View All</Text>
+            <Ionicons name="expand" size={14} color={PRIMARY_COLOR} />
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.numbersGridCompact}>
+          {numberRows.map((row, rowIndex) => (
+            <View key={`row-${rowIndex}`} style={styles.numberRow}>
+              {row.map((number) => {
+                const isCalled = calledNumbers.includes(number);
+                const isLatest = calledNumbers.length > 0 && 
+                  number === calledNumbers[calledNumbers.length - 1];
+                
+                return (
+                  <TouchableOpacity
+                    key={number}
+                    style={[
+                      styles.numberItemCompact,
+                      isCalled && styles.calledNumberItem,
+                      isLatest && styles.latestNumberItem,
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.numberItemTextCompact,
+                      isCalled && styles.calledNumberText,
+                      isLatest && styles.latestNumberText,
+                    ]}>
+                      {number}
+                    </Text>
+                    {isLatest && (
+                      <View style={styles.latestIndicatorCompact}>
+                        <Ionicons name="star" size={8} color={WARNING_COLOR} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+        
+        <View style={styles.legendContainer}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, styles.legendNormal]} />
+            <Text style={styles.legendText}>Not Called</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, styles.legendCalled]} />
+            <Text style={styles.legendText}>Called</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, styles.legendLatest]} />
+            <Text style={styles.legendText}>Latest</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   const renderTicketGrid = (ticketData, ticketId) => {
     const processedData = processTicketData(ticketData);
     const blinkingAnim = blinkingAnimations[ticketId];
     const currentBlinkingCells = blinkingCells[ticketId] || [];
     
+    const blinkingCellMap = {};
+    currentBlinkingCells.forEach(cell => {
+      const key = `${cell.row}-${cell.col}`;
+      blinkingCellMap[key] = true;
+    });
+
     return (
-      <View style={[styles.ticketGridContainer, { height: TICKET_GRID_HEIGHT }]}>
+      <View style={[styles.ticketGridContainer, { 
+        height: TICKET_GRID_HEIGHT + 8,
+        marginBottom: 4
+      }]}>
         {processedData.map((row, rowIndex) => (
           <View key={`row-${rowIndex}`} style={styles.ticketRow}>
             {row.map((cell, colIndex) => {
@@ -3875,23 +1602,24 @@ const getPatternCells = (ticket, pattern) => {
               const isMarked = cellObj?.is_marked || false;
               const isEmpty = cellNumber === null || cellNumber === undefined;
               
-              // Check if this cell should blink
-              const shouldBlink = currentBlinkingCells.some(
-                blinkingCell => blinkingCell.row === rowIndex && blinkingCell.col === colIndex
-              );
+              const shouldBlink = blinkingCellMap[`${rowIndex}-${colIndex}`];
               
               let cellBackgroundColor;
+              let cellBorderColor;
               let textColor;
               
               if (isEmpty) {
-                cellBackgroundColor = "#F5F5F5";
+                cellBackgroundColor = EMPTY_CELL_BG;
+                cellBorderColor = EMPTY_CELL_BORDER;
                 textColor = "transparent";
               } else if (isMarked) {
-                cellBackgroundColor = "#FF6B35";
+                cellBackgroundColor = MARKED_CELL_BG;
+                cellBorderColor = MARKED_CELL_BORDER;
                 textColor = "#FFFFFF";
               } else {
-                cellBackgroundColor = "#80CBC4";
-                textColor = "#FFFFFF";
+                cellBackgroundColor = FILLED_CELL_BG;
+                cellBorderColor = FILLED_CELL_BORDER;
+                textColor = CELL_TEXT_COLOR;
               }
               
               return (
@@ -3903,31 +1631,52 @@ const getPatternCells = (ticket, pattern) => {
                       width: CELL_SIZE,
                       height: CELL_SIZE,
                       backgroundColor: cellBackgroundColor,
+                      borderColor: cellBorderColor,
                     },
-                    isEmpty && styles.emptyCell,
+                    isEmpty ? styles.emptyCell : styles.filledCell,
                     isMarked && styles.markedCell,
-                    !isEmpty && !isMarked && styles.numberCell,
+                    shouldBlink && styles.blinkingCellBorder,
                   ]}
                   onPress={() => cellNumber && handleNumberClick(ticketId, cellNumber, isMarked)}
                   onLongPress={() => cellNumber && speakNumber(cellNumber)}
                   disabled={isEmpty || markingLoading}
                 >
                   {!isEmpty && (
-                    <Animated.View 
-                      style={[
-                        styles.cellContent,
-                        shouldBlink && blinkingAnim && {
-                          backgroundColor: blinkingAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [cellBackgroundColor, '#FFD700']
-                          })
-                        }
-                      ]}
-                    >
-                      <Text style={[styles.cellNumber, { color: textColor }]}>
-                        {cellNumber}
-                      </Text>
-                    </Animated.View>
+                    <>
+                      {shouldBlink && blinkingAnim ? (
+                        <Animated.View 
+                          style={[
+                            styles.blinkingOverlay,
+                            {
+                              opacity: blinkingAnim,
+                              backgroundColor: WARNING_COLOR,
+                              transform: [{
+                                scale: blinkingAnim.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [0.8, 1.2]
+                                })
+                              }]
+                            }
+                          ]}
+                        >
+                          <Text style={[
+                            styles.cellNumber, 
+                            { 
+                              color: textColor,
+                              textShadowColor: 'rgba(243, 156, 18, 0.8)',
+                              textShadowOffset: { width: 0, height: 0 },
+                              textShadowRadius: 4,
+                            }
+                          ]}>
+                            {cellNumber}
+                          </Text>
+                        </Animated.View>
+                      ) : (
+                        <Text style={[styles.cellNumber, { color: textColor }]}>
+                          {cellNumber}
+                        </Text>
+                      )}
+                    </>
                   )}
                 </TouchableOpacity>
               );
@@ -3946,7 +1695,9 @@ const getPatternCells = (ticket, pattern) => {
             source={{ uri: GAME_IMAGES.ticket }}
             style={styles.ticketIcon}
           />
-          <Text style={styles.ticketNumber}>Ticket #{item.ticket_number}</Text>
+          <View style={styles.ticketInfo}>
+            <Text style={styles.ticketLabel}>Ticket #{item.ticket_number}</Text>
+          </View>
         </View>
         
         <View style={styles.ticketActions}>
@@ -3954,8 +1705,8 @@ const getPatternCells = (ticket, pattern) => {
             style={styles.viewPatternsButton}
             onPress={() => handleViewPatterns(item.id)}
           >
-            <Ionicons name="eye-outline" size={16} color="#40E0D0" />
-            <Text style={styles.viewPatternsButtonText}>View Patterns</Text>
+            <Ionicons name="eye-outline" size={16} color={PRIMARY_COLOR} />
+            <Text style={styles.viewPatternsButtonText}>Patterns</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -3963,12 +1714,12 @@ const getPatternCells = (ticket, pattern) => {
             onPress={() => openMenu(item.id)}
             ref={el => menuRefs.current[index] = el}
           >
-            <Ionicons name="ellipsis-vertical" size={20} color="#6C757D" />
+            <Ionicons name="ellipsis-vertical" size={18} color={GRAY_COLOR} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.ticketGridWrapper}>
+      <View style={styles.ticketCard}>
         {renderTicketGrid(item.ticket_data, item.id)}
       </View>
     </View>
@@ -3978,18 +1729,54 @@ const getPatternCells = (ticket, pattern) => {
     if (!selectedTicket) return null;
 
     const ticketPatterns = patternsByTicket[selectedTicket] || {};
-    const availablePatterns = patternRewards.filter(pattern => {
-      const patternCount = totalPatternCounts[pattern.pattern_id];
+    
+    const patternsForClaim = menuPatterns.map(pattern => {
       const patternOnTicket = ticketPatterns[pattern.pattern_id];
       
-      // Pattern is disabled if:
-      // 1. Already claimed on this ticket (and not rejected)
-      // 2. Global limit is reached
-      return !(
-        (patternOnTicket && patternOnTicket.status !== 'rejected') ||
-        (patternCount && patternCount.total > 0 && patternCount.claimed >= patternCount.total)
-      );
+      const hasAvailableRewards = pattern.available_reward_count !== undefined && pattern.available_reward_count > 0;
+      const isRewardAvailable = pattern.is_reward_available !== false;
+      
+      const isClaimed = patternOnTicket && patternOnTicket.status !== 'rejected';
+      
+      const isDisabled = isClaimed || !hasAvailableRewards || !isRewardAvailable;
+      
+      return {
+        ...pattern,
+        isDisabled,
+        isClaimed,
+        hasAvailableRewards,
+        isRewardAvailable,
+        patternOnTicket
+      };
     });
+
+    const handleRefreshPatterns = async () => {
+      try {
+        const rewardCountsData = await fetchPatternRewardCounts();
+        if (rewardCountsData.length > 0) {
+          const patternsWithCounts = rewardCountsData.map(pattern => ({
+            id: pattern.game_pattern_id,
+            pattern_id: pattern.game_pattern_id,
+            pattern_name: pattern.pattern_name,
+            display_name: pattern.reward_name.replace(' Prize', '').replace(/_/g, ' ').split(' ').map(word => 
+              word.charAt(0).toUpperCase() + word.slice(1)
+            ).join(' '),
+            amount: pattern.amount,
+            total_reward_count: pattern.total_reward_count,
+            approved_claims_count: pattern.approved_claims_count,
+            pending_claims_count: pattern.pending_claims_count,
+            available_reward_count: pattern.available_reward_count,
+            is_reward_available: pattern.is_reward_available,
+            reward_name: pattern.reward_name,
+            game_pattern_id: pattern.game_pattern_id
+          }));
+          setMenuPatterns(patternsWithCounts);
+          showSnackbar("Patterns refreshed successfully", 'info');
+        }
+      } catch (error) {
+        showSnackbar("Failed to refresh patterns", 'error');
+      }
+    };
 
     return (
       <Modal
@@ -4006,26 +1793,47 @@ const getPatternCells = (ticket, pattern) => {
           <View style={styles.menuContainer}>
             <View style={styles.menuHeader}>
               <Text style={styles.menuTitle}>Submit Claim</Text>
-              <TouchableOpacity onPress={closeMenu}>
-                <Ionicons name="close" size={24} color="#6C757D" />
-              </TouchableOpacity>
+              <View style={styles.menuHeaderActions}>
+                <TouchableOpacity 
+                  style={styles.refreshMenuButton}
+                  onPress={handleRefreshPatterns}
+                  disabled={loadingPatterns}
+                >
+                  {loadingPatterns ? (
+                    <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                  ) : (
+                    <Ionicons name="refresh" size={20} color={PRIMARY_COLOR} />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={closeMenu}>
+                  <Ionicons name="close" size={24} color="#FFF" />
+                </TouchableOpacity>
+              </View>
             </View>
             
             <ScrollView style={styles.patternsMenuScroll}>
-              {availablePatterns.length === 0 ? (
+              {loadingPatterns ? (
+                <View style={styles.patternsLoadingContainer}>
+                  <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+                  <Text style={styles.patternsLoadingText}>Loading patterns...</Text>
+                </View>
+              ) : patternsForClaim.length === 0 ? (
                 <View style={styles.noPatternsContainer}>
-                  <Ionicons name="alert-circle-outline" size={40} color="#FFD700" />
-                  <Text style={styles.noPatternsText}>No available patterns for this ticket</Text>
-                  <Text style={styles.noPatternsSubtext}>
-                    All patterns have been claimed or limits reached
-                  </Text>
+                  <Ionicons name="alert-circle-outline" size={40} color={WARNING_COLOR} />
+                  <Text style={styles.noPatternsText}>No patterns available for this game</Text>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={handleRefreshPatterns}
+                  >
+                    <Ionicons name="refresh" size={16} color={PRIMARY_COLOR} />
+                    <Text style={styles.retryButtonText}>Refresh Patterns</Text>
+                  </TouchableOpacity>
                 </View>
               ) : (
-                availablePatterns.map((pattern, index) => {
-                  const patternCount = totalPatternCounts[pattern.pattern_id] || {};
-                  const patternOnTicket = ticketPatterns[pattern.pattern_id];
-                  const isDisabled = patternOnTicket && patternOnTicket.status !== 'rejected';
-                  const isLimitReached = patternCount.total > 0 && patternCount.claimed >= patternCount.total;
+                patternsForClaim.map((pattern, index) => {
+                  const isDisabled = pattern.isDisabled;
+                  const isClaimed = pattern.isClaimed;
+                  const isLimitReached = !pattern.hasAvailableRewards || !pattern.isRewardAvailable;
                   
                   return (
                     <TouchableOpacity
@@ -4034,36 +1842,48 @@ const getPatternCells = (ticket, pattern) => {
                         styles.patternMenuItem,
                         isDisabled && styles.disabledPatternItem
                       ]}
-                      onPress={() => submitClaim(selectedTicket, pattern)}
-                      disabled={submittingClaim || isDisabled || isLimitReached}
+                      onPress={() => !isDisabled && submitClaim(selectedTicket, pattern)}
+                      disabled={submittingClaim || isDisabled}
                     >
                       <View style={styles.patternMenuItemContent}>
                         <Ionicons 
-                          name={isDisabled ? "checkmark-circle" : "trophy-outline"} 
+                          name={isClaimed ? "checkmark-circle" : (isLimitReached ? "lock-closed" : "trophy-outline")} 
                           size={20} 
-                          color={isDisabled ? SUCCESS_COLOR : SECONDARY_COLOR} 
+                          color={isClaimed ? SUCCESS_COLOR : (isLimitReached ? DANGER_COLOR : SECONDARY_COLOR)} 
                         />
                         <View style={styles.patternMenuItemInfo}>
-                          <Text style={styles.patternMenuItemName}>
-                            {pattern.reward_name}
-                            {isDisabled && (
+                          <Text style={[
+                            styles.patternMenuItemName,
+                            isDisabled && styles.disabledPatternName
+                          ]}>
+                            {pattern.reward_name || pattern.display_name}
+                            {isClaimed && (
                               <Text style={styles.claimedBadge}> ✓ Claimed</Text>
                             )}
+                            {!isClaimed && isLimitReached && (
+                              <Text style={styles.limitReachedBadge}> ✗ Not Available</Text>
+                            )}
                           </Text>
-                          <Text style={styles.patternMenuItemDesc} numberOfLines={2}>
+                          <Text style={[
+                            styles.patternMenuItemDesc,
+                            isDisabled && styles.disabledPatternDesc
+                          ]} numberOfLines={2}>
                             Prize: ₹{pattern.amount}
-                            {patternCount.total > 0 && (
-                              <Text style={styles.patternLimitText}>
-                                {" "}• Limit: {patternCount.claimed}/{patternCount.total}
+                            {pattern.available_reward_count !== undefined && (
+                              <Text style={[
+                                styles.patternLimitText,
+                                isLimitReached && styles.limitReachedText
+                              ]}>
+                                {" "}• Available: {pattern.available_reward_count}/{pattern.total_reward_count}
                               </Text>
                             )}
                           </Text>
                         </View>
-                        {submittingClaim && patternOnTicket ? (
+                        {submittingClaim && pattern.patternOnTicket ? (
                           <ActivityIndicator size="small" color={SECONDARY_COLOR} />
                         ) : (
                           <View style={styles.patternStatusContainer}>
-                            {isLimitReached && (
+                            {isDisabled && !isClaimed && (
                               <Ionicons name="lock-closed" size={16} color={DANGER_COLOR} />
                             )}
                           </View>
@@ -4090,61 +1910,74 @@ const getPatternCells = (ticket, pattern) => {
         animationType="slide"
         onRequestClose={() => {
           setShowPatternsModal(false);
+          stopAllBlinking();
         }}
       >
         <View style={styles.patternsModalOverlay}>
           <View style={styles.patternsModalContainer}>
             <View style={styles.patternsModalHeader}>
               <Text style={styles.patternsModalTitle}>Available Patterns</Text>
-              <TouchableOpacity 
-                onPress={() => {
-                  setShowPatternsModal(false);
-                }}
-                style={styles.patternsModalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#6C757D" />
-              </TouchableOpacity>
+              <View style={styles.patternsModalHeaderActions}>
+                <TouchableOpacity 
+                  onPress={() => fetchAllPatternsForViewing()}
+                  style={styles.refreshPatternsButton}
+                  disabled={loadingPatterns}
+                >
+                  {loadingPatterns ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Ionicons name="refresh" size={20} color="#FFF" />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={() => {
+                    setShowPatternsModal(false);
+                    stopAllBlinking();
+                  }}
+                  style={styles.patternsModalCloseButton}
+                >
+                  <Ionicons name="close" size={24} color="#FFF" />
+                </TouchableOpacity>
+              </View>
             </View>
             
             <Text style={styles.patternsModalSubtitle}>
-              Tap on a pattern to see it highlighted on ALL your tickets for 3 seconds
+              Tap on a pattern to see it highlighted on ALL your tickets for 5 seconds
             </Text>
             
-            {/* Show current blinking pattern info */}
             {blinkingPattern && (
               <View style={styles.currentBlinkingPatternContainer}>
-                <Ionicons name="star" size={20} color="#FFD700" />
+                <Ionicons name="star" size={18} color={WARNING_COLOR} />
                 <Text style={styles.currentBlinkingPatternText}>
-                  Currently showing: <Text style={styles.currentBlinkingPatternName}>{blinkingPattern.display_name}</Text>
+                  Showing: <Text style={styles.currentBlinkingPatternName}>{blinkingPattern.display_name}</Text>
                 </Text>
                 <TouchableOpacity
                   style={styles.stopBlinkingButton}
                   onPress={stopAllBlinking}
                 >
-                  <Ionicons name="stop-circle" size={16} color="#FF5252" />
+                  <Ionicons name="stop-circle" size={16} color={DANGER_COLOR} />
                   <Text style={styles.stopBlinkingText}>Stop</Text>
                 </TouchableOpacity>
               </View>
             )}
             
-            {/* Early Five Note */}
             <View style={styles.earlyFiveNoteContainer}>
-              <Ionicons name="information-circle" size={20} color="#40E0D0" />
+              <Ionicons name="information-circle" size={18} color={PRIMARY_COLOR} />
               <Text style={styles.earlyFiveNoteText}>
-                <Text style={styles.earlyFiveNoteBold}>Early Five pattern:</Text> Shows the first 5 called numbers that appear on each ticket
+                <Text style={styles.earlyFiveNoteBold}>Early Five pattern:</Text> Shows the first 5 called numbers on each ticket
               </Text>
             </View>
             
             {loadingPatterns ? (
               <View style={styles.patternsLoadingContainer}>
-                <ActivityIndicator size="large" color="#40E0D0" />
+                <ActivityIndicator size="large" color={PRIMARY_COLOR} />
                 <Text style={styles.patternsLoadingText}>Loading patterns...</Text>
               </View>
             ) : (
-              <ScrollView style={styles.patternsList}>
+              <ScrollView style={styles.patternsList} showsVerticalScrollIndicator={false}>
                 {availablePatterns.length === 0 ? (
                   <View style={styles.noAvailablePatternsContainer}>
-                    <Ionicons name="alert-circle-outline" size={40} color="#FFD700" />
+                    <Ionicons name="alert-circle-outline" size={40} color={WARNING_COLOR} />
                     <Text style={styles.noAvailablePatternsText}>No patterns available</Text>
                   </View>
                 ) : (
@@ -4163,8 +1996,8 @@ const getPatternCells = (ticket, pattern) => {
                         <View style={styles.patternListItemContent}>
                           <Ionicons 
                             name="star" 
-                            size={20} 
-                            color={isSelected ? "#FFD700" : "#40E0D0"} 
+                            size={18} 
+                            color={isSelected ? WARNING_COLOR : PRIMARY_COLOR} 
                           />
                           <View style={styles.patternListItemInfo}>
                             <Text style={styles.patternListItemName}>
@@ -4174,15 +2007,16 @@ const getPatternCells = (ticket, pattern) => {
                               )}
                             </Text>
                             <Text style={styles.patternListItemDesc} numberOfLines={2}>
-                              {pattern.description}
-                            </Text>
-                            <Text style={styles.patternListItemExample}>
-                              {pattern.example}
+                              {getPatternDescription(pattern.pattern_name)}
                             </Text>
                           </View>
-                          {isSelected && (
-                            <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
-                          )}
+                          <View style={styles.patternActionContainer}>
+                            {isSelected ? (
+                              <Ionicons name="checkmark-circle" size={22} color={SUCCESS_COLOR} />
+                            ) : (
+                              <Ionicons name="eye" size={18} color={PRIMARY_COLOR} />
+                            )}
+                          </View>
                         </View>
                       </TouchableOpacity>
                     );
@@ -4194,16 +2028,21 @@ const getPatternCells = (ticket, pattern) => {
             <View style={styles.patternsModalFooter}>
               <TouchableOpacity
                 style={styles.clearSelectionButton}
-                onPress={stopAllBlinking}
+                onPress={() => {
+                  setSelectedPatternForView(null);
+                  stopAllBlinking();
+                }}
               >
-                <Ionicons name="refresh" size={16} color="#6C757D" />
-                <Text style={styles.clearSelectionButtonText}>Stop All Blinking</Text>
+                <Ionicons name="refresh" size={16} color={GRAY_COLOR} />
+                <Text style={styles.clearSelectionButtonText}>Clear Selection</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={styles.closePatternsButton}
                 onPress={() => {
                   setShowPatternsModal(false);
+                  setSelectedPatternForView(null);
+                  stopAllBlinking();
                 }}
               >
                 <Text style={styles.closePatternsButtonText}>Close</Text>
@@ -4226,7 +2065,6 @@ const getPatternCells = (ticket, pattern) => {
         onRequestClose={stopWinningCelebration}
       >
         <View style={styles.winningOverlay}>
-          {/* Confetti Animation */}
           {confettiTranslateY.current.map((anim, index) => (
             <Animated.View
               key={`confetti-${index}`}
@@ -4235,13 +2073,12 @@ const getPatternCells = (ticket, pattern) => {
                 {
                   left: `${(index * 5) % 100}%`,
                   transform: [{ translateY: anim }],
-                  backgroundColor: ['#FF6B35', '#40E0D0', '#FFD700', '#4CAF50'][index % 4],
+                  backgroundColor: [DANGER_COLOR, PRIMARY_COLOR, WARNING_COLOR, SUCCESS_COLOR][index % 4],
                 }
               ]}
             />
           ))}
 
-          {/* Celebration Popup */}
           <Animated.View style={[
             styles.celebrationContent,
             {
@@ -4253,7 +2090,7 @@ const getPatternCells = (ticket, pattern) => {
             }
           ]}>
             <View style={styles.celebrationInner}>
-              <Ionicons name="trophy" size={40} color="#FFD700" style={styles.trophyIcon} />
+              <Ionicons name="trophy" size={40} color={WARNING_COLOR} style={styles.trophyIcon} />
               
               <Text style={styles.winningTitle}>{winningMessage}</Text>
               
@@ -4268,9 +2105,9 @@ const getPatternCells = (ticket, pattern) => {
               </View>
               
               <View style={styles.celebrationMessage}>
-                <Ionicons name="sparkles" size={16} color="#FFD700" />
+                <Ionicons name="sparkles" size={16} color={WARNING_COLOR} />
                 <Text style={styles.celebrationText}>CONGRATULATIONS!</Text>
-                <Ionicons name="sparkles" size={16} color="#FFD700" />
+                <Ionicons name="sparkles" size={16} color={WARNING_COLOR} />
               </View>
             </View>
 
@@ -4289,36 +2126,62 @@ const getPatternCells = (ticket, pattern) => {
   const getSnackbarStyle = () => {
     switch (snackbarType) {
       case 'success':
-        return { backgroundColor: '#4CAF50' };
+        return { backgroundColor: SUCCESS_COLOR };
       case 'error':
-        return { backgroundColor: '#FF5252' };
+        return { backgroundColor: DANGER_COLOR };
       case 'warning':
-        return { backgroundColor: '#FF9800' };
+        return { backgroundColor: WARNING_COLOR };
       default:
-        return { backgroundColor: '#40E0D0' };
+        return { backgroundColor: PRIMARY_COLOR };
     }
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#40E0D0" />
-        <Text style={styles.loadingText}>Loading Game Room...</Text>
+        <View style={styles.loadingContent}>
+          <View style={styles.loadingIconWrapper}>
+            <MaterialIcons name="confirmation-number" size={40} color={PRIMARY_COLOR} />
+          </View>
+          <ActivityIndicator size="large" color={PRIMARY_COLOR} style={styles.loadingSpinner} />
+          <Text style={styles.loadingText}>Loading Game Room...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+      <StatusBar backgroundColor="#5DADE2" barStyle="light-content" />
 
-      {/* Patterns Modal */}
+      <View style={styles.backgroundPattern}>
+        <Animated.View 
+          style={[
+            styles.cloud1, 
+            { 
+              transform: [
+                { translateY: translateY1 },
+                { translateX: translateY2 }
+              ] 
+            }
+          ]} 
+        />
+        <Animated.View 
+          style={[
+            styles.cloud2, 
+            { 
+              transform: [
+                { translateY: translateY2 },
+                { translateX: translateY1 }
+              ] 
+            }
+          ]} 
+        />
+      </View>
+
       {renderPatternsModal()}
-
-      {/* Winning Celebration Modal */}
       {renderWinningCelebration()}
 
-      {/* Game End Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -4351,7 +2214,9 @@ const getPatternCells = (ticket, pattern) => {
                 source={{ uri: GAME_IMAGES.trophy }}
                 style={styles.gameEndTrophy}
               />
-              <Text style={styles.gameEndModalTitle}>Game Complete! 🎉</Text>
+              <Text style={styles.gameEndModalTitle}>
+                {gameStatus?.status === 'completed' ? "Game Completed!" : "Game Complete! 🎉"}
+              </Text>
             </View>
             
             <View style={styles.gameEndModalBody}>
@@ -4359,7 +2224,9 @@ const getPatternCells = (ticket, pattern) => {
                 Congratulations!
               </Text>
               <Text style={styles.gameEndMessage}>
-                All 90 numbers have been called! The game has ended.
+                {gameStatus?.status === 'completed' 
+                  ? "The game has been marked as completed by the host!" 
+                  : "All 90 numbers have been called! The game has ended."}
               </Text>
               
               <View style={styles.gameEndStats}>
@@ -4406,7 +2273,6 @@ const getPatternCells = (ticket, pattern) => {
         </View>
       </Modal>
 
-      {/* Voice Selection Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -4421,7 +2287,7 @@ const getPatternCells = (ticket, pattern) => {
                 onPress={() => setShowVoiceModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Ionicons name="close" size={24} color="#6C757D" />
+                <Ionicons name="close" size={24} color={GRAY_COLOR} />
               </TouchableOpacity>
             </View>
             
@@ -4440,7 +2306,7 @@ const getPatternCells = (ticket, pattern) => {
                 <Ionicons 
                   name="female" 
                   size={24} 
-                  color={voiceType === 'female' ? "#40E0D0" : "#6C757D"} 
+                  color={voiceType === 'female' ? PRIMARY_COLOR : GRAY_COLOR} 
                 />
               </View>
               <View style={styles.voiceOptionInfo}>
@@ -4448,7 +2314,7 @@ const getPatternCells = (ticket, pattern) => {
                 <Text style={styles.voiceOptionDesc}>Higher pitch, clear pronunciation</Text>
               </View>
               {voiceType === 'female' && (
-                <Ionicons name="checkmark-circle" size={24} color="#40E0D0" />
+                <Ionicons name="checkmark-circle" size={24} color={PRIMARY_COLOR} />
               )}
             </TouchableOpacity>
             
@@ -4463,7 +2329,7 @@ const getPatternCells = (ticket, pattern) => {
                 <Ionicons 
                   name="male" 
                   size={24} 
-                  color={voiceType === 'male' ? "#40E0D0" : "#6C757D"} 
+                  color={voiceType === 'male' ? PRIMARY_COLOR : GRAY_COLOR} 
                 />
               </View>
               <View style={styles.voiceOptionInfo}>
@@ -4471,7 +2337,7 @@ const getPatternCells = (ticket, pattern) => {
                 <Text style={styles.voiceOptionDesc}>Lower pitch, deeper tone</Text>
               </View>
               {voiceType === 'male' && (
-                <Ionicons name="checkmark-circle" size={24} color="#40E0D0" />
+                <Ionicons name="checkmark-circle" size={24} color={PRIMARY_COLOR} />
               )}
             </TouchableOpacity>
             
@@ -4492,42 +2358,43 @@ const getPatternCells = (ticket, pattern) => {
         </View>
       </Modal>
 
-      {/* Pattern Menu Modal */}
       {renderPatternMenu()}
 
-      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#40E0D0" />
-          </TouchableOpacity>
-          
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.gameName} numberOfLines={1}>
-              {gameName}
-            </Text>
-            <View style={styles.gameCodeContainer}>
-              <Ionicons name="game-controller" size={16} color="#6C757D" />
-              <Text style={styles.gameCode}>Game Room</Text>
-            </View>
-          </View>
+        <View style={styles.headerPattern}>
+          <View style={styles.headerCloud1} />
+        </View>
 
-          <View style={styles.headerActions}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerTopRow}>
             <TouchableOpacity
-              style={styles.voiceButton}
-              onPress={() => setShowVoiceModal(true)}
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
             >
-              <Image
-                source={{ uri: GAME_IMAGES.voice }}
-                style={styles.voiceButtonIcon}
-              />
-              <Text style={styles.voiceButtonText}>
-                {voiceType === 'male' ? 'Male' : 'Female'}
-              </Text>
+              <Ionicons name="arrow-back" size={22} color="#FFF" />
             </TouchableOpacity>
+
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle} numberOfLines={1}>Game Room</Text>
+              <View style={styles.gameInfoContainer}>
+                <Ionicons name="game-controller" size={14} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.gameName} numberOfLines={1}>
+                  {gameName || "Tambola Game"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.voiceButton}
+                onPress={() => setShowVoiceModal(true)}
+              >
+                <Ionicons name={voiceType === 'male' ? "male" : "female"} size={16} color="#FFF" />
+                <Text style={styles.voiceButtonText}>
+                  {voiceType === 'male' ? 'Male' : 'Female'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -4539,22 +2406,16 @@ const getPatternCells = (ticket, pattern) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#40E0D0"
-            colors={["#40E0D0"]}
-            progressViewOffset={20}
+            tintColor={PRIMARY_COLOR}
+            colors={[PRIMARY_COLOR]}
           />
         }
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Content */}
         <View style={styles.content}>
-          {/* Last Called Number Card */}
           <View style={styles.card}>
-            <View style={styles.cardPattern} />
-            
             {calledNumbers.length > 0 ? (
               <View style={styles.compactNumberDisplay}>
-                {/* Left side - Last Called Number */}
                 <View style={styles.lastNumberLeft}>
                   <View style={styles.sectionHeader}>
                     <Image
@@ -4573,14 +2434,13 @@ const getPatternCells = (ticket, pattern) => {
                       {calledNumbers[calledNumbers.length - 1]}
                     </Text>
                     <Text style={styles.compactLastNumberLabel}>
-                      {calledNumbers.length >= 90 
+                      {calledNumbers.length >= 90 || gameStatus?.status === 'completed'
                         ? "Game Completed" 
                         : `Tap to hear`}
                     </Text>
                   </TouchableOpacity>
                 </View>
 
-                {/* Right side - Recent Numbers */}
                 <View style={styles.recentNumbersRight}>
                   <View style={styles.sectionHeader}>
                     <Image
@@ -4594,8 +2454,8 @@ const getPatternCells = (ticket, pattern) => {
                     >
                       <Ionicons 
                         name={voiceType === 'male' ? "male" : "female"} 
-                        size={16} 
-                        color="#40E0D0" 
+                        size={14} 
+                        color={PRIMARY_COLOR} 
                       />
                     </TouchableOpacity>
                   </View>
@@ -4624,8 +2484,8 @@ const getPatternCells = (ticket, pattern) => {
                         style={styles.viewMoreButton}
                         onPress={handleViewAllCalledNumbers}
                       >
-                        <Text style={styles.viewMoreText}>View More</Text>
-                        <Ionicons name="chevron-forward" size={14} color="#40E0D0" />
+                        <Text style={styles.viewMoreText}>More</Text>
+                        <Ionicons name="chevron-forward" size={12} color={PRIMARY_COLOR} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -4633,7 +2493,7 @@ const getPatternCells = (ticket, pattern) => {
               </View>
             ) : (
               <View style={styles.waitingSection}>
-                <Ionicons name="hourglass-outline" size={40} color="#FFD700" />
+                <Ionicons name="hourglass-outline" size={32} color={WARNING_COLOR} />
                 <Text style={styles.waitingText}>
                   Waiting for numbers to be called...
                 </Text>
@@ -4641,7 +2501,8 @@ const getPatternCells = (ticket, pattern) => {
             )}
           </View>
 
-          {/* My Tickets Section */}
+          {renderAllCalledNumbersSection()}
+
           <View style={styles.ticketsSection}>
             {myTickets.length === 0 ? (
               <View style={styles.emptyTicketsContainer}>
@@ -4656,23 +2517,21 @@ const getPatternCells = (ticket, pattern) => {
               </View>
             ) : (
               <>
-                {/* Show blinking pattern info if active */}
                 {blinkingPattern && (
                   <View style={styles.activePatternContainer}>
-                    <Ionicons name="star" size={16} color="#FFD700" />
+                    <Ionicons name="star" size={14} color={WARNING_COLOR} />
                     <Text style={styles.activePatternText}>
-                      Showing: <Text style={styles.activePatternName}>{blinkingPattern.display_name}</Text> pattern
+                      Showing: <Text style={styles.activePatternName}>{blinkingPattern.display_name}</Text>
                     </Text>
                     <TouchableOpacity
                       style={styles.stopBlinkingSmallButton}
                       onPress={stopAllBlinking}
                     >
-                      <Ionicons name="close" size={14} color="#FF5252" />
+                      <Ionicons name="close" size={12} color={DANGER_COLOR} />
                     </TouchableOpacity>
                   </View>
                 )}
                 
-                {/* Tickets List */}
                 <View style={styles.ticketsList}>
                   {myTickets.map((ticket, index) => (
                     <View key={ticket.id} style={styles.ticketWrapper}>
@@ -4682,25 +2541,23 @@ const getPatternCells = (ticket, pattern) => {
                 </View>
 
                 <Text style={styles.ticketsHint}>
-                  Tap numbers to mark/unmark them • Long press to hear number • Tap 👁 to view patterns • Tap ⋮ to submit claim
+                  Tap numbers to mark/unmark them • Long press to hear number • Tap Patterns to view • Tap ⋮ to submit claim
                 </Text>
               </>
             )}
           </View>
         </View>
 
-        {/* Bottom Space */}
         <View style={styles.bottomSpace} />
       </ScrollView>
 
-      {/* Floating Chat Button */}
       <TouchableOpacity
         style={styles.floatingChatButton}
         onPress={joinChat}
         activeOpacity={0.9}
       >
         <View style={styles.chatButtonContent}>
-          <Ionicons name="chatbubble-ellipses" size={22} color="#FFF" />
+          <Ionicons name="chatbubble-ellipses" size={20} color="#FFF" />
           {participantCount > 0 && (
             <View style={styles.chatBadge}>
               <Text style={styles.chatBadgeText}>
@@ -4710,11 +2567,10 @@ const getPatternCells = (ticket, pattern) => {
           )}
         </View>
         <Text style={styles.chatButtonText}>
-          {isChatJoined ? 'Live Chat' : 'Join Chat'}
+          {isChatJoined ? 'Chat' : 'Join Chat'}
         </Text>
       </TouchableOpacity>
 
-      {/* Snackbar for Notifications */}
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
@@ -4723,13 +2579,13 @@ const getPatternCells = (ticket, pattern) => {
       >
         <View style={styles.snackbarContent}>
           {snackbarType === 'success' && (
-            <Ionicons name="trophy" size={20} color="#FFF" style={styles.snackbarIcon} />
+            <Ionicons name="trophy" size={18} color="#FFF" style={styles.snackbarIcon} />
           )}
           {snackbarType === 'error' && (
-            <Ionicons name="close-circle" size={20} color="#FFF" style={styles.snackbarIcon} />
+            <Ionicons name="close-circle" size={18} color="#FFF" style={styles.snackbarIcon} />
           )}
           {snackbarType === 'info' && (
-            <Ionicons name="information-circle" size={20} color="#FFF" style={styles.snackbarIcon} />
+            <Ionicons name="information-circle" size={18} color="#FFF" style={styles.snackbarIcon} />
           )}
           <Text style={styles.snackbarText}>{snackbarMessage}</Text>
         </View>
@@ -4741,288 +2597,621 @@ const getPatternCells = (ticket, pattern) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F0F8FF",
   },
   container: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 80,
   },
   content: {
     padding: 12,
     zIndex: 1,
   },
-  // Active Pattern Container
-  activePatternContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FFD700',
-  },
-  activePatternText: {
-    fontSize: 14,
-    color: '#6C757D',
-    marginLeft: 8,
-    flex: 1,
-  },
-  activePatternName: {
-    fontWeight: '700',
-    color: '#FF6B35',
-  },
-  stopBlinkingSmallButton: {
-    padding: 4,
-  },
-  // Current Blinking Pattern Container in Modal
-  currentBlinkingPatternContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    padding: 12,
-    marginHorizontal: 20,
-    marginVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FFD700',
-  },
-  currentBlinkingPatternText: {
-    fontSize: 14,
-    color: '#6C757D',
-    marginLeft: 8,
-    flex: 1,
-  },
-  currentBlinkingPatternName: {
-    fontWeight: '700',
-    color: '#FF6B35',
-  },
-  stopBlinkingButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#FF5252',
-    gap: 4,
-  },
-  stopBlinkingText: {
-    fontSize: 12,
-    color: '#FF5252',
-    fontWeight: '600',
-  },
-  // Winning Celebration Styles
-  winningOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  backgroundPattern: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 9999,
+    zIndex: -1,
+    overflow: 'hidden',
   },
-  celebrationContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    width: '80%',
-    maxWidth: 320,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 15,
-    elevation: 15,
-    borderWidth: 3,
-    borderColor: '#FFD700',
-  },
-  celebrationInner: {
-    alignItems: 'center',
-    marginBottom: 15,
-    width: '100%',
-  },
-  trophyIcon: {
-    marginBottom: 10,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-  },
-  winningTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#FF6B35',
-    textAlign: 'center',
-    marginBottom: 12,
-    textShadowColor: 'rgba(255, 215, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  winnerInfo: {
-    backgroundColor: 'rgba(64, 224, 208, 0.1)',
-    padding: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#40E0D0',
-    width: '100%',
-  },
-  winnerName: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#212529',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  winnerPattern: {
-    fontSize: 14,
-    color: '#FF6B35',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  prizeAmountContainer: {
-    backgroundColor: 'rgba(255, 107, 53, 0.1)',
-    padding: 15,
-    borderRadius: 15,
-    alignItems: 'center',
-    marginBottom: 15,
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-    width: '100%',
-  },
-  prizeAmount: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#FF6B35',
-    textShadowColor: 'rgba(255, 107, 53, 0.2)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-    marginBottom: 4,
-  },
-  prizeLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6C757D',
-    letterSpacing: 1,
-  },
-  celebrationMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#FFD700',
-  },
-  celebrationText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#212529',
-    marginHorizontal: 8,
-  },
-  closeCelebrationButton: {
-    backgroundColor: '#40E0D0',
-    paddingHorizontal: 25,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    width: '100%',
-    alignItems: 'center',
-  },
-  closeCelebrationText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  confettiParticle: {
-    width: 8,
-    height: 8,
-    borderRadius: 1,
+  cloud1: {
     position: 'absolute',
-    top: -50,
+    top: 40,
+    left: width * 0.1,
+    width: 80,
+    height: 30,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  // Header Styles
+  cloud2: {
+    position: 'absolute',
+    top: 80,
+    right: width * 0.15,
+    width: 60,
+    height: 20,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
   header: {
-    backgroundColor: "#40E0D0",
     paddingTop: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E9ECEF",
-    zIndex: 1,
+    paddingBottom: 16,
+    backgroundColor: "#5DADE2",
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  headerTop: {
+  headerPattern: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  headerCloud1: {
+    position: 'absolute',
+    top: 15,
+    left: 20,
+    width: 60,
+    height: 20,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerContent: {
+    paddingHorizontal: 16,
+  },
+  headerTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F8F9FA",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   headerTextContainer: {
     flex: 1,
+    marginLeft: 10,
   },
-  gameName: {
-    fontSize: 24,
-    fontWeight: "700",
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -0.5,
+    marginBottom: 2,
   },
-  gameCodeContainer: {
+  gameInfoContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginTop: 2,
+    gap: 5,
   },
-  gameCode: {
-    fontSize: 14,
-    color: "#6C757D",
+  gameName: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.9)",
     fontWeight: "500",
+    flex: 1,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   voiceButton: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    gap: 4,
+  },
+  voiceButtonText: {
+    fontSize: 11,
+    color: "#FFF",
+    fontWeight: "600",
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(74, 144, 226, 0.1)",
+    shadowColor: "#4A90E2",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  compactNumberDisplay: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  lastNumberLeft: {
+    flex: 1,
+    minWidth: 110,
+  },
+  recentNumbersRight: {
+    flex: 1,
+    minWidth: 110,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 6,
+  },
+  sectionIcon: {
+    width: 18,
+    height: 18,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#4682B4",
+  },
+  voiceIndicator: {
+    marginLeft: 'auto',
+    padding: 3,
+  },
+  compactLastNumberContainer: {
+    alignItems: "center",
+    backgroundColor: "#F3F0FF",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#4A90E2",
+  },
+  compactLastNumber: {
+    fontSize: 36,
+    fontWeight: "900",
+    color: "#4A90E2",
+    marginBottom: 4,
+  },
+  compactLastNumberLabel: {
+    fontSize: 11,
+    color: "#6C757D",
+    fontStyle: "italic",
+    textAlign: 'center',
+  },
+  recentNumbersGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 6,
+  },
+  numberChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: 'center',
     backgroundColor: "#F8F9FA",
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 15,
+    borderRadius: 8,
+    width: 38,
+    height: 38,
     borderWidth: 1,
     borderColor: "#E9ECEF",
+  },
+  latestChip: {
+    backgroundColor: "#4A90E2",
+    borderColor: "#4A90E2",
+  },
+  numberChipText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6C757D",
+  },
+  latestChipText: {
+    color: "#FFFFFF",
+  },
+  viewMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: 'center',
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#4A90E2",
     gap: 4,
+    height: 38,
+    minWidth: 80,
   },
-  voiceButtonIcon: {
-    width: 16,
-    height: 16,
-  },
-  voiceButtonText: {
+  viewMoreText: {
     fontSize: 12,
-    color: "#40E0D0",
+    color: "#4A90E2",
     fontWeight: "600",
   },
-  // Menu Styles
+  waitingSection: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  waitingText: {
+    fontSize: 14,
+    color: "#F39C12",
+    textAlign: "center",
+    marginTop: 12,
+    fontStyle: "italic",
+  },
+  allNumbersCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(74, 144, 226, 0.1)",
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  allNumbersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  allNumbersTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  allNumbersIcon: {
+    width: 18,
+    height: 18,
+  },
+  allNumbersTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4682B4',
+  },
+  calledCountBadge: {
+    backgroundColor: '#4A90E2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginLeft: 6,
+  },
+  calledCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  viewAllGridButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  viewAllGridButtonText: {
+    fontSize: 12,
+    color: '#4A90E2',
+    fontWeight: '600',
+  },
+  numbersGridCompact: {
+    marginVertical: 6,
+  },
+  numberRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 5,
+  },
+  numberItemCompact: {
+    width: 26,
+    height: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    backgroundColor: '#F8F9FA',
+    marginHorizontal: 2,
+    position: 'relative',
+  },
+  calledNumberItem: {
+    backgroundColor: '#27AE60',
+    borderColor: '#27AE60',
+  },
+  latestNumberItem: {
+    backgroundColor: '#F39C12',
+    borderColor: '#F39C12',
+    borderWidth: 2,
+  },
+  numberItemTextCompact: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6C757D',
+  },
+  calledNumberText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  latestNumberText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  latestIndicatorCompact: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 5,
+    padding: 1,
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E9ECEF',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  legendColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  legendNormal: {
+    backgroundColor: '#F8F9FA',
+  },
+  legendCalled: {
+    backgroundColor: '#27AE60',
+  },
+  legendLatest: {
+    backgroundColor: '#F39C12',
+  },
+  legendText: {
+    fontSize: 10,
+    color: '#6C757D',
+  },
+  ticketsSection: {
+    marginBottom: 12,
+  },
+  activePatternContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(243, 156, 18, 0.1)',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F39C12',
+  },
+  activePatternText: {
+    fontSize: 13,
+    color: '#6C757D',
+    marginLeft: 6,
+    flex: 1,
+  },
+  activePatternName: {
+    fontWeight: '700',
+    color: '#F39C12',
+  },
+  stopBlinkingSmallButton: {
+    padding: 3,
+  },
+  ticketsList: {
+    gap: 16,
+  },
+  ticketWrapper: {
+    marginBottom: 6,
+  },
+  ticketItemContainer: {
+    marginBottom: 4,
+  },
+  ticketHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  ticketNumberContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  ticketIcon: {
+    width: 20,
+    height: 20,
+  },
+  ticketInfo: {
+    flex: 1,
+  },
+  ticketLabel: {
+    fontSize: 13,
+    color: "#6C757D",
+    fontWeight: "600",
+  },
+  ticketActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  viewPatternsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#4A90E2',
+    gap: 4,
+  },
+  viewPatternsButtonText: {
+    fontSize: 12,
+    color: '#4A90E2',
+    fontWeight: "600",
+  },
+  menuButton: {
+    padding: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 10,
+    width: 34,
+    height: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  ticketCard: {
+  backgroundColor: "#FFFFFF",
+  borderRadius: 14,
+  padding: 12,
+  paddingBottom: 10,
+  borderWidth: 0,
+  position: 'relative',
+  overflow: 'hidden',
+  shadowColor: "#4A90E2",
+  shadowOffset: {
+    width: 0,
+    height: 3,
+  },
+  shadowOpacity: 0.1,
+  shadowRadius: 6,
+  elevation: 6,
+  minHeight: 124,
+},
+  ticketGridContainer: {
+  overflow: 'hidden',
+  borderRadius: 6,
+  alignSelf: 'center',
+  marginHorizontal: 2,
+},
+ ticketRow: {
+  flexDirection: "row",
+  justifyContent: "center",
+  marginBottom: 2,
+},
+  ticketCell: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: 2,
+    borderRadius: 6,
+    borderWidth: 2,
+  },
+  emptyCell: {
+    backgroundColor: "#F5F5F5",
+    borderColor: "#E0E0E0",
+  },
+  filledCell: {
+    backgroundColor: "#FFF9C4",
+    borderColor: "#FFD600",
+  },
+  markedCell: {
+    backgroundColor: "#E74C3C",
+    borderColor: "#C0392B",
+  },
+  cellNumber: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  blinkingCellBorder: {
+    borderWidth: 3,
+    borderColor: '#F39C12',
+  },
+  blinkingOverlay: {
+    position: 'absolute',
+    width: '120%',
+    height: '120%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  ticketsHint: {
+    fontSize: 11,
+    color: "#6C757D",
+    textAlign: "center",
+    marginTop: 16,
+    fontStyle: "italic",
+    lineHeight: 14,
+    paddingHorizontal: 4,
+  },
+  emptyTicketsContainer: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(74, 144, 226, 0.1)",
+    marginTop: 12,
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  emptyIcon: {
+    width: 60,
+    height: 60,
+    marginBottom: 16,
+    opacity: 0.7,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#4682B4",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: "#6C757D",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 20,
+    paddingHorizontal: 16,
+  },
   menuOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -5031,8 +3220,8 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    width: '80%',
+    borderRadius: 14,
+    width: '85%',
     maxHeight: '60%',
     overflow: 'hidden',
   },
@@ -5043,17 +3232,26 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
+    backgroundColor: '#4A90E2',
   },
   menuTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#212529',
+    color: '#FFFFFF',
+  },
+  menuHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  refreshMenuButton: {
+    padding: 5,
   },
   patternsMenuScroll: {
     maxHeight: 300,
   },
   patternMenuItem: {
-    padding: 16,
+    padding: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
   },
@@ -5067,34 +3265,44 @@ const styles = StyleSheet.create({
   },
   patternMenuItemInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   patternMenuItemName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#212529',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   patternMenuItemDesc: {
     fontSize: 12,
     color: '#6C757D',
   },
   patternStatusContainer: {
-    marginLeft: 8,
+    marginLeft: 6,
   },
   patternLimitText: {
-    color: '#FF6B35',
+    color: '#F39C12',
     fontWeight: '600',
   },
+  limitReachedText: {
+    color: '#E74C3C',
+    fontWeight: '700',
+  },
   claimedBadge: {
-    fontSize: 12,
-    color: '#4CAF50',
+    fontSize: 11,
+    color: '#27AE60',
     fontWeight: '600',
-    marginLeft: 6,
+    marginLeft: 4,
+  },
+  limitReachedBadge: {
+    fontSize: 11,
+    color: '#E74C3C',
+    fontWeight: '600',
+    marginLeft: 4,
   },
   noPatternsContainer: {
     alignItems: 'center',
-    padding: 32,
+    padding: 24,
   },
   noPatternsText: {
     fontSize: 14,
@@ -5103,63 +3311,123 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
   },
-  noPatternsSubtext: {
-    fontSize: 12,
-    color: '#FF6B35',
-    textAlign: 'center',
-    marginTop: 4,
-    fontStyle: 'italic',
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4A90E2',
+    gap: 6,
   },
-  // Patterns Modal Styles
+  retryButtonText: {
+    fontSize: 13,
+    color: '#4A90E2',
+    fontWeight: '600',
+  },
+  disabledPatternName: {
+    color: '#6C757D',
+    textDecorationLine: 'none',
+  },
+  disabledPatternDesc: {
+    color: '#ADB5BD',
+  },
   patternsModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
   patternsModalContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 16,
     width: '90%',
-    maxHeight: '80%',
+    maxHeight: '75%',
     overflow: 'hidden',
   },
   patternsModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
+    backgroundColor: '#4A90E2',
   },
   patternsModalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#212529',
+    color: '#FFFFFF',
+  },
+  patternsModalHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  refreshPatternsButton: {
+    padding: 5,
   },
   patternsModalCloseButton: {
-    padding: 4,
+    padding: 5,
   },
   patternsModalSubtitle: {
     fontSize: 14,
     color: '#6C757D',
     textAlign: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#F8F9FA',
   },
-  // Early Five Note Styles
+  currentBlinkingPatternContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(243, 156, 18, 0.1)',
+    padding: 12,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F39C12',
+  },
+  currentBlinkingPatternText: {
+    fontSize: 13,
+    color: '#6C757D',
+    marginLeft: 8,
+    flex: 1,
+  },
+  currentBlinkingPatternName: {
+    fontWeight: '700',
+    color: '#F39C12',
+  },
+  stopBlinkingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#E74C3C',
+    gap: 4,
+  },
+  stopBlinkingText: {
+    fontSize: 12,
+    color: '#E74C3C',
+    fontWeight: '600',
+  },
   earlyFiveNoteContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(64, 224, 208, 0.1)',
+    backgroundColor: 'rgba(74, 144, 226, 0.1)',
     padding: 12,
-    marginHorizontal: 20,
-    marginVertical: 10,
+    marginHorizontal: 16,
+    marginVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#40E0D0',
+    borderColor: '#4A90E2',
   },
   earlyFiveNoteText: {
     fontSize: 13,
@@ -5169,10 +3437,10 @@ const styles = StyleSheet.create({
   },
   earlyFiveNoteBold: {
     fontWeight: '700',
-    color: '#40E0D0',
+    color: '#4A90E2',
   },
   patternsLoadingContainer: {
-    padding: 40,
+    padding: 32,
     alignItems: 'center',
   },
   patternsLoadingText: {
@@ -5181,17 +3449,17 @@ const styles = StyleSheet.create({
     color: '#6C757D',
   },
   patternsList: {
-    maxHeight: 400,
+    maxHeight: 350,
   },
   patternListItem: {
-    padding: 16,
+    padding: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
   },
   selectedPatternListItem: {
-    backgroundColor: 'rgba(64, 224, 208, 0.05)',
+    backgroundColor: 'rgba(74, 144, 226, 0.05)',
     borderLeftWidth: 4,
-    borderLeftColor: '#40E0D0',
+    borderLeftColor: '#4A90E2',
   },
   patternListItemContent: {
     flexDirection: 'row',
@@ -5199,29 +3467,23 @@ const styles = StyleSheet.create({
   },
   patternListItemInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   patternListItemName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#212529',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   patternListItemDesc: {
     fontSize: 12,
     color: '#6C757D',
-    marginBottom: 4,
-  },
-  patternListItemExample: {
-    fontSize: 11,
-    color: '#FF6B35',
-    fontStyle: 'italic',
   },
   selectedBadge: {
     fontSize: 12,
-    color: '#4CAF50',
+    color: '#27AE60',
     fontWeight: '600',
-    marginLeft: 6,
+    marginLeft: 4,
   },
   noAvailablePatternsContainer: {
     alignItems: 'center',
@@ -5237,7 +3499,7 @@ const styles = StyleSheet.create({
   patternsModalFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 20,
+    padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#E9ECEF',
     backgroundColor: '#F8F9FA',
@@ -5245,82 +3507,165 @@ const styles = StyleSheet.create({
   clearSelectionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E9ECEF',
-    gap: 6,
+    gap: 4,
   },
   clearSelectionButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6C757D',
     fontWeight: '600',
   },
   closePatternsButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: '#40E0D0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#4A90E2',
     borderRadius: 8,
   },
   closePatternsButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
-  // Ticket Actions Styles
-  ticketActions: {
-    flexDirection: 'row',
+  winningOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
   },
-  viewPatternsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  celebrationContent: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#40E0D0',
-    gap: 4,
-  },
-  viewPatternsButtonText: {
-    fontSize: 12,
-    color: '#40E0D0',
-    fontWeight: '600',
-  },
-  menuButton: {
-    padding: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 12,
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
+    borderRadius: 16,
+    padding: 16,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E9ECEF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    width: '80%',
+    maxWidth: 300,
+    shadowColor: '#F39C12',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
+    borderWidth: 3,
+    borderColor: '#F39C12',
   },
-  // Cell Content Style (for blinking)
-  cellContent: {
+  celebrationInner: {
+    alignItems: 'center',
+    marginBottom: 12,
     width: '100%',
-    height: '100%',
-    justifyContent: 'center',
+  },
+  trophyIcon: {
+    marginBottom: 8,
+    shadowColor: '#F39C12',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+  },
+  winningTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#E74C3C',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  winnerInfo: {
+    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    padding: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#4A90E2',
+    width: '100%',
+  },
+  winnerName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#212529',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  winnerPattern: {
+    fontSize: 13,
+    color: '#E74C3C',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  prizeAmountContainer: {
+    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#E74C3C',
+    width: '100%',
+  },
+  prizeAmount: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#E74C3C',
+    marginBottom: 4,
+  },
+  prizeLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6C757D',
+    letterSpacing: 1,
+  },
+  celebrationMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(243, 156, 18, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F39C12',
+  },
+  celebrationText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#212529',
+    marginHorizontal: 6,
+  },
+  closeCelebrationButton: {
+    backgroundColor: '#4A90E2',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    width: '100%',
     alignItems: 'center',
   },
-  // Game End Modal Styles
+  closeCelebrationText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  confettiParticle: {
+    width: 6,
+    height: 6,
+    borderRadius: 1,
+    position: 'absolute',
+    top: -50,
+  },
   gameEndModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   confettiContainer: {
     position: 'absolute',
@@ -5330,64 +3675,63 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confettiImage: {
-    width: 200,
-    height: 200,
+    width: 150,
+    height: 150,
     opacity: 0.7,
   },
   gameEndModalContent: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 20,
+    padding: 20,
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 350,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowRadius: 16,
+    elevation: 8,
     borderWidth: 1,
     borderColor: '#E9ECEF',
   },
   gameEndModalHeader: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   gameEndTrophy: {
-    width: 80,
-    height: 80,
-    marginBottom: 16,
-  },
-  gameEndModalTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#FF6B35',
-    textAlign: 'center',
-    letterSpacing: -0.5,
-  },
-  gameEndModalBody: {
-    marginBottom: 24,
-  },
-  gameEndCongratulations: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#40E0D0',
-    textAlign: 'center',
+    width: 60,
+    height: 60,
     marginBottom: 12,
   },
+  gameEndModalTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#F39C12',
+    textAlign: 'center',
+  },
+  gameEndModalBody: {
+    marginBottom: 20,
+  },
+  gameEndCongratulations: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#4A90E2',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
   gameEndMessage: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#6C757D',
     textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 24,
+    marginBottom: 20,
+    lineHeight: 20,
   },
   gameEndStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     backgroundColor: '#F8F9FA',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: '#E9ECEF',
   },
@@ -5396,54 +3740,53 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   endStatValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '900',
     color: '#212529',
     marginBottom: 4,
   },
   endStatLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6C757D',
     fontWeight: '600',
   },
   gameEndThanks: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#212529',
     textAlign: 'center',
     fontStyle: 'italic',
-    lineHeight: 20,
+    lineHeight: 18,
   },
   gameEndModalFooter: {
-    gap: 12,
+    gap: 10,
   },
   viewWinnersButton: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#F39C12',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
   },
   viewWinnersButtonText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
   },
   closeButton: {
     backgroundColor: '#F8F9FA',
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E9ECEF',
   },
   closeButtonText: {
     color: '#6C757D',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -5452,19 +3795,19 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 16,
+    padding: 20,
     width: '90%',
-    maxWidth: 400,
+    maxWidth: 350,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#212529',
   },
@@ -5472,35 +3815,35 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   modalSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6C757D',
-    marginBottom: 24,
-    lineHeight: 20,
+    marginBottom: 20,
+    lineHeight: 18,
   },
   voiceOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E9ECEF',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   selectedVoiceOption: {
-    borderColor: '#40E0D0',
-    backgroundColor: 'rgba(64, 224, 208, 0.05)',
+    borderColor: '#4A90E2',
+    backgroundColor: 'rgba(74, 144, 226, 0.05)',
   },
   voiceOptionIcon: {
-    marginRight: 16,
+    marginRight: 12,
   },
   voiceOptionInfo: {
     flex: 1,
   },
   voiceOptionName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#212529',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   voiceOptionDesc: {
     fontSize: 12,
@@ -5510,316 +3853,77 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#40E0D0',
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 16,
-    gap: 8,
+    backgroundColor: '#4A90E2',
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 12,
+    gap: 6,
   },
   testVoiceButtonText: {
     color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // Card Styles
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  cardPattern: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: 50,
-    height: 50,
-    borderBottomLeftRadius: 16,
-    borderTopRightRadius: 25,
-    backgroundColor: 'rgba(64, 224, 208, 0.03)',
-  },
-  compactNumberDisplay: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  lastNumberLeft: {
-    flex: 1,
-    minWidth: 120,
-  },
-  recentNumbersRight: {
-    flex: 1,
-    minWidth: 120,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    paddingHorizontal: 4,
-    gap: 6,
-  },
-  sectionIcon: {
-    width: 18,
-    height: 18,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#212529",
-  },
-  voiceIndicator: {
-    marginLeft: 'auto',
-  },
-  compactLastNumberContainer: {
-    alignItems: "center",
-    backgroundColor: "#F3F0FF",
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#40E0D0",
-    marginBottom: 8,
-  },
-  compactLastNumber: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#40E0D0",
-    marginBottom: 2,
-  },
-  compactLastNumberLabel: {
-    fontSize: 10,
-    color: "#6C757D",
-    fontStyle: "italic",
-    textAlign: 'center',
-  },
-  recentNumbersGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 4,
-  },
-  numberChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: 'center',
-    backgroundColor: "#F8F9FA",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    width: 36,
-    height: 36,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  latestChip: {
-    backgroundColor: "#40E0D0",
-    borderColor: "#40E0D0",
-  },
-  numberChipText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6C757D",
-  },
-  latestChipText: {
-    color: "#FFFFFF",
-  },
-  viewMoreButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: 'center',
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#40E0D0",
-    gap: 4,
-    height: 36,
-    minWidth: 100,
-  },
-  viewMoreText: {
-    fontSize: 12,
-    color: "#40E0D0",
-    fontWeight: "600",
-  },
-  waitingSection: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-  waitingText: {
-    fontSize: 14,
-    color: "#FF6B35",
-    textAlign: "center",
-    marginTop: 12,
-    fontStyle: "italic",
-  },
-  // Tickets Section
-  ticketsSection: {
-    marginBottom: 16,
-  },
-  // Empty Tickets
-  emptyTicketsContainer: {
-    alignItems: "center",
-    paddingVertical: 40,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-    marginTop: 12,
-  },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    marginBottom: 16,
-    opacity: 0.7,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#212529",
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#6C757D",
-    textAlign: "center",
-    marginBottom: 25,
-    paddingHorizontal: 20,
-  },
-  // Tickets List
-  ticketsList: {
-    
-  },
-  ticketWrapper: {
-    marginBottom: 0,
-    position: 'relative',
-  },
-  // Ticket Item Container
-  ticketItemContainer: {
-    marginBottom: 0,
-    padding: 0,
-  },
-  // Ticket Header with Ticket Number and Menu Button
-  ticketHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  ticketNumberContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  ticketIcon: {
-    width: 16,
-    height: 16,
-  },
-  ticketNumber: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#212529',
   },
-  // Ticket Grid Wrapper
-  ticketGridWrapper: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    marginBottom: 8,
-    alignItems: 'center',
-  },
-  ticketGridContainer: {
-    overflow: 'hidden',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    width: CELL_SIZE * 9,
-  },
-  ticketRow: {
-    flexDirection: "row",
-  },
-  ticketCell: {
+  loadingContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 0.5,
-    borderColor: "#E0E0E0",
+    backgroundColor: "#F0F8FF",
   },
-  emptyCell: {
-    backgroundColor: "#F5F5F5",
+  loadingContent: {
+    alignItems: 'center',
   },
-  markedCell: {
-    backgroundColor: "#FF6B35",
-    borderColor: "#FF6B35",
+  loadingIconWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.2)',
   },
-  numberCell: {
-    backgroundColor: "#80CBC4",
+  loadingSpinner: {
+    marginTop: 8,
   },
-  cellNumber: {
-    fontSize: 16,
-    fontWeight: "700",
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
-  },
-  ticketsHint: {
-    fontSize: 12,
-    color: "#6C757D",
-    textAlign: "center",
+  loadingText: {
+    fontSize: 15,
+    color: "#4682B4",
+    fontWeight: "500",
     marginTop: 16,
-    fontStyle: "italic",
-    lineHeight: 16,
-    paddingHorizontal: 4,
   },
-  bottomSpace: {
-    height: 20,
-  },
-  // Floating Chat Button
   floatingChatButton: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
-    backgroundColor: '#40E0D0',
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    bottom: 16,
+    right: 16,
+    backgroundColor: '#4A90E2',
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 5,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   chatButtonContent: {
     position: 'relative',
-    marginRight: 8,
+    marginRight: 6,
   },
   chatBadge: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#FF6B35',
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
+    top: -4,
+    right: -4,
+    backgroundColor: '#E74C3C',
+    borderRadius: 6,
+    minWidth: 14,
+    height: 14,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -5827,43 +3931,32 @@ const styles = StyleSheet.create({
   },
   chatBadgeText: {
     color: '#FFF',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: 'bold',
-    paddingHorizontal: 3,
+    paddingHorizontal: 2,
   },
   chatButtonText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
   },
-  // Loading
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F8F9FA",
+  bottomSpace: {
+    height: 20,
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#6C757D",
-    fontWeight: "500",
-  },
-  // Snackbar Styles
   snackbar: {
-    borderRadius: 8,
-    margin: 16,
+    borderRadius: 6,
+    margin: 12,
   },
   snackbarContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   snackbarIcon: {
-    marginRight: 8,
+    marginRight: 6,
   },
   snackbarText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     flex: 1,
   },

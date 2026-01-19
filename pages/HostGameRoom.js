@@ -158,6 +158,7 @@ const HostGameRoom = ({ navigation, route }) => {
   const [callingManual, setCallingManual] = useState(false);
   const [intervalSeconds, setIntervalSeconds] = useState(10);
   const [updatingInterval, setUpdatingInterval] = useState(false);
+  const [endingGame, setEndingGame] = useState(false);
   
   // Live Chat States
   const [participantCount, setParticipantCount] = useState(0);
@@ -183,7 +184,7 @@ const HostGameRoom = ({ navigation, route }) => {
     fetchPendingClaimsCount();
     startPulseAnimation();
 
-    const statusInterval = setInterval(fetchGameStatus, 4000);
+    const statusInterval = setInterval(fetchGameStatus, 15000);
     const chatStatusInterval = setInterval(checkChatStatus, 15000);
     const claimsInterval = setInterval(fetchPendingClaimsCount, 3000);
 
@@ -310,6 +311,65 @@ const HostGameRoom = ({ navigation, route }) => {
       setPendingClaimsCount(0);
       setClaims([]);
     }
+  };
+
+  const endGame = async () => {
+    Alert.alert(
+      "End Game",
+      "Are you sure you want to end this game? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "End Game",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setEndingGame(true);
+              const token = await AsyncStorage.getItem("hostToken");
+              
+              const response = await axios.post(
+                `https://exilance.com/tambolatimez/public/api/host/game/${gameId}/complete`,
+                {},
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                  },
+                }
+              );
+
+              if (response.data.success) {
+                Alert.alert(
+                  "Success",
+                  "Game ended successfully!",
+                  [
+                    {
+                      text: "OK",
+                      onPress: () => {
+                        navigation.goBack();
+                        if (navigation.getParent()) {
+                          navigation.getParent().navigate('HostDashboard');
+                        }
+                      }
+                    }
+                  ]
+                );
+              } else {
+                throw new Error(response.data.message || "Failed to end game");
+              }
+            } catch (error) {
+              console.log("Error ending game:", error);
+              Alert.alert(
+                "Error",
+                error.response?.data?.message || error.message || "Failed to end game"
+              );
+            } finally {
+              setEndingGame(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const joinChat = async () => {
@@ -765,19 +825,38 @@ const HostGameRoom = ({ navigation, route }) => {
           <Text style={styles.headerSubtitle}>Game Room</Text>
         </View>
         
-        <TouchableOpacity
-          style={styles.claimRequestsButton}
-          onPress={navigateToClaimRequests}
-        >
-          <Ionicons name="checkmark-done-outline" size={20} color="#FFF" />
-          {pendingClaimsCount > 0 && (
-            <View style={styles.claimBadge}>
-              <Text style={styles.claimBadgeText}>
-                {pendingClaimsCount > 99 ? '99+' : pendingClaimsCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          {/* End Game Button */}
+          <TouchableOpacity
+            style={[styles.headerActionButton, styles.endGameButton]}
+            onPress={endGame}
+            disabled={endingGame}
+          >
+            {endingGame ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="flag-outline" size={18} color="#FFF" />
+                <Text style={styles.endGameButtonText}>End</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          
+          {/* Claims Button */}
+          <TouchableOpacity
+            style={[styles.headerActionButton, styles.claimRequestsButton]}
+            onPress={navigateToClaimRequests}
+          >
+            <Ionicons name="checkmark-done-outline" size={18} color="#FFF" />
+            {pendingClaimsCount > 0 && (
+              <View style={styles.claimBadge}>
+                <Text style={styles.claimBadgeText}>
+                  {pendingClaimsCount > 99 ? '99+' : pendingClaimsCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -1267,14 +1346,29 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.9)",
     fontWeight: "500",
   },
-  claimRequestsButton: {
+  headerButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerActionButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
+  },
+  endGameButton: {
+    backgroundColor: "#FF5722",
+  },
+  endGameButtonText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  claimRequestsButton: {
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
   claimBadge: {
     position: "absolute",
@@ -1297,7 +1391,7 @@ const styles = StyleSheet.create({
   },
   snackbarWrapper: {
     position: 'absolute',
-    top: 80, // Positioned below header, above content
+    top: 80,
     left: 0,
     right: 0,
     zIndex: 1000,

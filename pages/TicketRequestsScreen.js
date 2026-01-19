@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   Dimensions,
   AppState,
+  StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -41,6 +42,17 @@ const TicketRequestsScreen = ({ route, navigation }) => {
   const POLLING_INTERVAL = 3000; // 10 seconds
   const POLLING_INTERVAL_BACKGROUND = 30000; // 30 seconds when app is in background
   const MAX_POLLING_DURATION = 300000; // Stop after 5 minutes to save battery
+
+  // Color scheme matching TicketsScreen
+  const PRIMARY_COLOR = "#4A90E2"; // Sky Blue
+  const SUCCESS_COLOR = "#27AE60"; // Green
+  const WARNING_COLOR = "#F39C12"; // Orange
+  const DANGER_COLOR = "#E74C3C"; // Red
+  const GRAY_COLOR = "#6C757D"; // Gray
+  const LIGHT_GRAY = "#F8F9FA"; // Light gray
+  const BACKGROUND_COLOR = "#FFFFFF"; // White
+  const SECONDARY_COLOR = "#5DADE2"; // Lighter Sky Blue
+  const LIGHT_BLUE = "#F0F8FF"; // Alice Blue background
 
   useEffect(() => {
     console.log("Screen mounted, fetching requests for game:", gameId);
@@ -323,21 +335,21 @@ const TicketRequestsScreen = ({ route, navigation }) => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "approved": return "#40E0D0";
-      case "pending": return "#FFB300";
-      case "rejected": return "#FF6B35";
-      case "cancelled": return "#9E9E9E";
-      default: return "#6C757D";
+      case "approved": return SUCCESS_COLOR;
+      case "pending": return WARNING_COLOR;
+      case "rejected": return DANGER_COLOR;
+      case "cancelled": return GRAY_COLOR;
+      default: return GRAY_COLOR;
     }
   };
 
   const getStatusBgColor = (status) => {
     switch (status) {
-      case "approved": return "rgba(64, 224, 208, 0.1)";
-      case "pending": return "rgba(255, 179, 0, 0.1)";
-      case "rejected": return "rgba(255, 107, 53, 0.1)";
-      case "cancelled": return "rgba(158, 158, 158, 0.1)";
-      default: return "#F8F9FA";
+      case "approved": return "rgba(39, 174, 96, 0.1)";
+      case "pending": return "rgba(243, 156, 18, 0.1)";
+      case "rejected": return "rgba(231, 76, 60, 0.1)";
+      case "cancelled": return "rgba(108, 117, 125, 0.1)";
+      default: return LIGHT_GRAY;
     }
   };
 
@@ -373,18 +385,13 @@ const TicketRequestsScreen = ({ route, navigation }) => {
     console.log("Showing loading screen");
     return (
       <View style={styles.loadingContainer}>
-        <View style={styles.backgroundPatterns}>
-          <View style={styles.patternCircle1} />
-          <View style={styles.patternCircle2} />
-        </View>
-        
-        <View style={styles.loadingAnimation}>
+        <View style={styles.loadingContent}>
           <View style={styles.loadingIconWrapper}>
-            <MaterialIcons name="confirmation-number" size={40} color="#40E0D0" />
+            <MaterialIcons name="confirmation-number" size={40} color={PRIMARY_COLOR} />
           </View>
-          <ActivityIndicator size="large" color="#40E0D0" style={styles.loadingSpinner} />
+          <ActivityIndicator size="large" color={PRIMARY_COLOR} style={styles.loadingSpinner} />
+          <Text style={styles.loadingText}>Loading ticket requests...</Text>
         </View>
-        <Text style={styles.loadingText}>Loading ticket requests...</Text>
       </View>
     );
   }
@@ -403,24 +410,19 @@ const TicketRequestsScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar backgroundColor="#5DADE2" barStyle="light-content" />
       <ScrollView
         style={styles.container}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#40E0D0"
-            colors={["#40E0D0"]}
+            tintColor={PRIMARY_COLOR}
+            colors={[PRIMARY_COLOR]}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Background Patterns */}
-        <View style={styles.backgroundPatterns}>
-          <View style={styles.patternCircle1} />
-          <View style={styles.patternCircle2} />
-        </View>
-
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
@@ -428,7 +430,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="arrow-back" size={22} color="#40E0D0" />
+              <Ionicons name="arrow-back" size={24} color="#FFF" />
             </TouchableOpacity>
 
             <View style={styles.headerTextContainer}>
@@ -442,14 +444,14 @@ const TicketRequestsScreen = ({ route, navigation }) => {
             </View>
             
             <TouchableOpacity 
-              style={styles.refreshButton} 
+              style={styles.refreshButton}
               onPress={fetchTicketRequests}
             >
-              <Feather name="refresh-ccw" size={18} color="#FFF" />
+              <Ionicons name="refresh" size={22} color="#FFF" />
             </TouchableOpacity>
           </View>
           
-         
+       
         </View>
 
         {/* Content */}
@@ -460,19 +462,19 @@ const TicketRequestsScreen = ({ route, navigation }) => {
               icon="receipt" 
               value={stats.total} 
               label="Total" 
-              color="#40E0D0" 
+              color={PRIMARY_COLOR} 
             />
             <StatCard 
               icon="time" 
               value={stats.pending} 
               label="Pending" 
-              color="#FFB300" 
+              color={WARNING_COLOR} 
             />
             <StatCard 
               icon="checkmark-circle" 
               value={stats.approved} 
               label="Approved" 
-              color="#40E0D0" 
+              color={SUCCESS_COLOR} 
             />
           </View>
 
@@ -486,7 +488,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
             {requests.length === 0 ? (
               <View style={styles.emptyState}>
                 <View style={styles.emptyIconWrapper}>
-                  <MaterialIcons name="confirmation-number" size={50} color="#40E0D0" />
+                  <MaterialIcons name="confirmation-number" size={50} color={PRIMARY_COLOR} />
                 </View>
                 <Text style={styles.emptyTitle}>No Requests Found</Text>
                 <Text style={styles.emptySubtitle}>
@@ -543,7 +545,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
                       <View style={styles.detailRow}>
                         <View style={styles.detailItem}>
                           <View style={styles.detailIcon}>
-                            <MaterialIcons name="confirmation-number" size={14} color="#40E0D0" />
+                            <MaterialIcons name="confirmation-number" size={14} color={PRIMARY_COLOR} />
                           </View>
                           <View>
                             <Text style={styles.detailLabel}>Quantity</Text>
@@ -555,7 +557,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
                         
                         <View style={styles.detailItem}>
                           <View style={styles.detailIcon}>
-                            <MaterialIcons name="account-balance-wallet" size={14} color="#40E0D0" />
+                            <MaterialIcons name="account-balance-wallet" size={14} color={PRIMARY_COLOR} />
                           </View>
                           <View>
                             <Text style={styles.detailLabel}>Amount</Text>
@@ -568,7 +570,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
                     {request.notes && (
                       <View style={styles.notesContainer}>
                         <View style={styles.notesIcon}>
-                          <Feather name="message-square" size={14} color="#40E0D0" />
+                          <Feather name="message-square" size={14} color={PRIMARY_COLOR} />
                         </View>
                         <View style={styles.notesContent}>
                           <Text style={styles.notesLabel}>Your Note</Text>
@@ -580,7 +582,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
                     {request.rejection_reason && (
                       <View style={styles.rejectionContainer}>
                         <View style={styles.rejectionIcon}>
-                          <Ionicons name="alert-circle" size={14} color="#FF6B35" />
+                          <Ionicons name="alert-circle" size={14} color={DANGER_COLOR} />
                         </View>
                         <View style={styles.rejectionContent}>
                           <Text style={styles.rejectionLabel}>Rejection Reason</Text>
@@ -622,16 +624,7 @@ const TicketRequestsScreen = ({ route, navigation }) => {
             )}
           </View>
 
-          {/* Bottom Info */}
-          <View style={styles.infoCard}>
-            <Ionicons name="information-circle" size={18} color="#40E0D0" />
-            <Text style={styles.infoText}>
-              • Auto-refresh checks for updates every 10 seconds{'\n'}
-              • Pending requests can be cancelled anytime{'\n'}
-              • Approved tickets will appear in your wallet{'\n'}
-              • Contact support for any issues with requests
-            </Text>
-          </View>
+         
 
           <View style={styles.bottomSpace} />
         </View>
@@ -643,95 +636,72 @@ const TicketRequestsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    
   },
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+   
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F8F9FA",
+    
   },
-  backgroundPatterns: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    zIndex: 0,
-  },
-  patternCircle1: {
-    position: 'absolute',
-    top: 80,
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(64, 224, 208, 0.05)',
-  },
-  patternCircle2: {
-    position: 'absolute',
-    bottom: 100,
-    left: -20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 107, 53, 0.03)',
-  },
-  loadingAnimation: {
-    position: 'relative',
-    marginBottom: 20,
+  loadingContent: {
+    alignItems: 'center',
   },
   loadingIconWrapper: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(64, 224, 208, 0.1)',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(74, 144, 226, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(64, 224, 208, 0.2)',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.2)',
   },
   loadingSpinner: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
+    marginTop: 10,
   },
   loadingText: {
     fontSize: 16,
-    color: "#6C757D",
+    color: "#4682B4",
     fontWeight: "500",
+    marginTop: 20,
   },
   header: {
-    backgroundColor: "#40E0D0",
+    backgroundColor: "#5DADE2",
     paddingTop: 20,
+    paddingBottom: 5,
     paddingHorizontal: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E9ECEF",
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 15,
   },
   backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#FFFFFF",
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  refreshButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.3)",
   },
@@ -740,10 +710,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "800",
     color: "#FFFFFF",
     marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   gameInfoContainer: {
     flexDirection: "row",
@@ -752,15 +725,15 @@ const styles = StyleSheet.create({
   },
   gameName: {
     fontSize: 14,
-    color: "#6C757D",
+    color: "rgba(255,255,255,0.9)",
     fontWeight: "500",
   },
   pollingIndicatorContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 8,
-    padding: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   pollingStatusRow: {
     flexDirection: 'row',
@@ -768,31 +741,33 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   pollingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
   },
   pollingText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 14,
     color: "#FFFFFF",
     fontWeight: "600",
   },
   pollingToggleButton: {
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   pollingToggleText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#FFFFFF",
     fontWeight: "700",
   },
   pollingSubText: {
-    fontSize: 10,
-    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.85)",
     fontStyle: 'italic',
   },
   content: {
@@ -814,7 +789,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginHorizontal: 4,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
   },
   statIconContainer: {
     width: 32,
@@ -847,7 +822,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#212529",
+    color: "#4682B4",
   },
   sectionCount: {
     fontSize: 14,
@@ -862,7 +837,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     position: 'relative',
     overflow: 'hidden',
   },
@@ -906,10 +881,10 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   paidStatus: {
-    backgroundColor: "rgba(64, 224, 208, 0.1)",
+    backgroundColor: "rgba(39, 174, 96, 0.1)",
   },
   pendingStatus: {
-    backgroundColor: "rgba(255, 179, 0, 0.1)",
+    backgroundColor: "rgba(243, 156, 18, 0.1)",
   },
   paymentStatusText: {
     fontSize: 10,
@@ -938,7 +913,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
   },
   detailLabel: {
     fontSize: 10,
@@ -954,30 +929,30 @@ const styles = StyleSheet.create({
   notesContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "rgba(64, 224, 208, 0.05)",
+    backgroundColor: "rgba(74, 144, 226, 0.05)",
     padding: 12,
     borderRadius: 10,
     marginBottom: 12,
     gap: 10,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
   },
   notesIcon: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: "rgba(64, 224, 208, 0.1)",
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#40E0D0",
+    borderColor: "rgba(74, 144, 226, 0.2)",
   },
   notesContent: {
     flex: 1,
   },
   notesLabel: {
     fontSize: 11,
-    color: "#40E0D0",
+    color: "#4A90E2",
     fontWeight: "600",
     marginBottom: 2,
   },
@@ -989,30 +964,30 @@ const styles = StyleSheet.create({
   rejectionContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "rgba(255, 107, 53, 0.05)",
+    backgroundColor: "rgba(231, 76, 60, 0.05)",
     padding: 12,
     borderRadius: 10,
     marginBottom: 12,
     gap: 10,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(231, 76, 60, 0.1)",
   },
   rejectionIcon: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: "rgba(255, 107, 53, 0.1)",
+    backgroundColor: "rgba(231, 76, 60, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#FF6B35",
+    borderColor: "rgba(231, 76, 60, 0.2)",
   },
   rejectionContent: {
     flex: 1,
   },
   rejectionLabel: {
     fontSize: 11,
-    color: "#FF6B35",
+    color: "#E74C3C",
     fontWeight: "600",
     marginBottom: 2,
   },
@@ -1032,7 +1007,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     gap: 6,
-    backgroundColor: "#FF6B35",
+    backgroundColor: "#E74C3C",
   },
   cancelButtonText: {
     color: "#FFF",
@@ -1052,24 +1027,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     overflow: 'hidden',
   },
   emptyIconWrapper: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: 'rgba(64, 224, 208, 0.1)',
+    backgroundColor: 'rgba(74, 144, 226, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: 'rgba(64, 224, 208, 0.2)',
+    borderColor: 'rgba(74, 144, 226, 0.2)',
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#212529",
+    color: "#4682B4",
     marginBottom: 8,
     textAlign: "center",
   },
@@ -1083,7 +1058,7 @@ const styles = StyleSheet.create({
   newRequestButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#40E0D0",
+    backgroundColor: "#4A90E2",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
@@ -1102,7 +1077,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     gap: 12,
   },
   infoText: {

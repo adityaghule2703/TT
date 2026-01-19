@@ -105,7 +105,7 @@ const Faqs = () => {
     if (linksLoading) {
       return (
         <View style={styles.helpLinksContainer}>
-          <ActivityIndicator size="small" color="#40E0D0" />
+          <ActivityIndicator size="small" color="#4A90E2" />
         </View>
       );
     }
@@ -115,7 +115,7 @@ const Faqs = () => {
     return (
       <View style={styles.helpLinksContainer}>
         <View style={styles.helpLinksHeader}>
-          <Ionicons name="videocam" size={22} color="#40E0D0" />
+          <Ionicons name="videocam" size={22} color="#4A90E2" />
           <Text style={styles.helpLinksTitle}>Helpful Videos</Text>
         </View>
         <Text style={styles.helpLinksSubtitle}>
@@ -131,7 +131,7 @@ const Faqs = () => {
               activeOpacity={0.7}
             >
               <View style={styles.linkIconContainer}>
-                <Ionicons name="play-circle" size={20} color="#40E0D0" />
+                <Ionicons name="play-circle" size={20} color="#4A90E2" />
               </View>
               <View style={styles.linkContent}>
                 <Text style={styles.linkTitle} numberOfLines={2}>
@@ -151,7 +151,7 @@ const Faqs = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#F8F9FA" barStyle="dark-content" />
+      <StatusBar backgroundColor="#F0F8FF" barStyle="dark-content" />
       <ScrollView 
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
@@ -159,8 +159,8 @@ const Faqs = () => {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh} 
-            tintColor="#40E0D0"
-            colors={["#40E0D0"]}
+            tintColor="#4A90E2"
+            colors={["#4A90E2"]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -169,7 +169,7 @@ const Faqs = () => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Help Desk</Text>
           <TouchableOpacity>
-            <Ionicons name="settings-outline" size={24} color="#40E0D0" />
+            <Ionicons name="settings-outline" size={24} color="#4A90E2" />
           </TouchableOpacity>
         </View>
 
@@ -205,7 +205,7 @@ const Faqs = () => {
         {/* FAQ LIST */}
         <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
 
-        {loading && <ActivityIndicator size="large" color="#40E0D0" style={{ marginTop: 20 }} />}
+        {loading && <ActivityIndicator size="large" color="#4A90E2" style={{ marginTop: 20 }} />}
 
         {!loading &&
           filteredFaqs.map((faq) => (
@@ -226,7 +226,7 @@ const Faqs = () => {
                 <Ionicons 
                   name={expanded[faq.id] ? "chevron-up" : "chevron-down"} 
                   size={20} 
-                  color="#40E0D0" 
+                  color="#4A90E2" 
                 />
               </TouchableOpacity>
               {expanded[faq.id] && (
@@ -259,11 +259,11 @@ export default Faqs;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F0F8FF",
   },
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F0F8FF",
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   headerTitle: { 
     fontSize: 28,
     fontWeight: "700",
-    color: "#212529",
+    color: "#4682B4",
     letterSpacing: -0.5,
   },
   topImageWrapper: { 
@@ -290,11 +290,10 @@ const styles = StyleSheet.create({
     width: 120, 
     height: 120, 
     opacity: 0.8,
-    // Removed tintColor to keep original image colors
   },
   introText: {
     fontSize: 15,
-    color: "#6C757D",
+    color: "#4682B4",
     marginBottom: 20,
     lineHeight: 22,
     textAlign: "center",
@@ -317,7 +316,7 @@ const styles = StyleSheet.create({
   searchInput: { 
     fontSize: 15, 
     height: "100%",
-    color: "#212529",
+    color: "#4682B4",
   },
   // Help Links Styles
   helpLinksContainer: {
@@ -341,12 +340,12 @@ const styles = StyleSheet.create({
   helpLinksTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#212529",
+    color: "#4682B4",
     marginLeft: 10,
   },
   helpLinksSubtitle: {
     fontSize: 14,
-    color: "#6C757D",
+    color: "#4682B4",
     marginBottom: 20,
     lineHeight: 20,
   },
@@ -356,22 +355,22 @@ const styles = StyleSheet.create({
   linkItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(64, 224, 208, 0.05)",
+    backgroundColor: "rgba(74, 144, 226, 0.05)",
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(64, 224, 208, 0.1)",
+    borderColor: "rgba(74, 144, 226, 0.1)",
   },
   linkIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: "rgba(64, 224, 208, 0.1)",
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
     borderWidth: 1,
-    borderColor: "rgba(64, 224, 208, 0.2)",
+    borderColor: "rgba(74, 144, 226, 0.2)",
   },
   linkContent: {
     flex: 1,
@@ -379,13 +378,13 @@ const styles = StyleSheet.create({
   linkTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#212529",
+    color: "#4682B4",
     marginBottom: 4,
     lineHeight: 20,
   },
   linkDescription: {
     fontSize: 13,
-    color: "#6C757D",
+    color: "#4682B4",
     lineHeight: 18,
   },
   // FAQ Section
@@ -393,7 +392,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700", 
     marginBottom: 16,
-    color: "#212529",
+    color: "#4682B4",
   },
   faqCard: {
     backgroundColor: "#FFFFFF",
@@ -422,50 +421,49 @@ const styles = StyleSheet.create({
   },
   faqIcon: { 
     width: 24, 
-    height: 24, 
-    // Removed tintColor to keep original image colors
+    height: 24,
   },
   faqQuestion: { 
     fontSize: 15, 
     fontWeight: "600", 
-    color: "#212529", 
+    color: "#4682B4", 
     flex: 1,
     lineHeight: 20,
   },
   faqAnswerWrapper: {
-    backgroundColor: "rgba(64, 224, 208, 0.03)",
+    backgroundColor: "rgba(74, 144, 226, 0.03)",
     paddingHorizontal: 18,
     paddingBottom: 18,
     paddingTop: 2,
     borderTopWidth: 1,
-    borderTopColor: "rgba(64, 224, 208, 0.1)",
+    borderTopColor: "rgba(74, 144, 226, 0.1)",
   },
   faqAnswer: { 
     fontSize: 14, 
-    color: "#495057", 
+    color: "#4682B4", 
     lineHeight: 22 
   },
   noFaqs: { 
     textAlign: "center", 
     marginTop: 20, 
-    color: "#6C757D",
+    color: "#4682B4",
     fontSize: 15,
     fontStyle: "italic",
   },
   ctaButton: {
-    backgroundColor: "#40E0D0",
+    backgroundColor: "#4A90E2",
     borderRadius: 12,
     paddingVertical: 18,
     paddingHorizontal: 24,
     marginTop: 30,
     alignItems: "center",
-    shadowColor: "#40E0D0",
+    shadowColor: "#4A90E2",
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 4,
     borderWidth: 1,
-    borderColor: "rgba(64, 224, 208, 0.2)",
+    borderColor: "rgba(74, 144, 226, 0.2)",
   },
   ctaText: { 
     color: "#FFFFFF", 

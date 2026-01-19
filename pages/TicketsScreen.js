@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,6 +13,8 @@ import {
   Dimensions,
   Modal,
   StatusBar,
+  Animated,
+  Easing,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -20,6 +22,7 @@ import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 const TICKET_WIDTH = width - 32; // Card width
+const CELL_SIZE = (TICKET_WIDTH - 60) / 9; // Fixed cell size for consistency
 
 const TicketsScreen = ({ route, navigation }) => {
   const { game } = route.params || {};
@@ -34,16 +37,30 @@ const TicketsScreen = ({ route, navigation }) => {
     sets: 0,
   });
 
-  // Color scheme from UserGameRoom
-  const PRIMARY_COLOR = "#40E0D0"; // Turquoise
-  const SUCCESS_COLOR = "#4CAF50"; // Green
-  const WARNING_COLOR = "#FFD700"; // Gold
-  const DANGER_COLOR = "#FF5252"; // Red
+  // Animation values
+  const floatAnim1 = useRef(new Animated.Value(0)).current;
+  const floatAnim2 = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  // Color scheme matching Home page
+  const PRIMARY_COLOR = "#4A90E2"; // Sky Blue
+  const SUCCESS_COLOR = "#27AE60"; // Green
+  const WARNING_COLOR = "#F39C12"; // Orange
+  const DANGER_COLOR = "#E74C3C"; // Red
   const GRAY_COLOR = "#6C757D"; // Gray
   const LIGHT_GRAY = "#F8F9FA"; // Light gray
   const BORDER_COLOR = "#E9ECEF"; // Border color
   const BACKGROUND_COLOR = "#FFFFFF"; // White
-  const SECONDARY_COLOR = "#FF6B35"; // Orange
+  const SECONDARY_COLOR = "#5DADE2"; // Lighter Sky Blue
+  const LIGHT_BLUE = "#F0F8FF"; // Alice Blue background
+
+  // Ticket cell colors - matching HostGamePatterns EXACTLY
+  const EMPTY_CELL_BG = "#F5F5F5";
+  const EMPTY_CELL_BORDER = "#E0E0E0";
+  const FILLED_CELL_BG = "#FFF9C4"; // Yellow background for number cells
+  const FILLED_CELL_BORDER = "#FFD600"; // Yellow border for number cells
+  const CELL_TEXT_COLOR = "#2C3E50"; // Dark blue-gray for text
 
   const GAME_IMAGES = {
     ticket: "https://cdn-icons-png.flaticon.com/512/2589/2589909.png",
@@ -58,7 +75,90 @@ const TicketsScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     fetchMyTickets();
+    startAnimations();
   }, []);
+
+  const startAnimations = () => {
+    // First floating animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim1, {
+          toValue: 1,
+          duration: 4000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim1, {
+          toValue: 0,
+          duration: 4000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Second floating animation (different timing)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim2, {
+          toValue: 1,
+          duration: 5000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim2, {
+          toValue: 0,
+          duration: 5000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Pulse animation for subtle effect
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.02,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Slow rotation animation
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 20000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  };
+
+  // Interpolations for animations
+  const translateY1 = floatAnim1.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 15]
+  });
+
+  const translateY2 = floatAnim2.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -10]
+  });
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
 
   const onRefresh = React.useCallback(() => {
     console.log("Refreshing tickets...");
@@ -146,24 +246,19 @@ const TicketsScreen = ({ route, navigation }) => {
   const renderTicketGrid = (ticketData, isModal = false) => {
     const processedData = processTicketData(ticketData);
     
-    // Calculate cell size to fill the entire available space
-    const containerWidth = isModal ? width - 80 : TICKET_WIDTH - 24; // Remove padding
-    const containerHeight = isModal ? 180 : 140; // Fixed height for consistency
-    const cellWidth = containerWidth / 9;
-    const cellHeight = containerHeight / 3;
-    
     return (
       <View style={[
         styles.ticketGridContainer, 
-        isModal && styles.modalTicketGrid,
-        { width: containerWidth, height: containerHeight }
+        { 
+          width: isModal ? TICKET_WIDTH : TICKET_WIDTH - 24,
+          alignSelf: 'center'
+        }
       ]}>
         {/* Ticket rows without column headers */}
         {processedData.map((row, rowIndex) => (
-          <View key={`row-${rowIndex}`} style={[styles.ticketRow, { height: cellHeight }]}>
+          <View key={`row-${rowIndex}`} style={styles.ticketRow}>
             {row.map((cell, colIndex) => {
               const isEmpty = cell === null;
-              const cellBackgroundColor = isEmpty ? "#F5F5F5" : "#80CBC4"; // Turquoise for filled cells
               
               return (
                 <View
@@ -171,11 +266,10 @@ const TicketsScreen = ({ route, navigation }) => {
                   style={[
                     styles.ticketCell,
                     { 
-                      width: cellWidth, 
-                      height: cellHeight,
-                      backgroundColor: cellBackgroundColor,
+                      width: CELL_SIZE,
+                      height: CELL_SIZE,
                     },
-                    isEmpty && styles.emptyCell,
+                    isEmpty ? styles.emptyCell : styles.filledCell,
                   ]}
                 >
                   {!isEmpty && (
@@ -207,7 +301,7 @@ const TicketsScreen = ({ route, navigation }) => {
         
         <View style={[
           styles.statusBadge,
-          { backgroundColor: item.is_active ? '#4CAF5020' : '#6C757D20' }
+          { backgroundColor: item.is_active ? 'rgba(39, 174, 96, 0.1)' : 'rgba(108, 117, 125, 0.1)' }
         ]}>
           <Ionicons
             name={item.is_active ? "checkmark-circle" : "close-circle"}
@@ -229,10 +323,8 @@ const TicketsScreen = ({ route, navigation }) => {
         }}
         activeOpacity={0.9}
       >
-        {/* Ticket takes the full card */}
-        <View style={styles.fullTicketContainer}>
-          {renderTicketGrid(item.ticket_data)}
-        </View>
+        {/* Ticket grid directly on the white card */}
+        {renderTicketGrid(item.ticket_data)}
       </TouchableOpacity>
     </View>
   );
@@ -260,7 +352,7 @@ const TicketsScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+      <StatusBar backgroundColor="#5DADE2" barStyle="light-content" />
       <ScrollView
         style={styles.container}
         refreshControl={
@@ -274,34 +366,94 @@ const TicketsScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         {/* Background Patterns */}
-        <View style={styles.backgroundPatterns}>
-          <View style={styles.patternCircle1} />
-          <View style={styles.patternCircle2} />
+        <View style={styles.backgroundPattern}>
+          {/* Animated floating clouds */}
+          <Animated.View 
+            style={[
+              styles.cloud1, 
+              { 
+                transform: [
+                  { translateY: translateY1 },
+                  { translateX: translateY2 }
+                ] 
+              }
+            ]} 
+          />
+          <Animated.View 
+            style={[
+              styles.cloud2, 
+              { 
+                transform: [
+                  { translateY: translateY2 },
+                  { translateX: translateY1 }
+                ] 
+              }
+            ]} 
+          />
+          <Animated.View 
+            style={[
+              styles.cloud3, 
+              { 
+                transform: [
+                  { translateY: translateY1 },
+                  { translateX: translateY2 }
+                ] 
+              }
+            ]} 
+          />
+          
+          {/* Sun */}
+          <Animated.View 
+            style={[
+              styles.sun,
+              { 
+                transform: [{ rotate: rotate }],
+                opacity: pulseAnim
+              }
+            ]} 
+          />
+          
+          {/* Sky gradient overlay */}
+          <View style={styles.skyGradient} />
         </View>
 
-        {/* Header */}
+        {/* Header with sky background */}
         <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Ionicons name="arrow-back" size={24} color={PRIMARY_COLOR} />
-            </TouchableOpacity>
+          {/* Header sky pattern */}
+          <View style={styles.headerPattern}>
+            <View style={styles.headerCloud1} />
+            <View style={styles.headerCloud2} />
+            <View style={styles.headerCloud3} />
+          </View>
 
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>My Tickets</Text>
-              {game && (
-                <View style={styles.gameInfoContainer}>
-                  <Ionicons name="game-controller" size={16} color={GRAY_COLOR} />
-                  <Text style={styles.gameName} numberOfLines={1}>
-                    {game.game_name || "Game"}
-                  </Text>
-                </View>
-              )}
+          <View style={styles.headerContent}>
+            <View style={styles.headerTopRow}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Ionicons name="arrow-back" size={24} color="#FFF" />
+              </TouchableOpacity>
+
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.headerTitle}>My Tickets</Text>
+                {game && (
+                  <View style={styles.gameInfoContainer}>
+                    <Ionicons name="game-controller" size={16} color="rgba(255,255,255,0.8)" />
+                    <Text style={styles.gameName} numberOfLines={1}>
+                      {game.game_name || "Game"}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity 
+                style={styles.refreshButton}
+                onPress={fetchMyTickets}
+              >
+                <Ionicons name="refresh" size={22} color="#FFF" />
+              </TouchableOpacity>
             </View>
-
-           
           </View>
         </View>
 
@@ -332,6 +484,7 @@ const TicketsScreen = ({ route, navigation }) => {
                   style={styles.refreshButtonLarge}
                   onPress={fetchMyTickets}
                 >
+                  <View style={styles.glassEffectOverlay} />
                   <Ionicons name="refresh" size={18} color="#FFF" />
                   <Text style={styles.refreshButtonText}>Refresh</Text>
                 </TouchableOpacity>
@@ -385,7 +538,7 @@ const TicketsScreen = ({ route, navigation }) => {
                     </View>
                     <View style={[
                       styles.modalStatusBadge,
-                      { backgroundColor: selectedTicket.is_active ? '#4CAF5020' : '#6C757D20' }
+                      { backgroundColor: selectedTicket.is_active ? 'rgba(39, 174, 96, 0.1)' : 'rgba(108, 117, 125, 0.1)' }
                     ]}>
                       <Ionicons
                         name={selectedTicket.is_active ? "checkmark-circle" : "close-circle"}
@@ -436,8 +589,18 @@ const TicketsScreen = ({ route, navigation }) => {
 
                   <View style={styles.fullTicketContainerModal}>
                     <Text style={styles.ticketGridTitle}>Ticket Grid</Text>
-                    <View style={styles.fullTicketGrid}>
+                    <View style={styles.modalTicketGrid}>
                       {renderTicketGrid(selectedTicket.ticket_data, true)}
+                    </View>
+                    <View style={styles.ticketLegend}>
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendColor, styles.legendColorFilled]} />
+                        <Text style={styles.legendText}>Number Cell</Text>
+                      </View>
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendColor, styles.legendColorEmpty]} />
+                        <Text style={styles.legendText}>Empty Cell</Text>
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -447,6 +610,7 @@ const TicketsScreen = ({ route, navigation }) => {
                     style={styles.closeModalButton}
                     onPress={() => setModalVisible(false)}
                   >
+                    <View style={styles.glassEffectOverlay} />
                     <Text style={styles.closeModalButtonText}>Close</Text>
                   </TouchableOpacity>
                 </View>
@@ -462,40 +626,92 @@ const TicketsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F0F8FF", // Alice Blue matching home page
   },
   container: {
     flex: 1,
   },
-  backgroundPatterns: {
+  backgroundPattern: {
     position: 'absolute',
-    width: '100%',
-    height: '100%',
-    zIndex: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: -1,
+    overflow: 'hidden',
   },
-  patternCircle1: {
+  // Cloud animations
+  cloud1: {
     position: 'absolute',
-    top: 50,
-    right: 20,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(64, 224, 208, 0.05)',
+    top: 40,
+    left: width * 0.1,
+    width: 100,
+    height: 40,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  patternCircle2: {
+  cloud2: {
     position: 'absolute',
-    bottom: 200,
-    left: -30,
+    top: 80,
+    right: width * 0.15,
     width: 80,
-    height: 80,
+    height: 30,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 107, 53, 0.03)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cloud3: {
+    position: 'absolute',
+    top: 120,
+    left: width * 0.6,
+    width: 60,
+    height: 25,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    shadowColor: '#87CEEB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  // Sun
+  sun: {
+    position: 'absolute',
+    top: 30,
+    right: 30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  // Sky gradient
+  skyGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 250,
+    backgroundColor: 'linear-gradient(to bottom, rgba(135, 206, 235, 0.2), rgba(135, 206, 235, 0))',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F0F8FF", // Alice Blue
   },
   loadingContent: {
     alignItems: 'center',
@@ -504,55 +720,96 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#E9ECEF',
+    backgroundColor: 'rgba(74, 144, 226, 0.1)', // Sky Blue with opacity
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.2)',
   },
   loadingSpinner: {
     marginTop: 10,
   },
   loadingText: {
     fontSize: 16,
-    color: "#6C757D",
+    color: "#4682B4", // Darker blue
     fontWeight: "500",
     marginTop: 20,
   },
   header: {
-    backgroundColor: "#40E0D0",
-    paddingTop: 20,
-    paddingHorizontal: 20,
-   
-    borderBottomWidth: 1,
-    borderBottomColor: "#E9ECEF",
-    zIndex: 1,
+    paddingTop: 30,
+    paddingBottom: 20,
+    backgroundColor: "#5DADE2",
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  headerTop: {
+  headerPattern: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  headerCloud1: {
+    position: 'absolute',
+    top: 20,
+    left: 30,
+    width: 80,
+    height: 30,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  headerCloud2: {
+    position: 'absolute',
+    top: 40,
+    right: 40,
+    width: 60,
+    height: 20,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  headerCloud3: {
+    position: 'absolute',
+    bottom: 30,
+    left: width * 0.4,
+    width: 40,
+    height: 15,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerContent: {
+    paddingHorizontal: 20,
+  },
+  headerTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   headerTextContainer: {
     flex: 1,
+    marginLeft: 12,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: -0.5,
     marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   gameInfoContainer: {
     flexDirection: "row",
@@ -561,18 +818,18 @@ const styles = StyleSheet.create({
   },
   gameName: {
     fontSize: 14,
-    color: "#6C757D",
+    color: "rgba(255,255,255,0.9)",
     fontWeight: "500",
   },
   refreshButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   content: {
     padding: 16,
@@ -590,11 +847,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "700",
-    color: "#212529",
+    fontWeight: "800",
+    color: "#4682B4",
   },
   countBadge: {
-    backgroundColor: "#40E0D0",
+    backgroundColor: "#4A90E2",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -607,7 +864,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
   },
   ticketsList: {
-    gap: 20, // Increased gap for better separation
+    gap: 20,
   },
   ticketWrapper: {
     marginBottom: 8,
@@ -660,53 +917,52 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   ticketCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 0, // Remove padding to make ticket full width
-    borderWidth: 0,
-    position: 'relative',
-    overflow: 'hidden',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-    height: 160, // Fixed height for consistent ticket display
+  backgroundColor: "#FFFFFF",
+  borderRadius: 16,
+  padding: 16,
+  paddingBottom: 8, // Reduced from 16 to 8
+  borderWidth: 0,
+  position: 'relative',
+  overflow: 'hidden',
+  shadowColor: "#4A90E2",
+  shadowOffset: {
+    width: 0,
+    height: 4,
   },
-  fullTicketContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 12, // Minimal padding
-  },
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  elevation: 8,
+  minHeight: 140, // Reduced from 180
+},
+  // REMOVED the inner box container styles - ticket grid is directly on white card
   ticketGridContainer: {
-    overflow: 'hidden',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
+    // No background, no border, no padding - just the grid itself
   },
   ticketRow: {
     flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 4,
   },
   ticketCell: {
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 0.5,
-    borderColor: "#E0E0E0",
+    marginHorizontal: 2,
+    borderRadius: 8,
   },
   emptyCell: {
     backgroundColor: "#F5F5F5",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  filledCell: {
+    backgroundColor: "#FFF9C4", // Yellow background
+    borderWidth: 2,
+    borderColor: "#FFD600", // Yellow border
   },
   cellNumber: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
+    fontSize: CELL_SIZE * 0.4,
+    fontWeight: '800',
+    color: '#2C3E50',
   },
   emptyState: {
     backgroundColor: "#FFFFFF",
@@ -715,8 +971,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     marginTop: 20,
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   emptyIcon: {
     width: 80,
@@ -726,8 +987,8 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: "700",
-    color: "#212529",
+    fontWeight: "800",
+    color: "#4682B4",
     marginBottom: 8,
     textAlign: "center",
   },
@@ -742,16 +1003,41 @@ const styles = StyleSheet.create({
   refreshButtonLarge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#40E0D0",
+    backgroundColor: "#4A90E2",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 10,
     gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  glassEffectOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 10,
   },
   refreshButtonText: {
     color: "#FFF",
     fontSize: 14,
     fontWeight: "600",
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   infoCard: {
     flexDirection: "row",
@@ -761,8 +1047,13 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     gap: 12,
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   infoCardText: {
     flex: 1,
@@ -789,7 +1080,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     maxHeight: "85%",
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,
@@ -803,7 +1094,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     paddingBottom: 16,
-    backgroundColor: "#40E0D0",
+    backgroundColor: "#4A90E2",
   },
   modalTitleContainer: {
     flex: 1,
@@ -860,7 +1151,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "rgba(74, 144, 226, 0.1)",
   },
   gameCardHeader: {
     flexDirection: "row",
@@ -871,7 +1162,7 @@ const styles = StyleSheet.create({
   gameCardTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#212529",
+    color: "#4682B4",
   },
   gameCardContent: {
     gap: 8,
@@ -909,40 +1200,76 @@ const styles = StyleSheet.create({
   ticketGridTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#212529",
-    marginBottom: 12,
+    color: "#4682B4",
+    marginBottom: 8,
     textAlign: 'center',
   },
-  fullTicketGrid: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-    alignItems: "center",
-    overflow: 'hidden',
-  },
   modalTicketGrid: {
-    // Additional styles for modal grid if needed
+    // For modal, we keep the grid without extra container
+    marginBottom: 16,
+  },
+  ticketLegend: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 20,
+    marginTop: 12,
+  },
+  legendItem: {
+    alignItems: "center",
+    gap: 4,
+  },
+  legendColor: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+  },
+  legendColorFilled: {
+    backgroundColor: "#FFF9C4",
+    borderWidth: 2,
+    borderColor: "#FFD600",
+  },
+  legendColorEmpty: {
+    backgroundColor: "#F5F5F5",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  legendText: {
+    fontSize: 12,
+    color: "#666",
+    textAlign: "center",
   },
   modalActions: {
     padding: 20,
     paddingTop: 0,
     borderTopWidth: 1,
-    borderTopColor: "#E9ECEF",
+    borderTopColor: "rgba(74, 144, 226, 0.1)",
   },
   closeModalButton: {
-    backgroundColor: "#40E0D0",
+    backgroundColor: "#4A90E2",
     paddingHorizontal: 30,
     paddingVertical: 14,
     borderRadius: 10,
     width: "100%",
     alignItems: "center",
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   closeModalButtonText: {
     color: "#FFF",
     fontSize: 15,
     fontWeight: "600",
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
 });
 

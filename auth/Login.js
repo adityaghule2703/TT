@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -32,124 +32,24 @@ const Login = ({ navigation, onLoginSuccess }) => {
   const fadeIn = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(30)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
-  const floatingBallsAnim = useRef(new Animated.Value(0)).current;
-  const numberParticlesAnim = useRef(new Animated.Value(0)).current;
-  const particleScale = useRef(new Animated.Value(0)).current;
-
-  // Create multiple floating balls
-  const floatingBalls = Array.from({ length: 8 }, (_, i) => ({
-    x: useRef(new Animated.Value(Math.random() * SCREEN_WIDTH)).current,
-    y: useRef(new Animated.Value(Math.random() * 200)).current,
-    scale: useRef(new Animated.Value(0.3 + Math.random() * 0.7)).current,
-    opacity: useRef(new Animated.Value(0.1 + Math.random() * 0.2)).current,
-  }));
-
-  // Create number particles
-  const numberParticles = Array.from({ length: 15 }, (_, i) => ({
-    x: useRef(new Animated.Value(Math.random() * SCREEN_WIDTH)).current,
-    y: useRef(new Animated.Value(0)).current,
-    scale: useRef(new Animated.Value(0)).current,
-    opacity: useRef(new Animated.Value(0)).current,
-    number: Math.floor(Math.random() * 90) + 1,
-  }));
 
   useEffect(() => {
     // Initial entrance animations
     Animated.parallel([
       Animated.timing(fadeIn, {
         toValue: 1,
-        duration: 500,
+        duration: 600,
         useNativeDriver: true,
         easing: Easing.out(Easing.cubic),
       }),
       Animated.timing(cardSlide, {
         toValue: 0,
-        duration: 500,
+        duration: 600,
         useNativeDriver: true,
         easing: Easing.out(Easing.cubic),
       }),
-      Animated.spring(particleScale, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 60,
-        friction: 7,
-      }),
     ]).start();
-
-    // Start floating balls animation
-    floatingBalls.forEach((ball) => {
-      Animated.loop(
-        Animated.parallel([
-          Animated.sequence([
-            Animated.timing(ball.x, {
-              toValue: Math.random() * SCREEN_WIDTH,
-              duration: 3000 + Math.random() * 4000,
-              useNativeDriver: true,
-              easing: Easing.inOut(Easing.sin),
-            }),
-          ]),
-          Animated.sequence([
-            Animated.timing(ball.y, {
-              toValue: 150 + Math.random() * 100,
-              duration: 2000 + Math.random() * 3000,
-              useNativeDriver: true,
-              easing: Easing.inOut(Easing.sin),
-            }),
-            Animated.timing(ball.y, {
-              toValue: Math.random() * 200,
-              duration: 2000 + Math.random() * 3000,
-              useNativeDriver: true,
-              easing: Easing.inOut(Easing.sin),
-            }),
-          ]),
-          Animated.sequence([
-            Animated.timing(ball.scale, {
-              toValue: 0.5 + Math.random() * 0.5,
-              duration: 1500 + Math.random() * 2000,
-              useNativeDriver: true,
-              easing: Easing.inOut(Easing.sin),
-            }),
-            Animated.timing(ball.scale, {
-              toValue: 0.3 + Math.random() * 0.4,
-              duration: 1500 + Math.random() * 2000,
-              useNativeDriver: true,
-            }),
-          ]),
-        ])
-      ).start();
-    });
-
-    // Start number particles animation
-    numberParticles.forEach((particle, index) => {
-      setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(particle.opacity, {
-            toValue: 0.4,
-            duration: 1000,
-            useNativeDriver: true,
-            easing: Easing.out(Easing.cubic),
-          }),
-          Animated.timing(particle.scale, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-            easing: Easing.out(Easing.back(1.5)),
-          }),
-          Animated.timing(particle.y, {
-            toValue: SCREEN_HEIGHT * 0.4,
-            duration: 2500 + index * 200,
-            useNativeDriver: true,
-            easing: Easing.in(Easing.cubic),
-          }),
-        ]).start();
-      }, index * 150);
-    });
-
   }, []);
-
-  const handleRoleSwitch = (role) => {
-    setSelectedRole(role);
-  };
 
   const handleLogin = async () => {
     if (!mobile || !password) {
@@ -207,22 +107,7 @@ const Login = ({ navigation, onLoginSuccess }) => {
       await AsyncStorage.setItem("userData", JSON.stringify({ ...userData, role: selectedRole }));
       await AsyncStorage.setItem("token", token);
 
-      // Success animation with particle effects
-      numberParticles.forEach((particle) => {
-        Animated.parallel([
-          Animated.timing(particle.opacity, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(particle.scale, {
-            toValue: 1.5,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      });
-
+      // Success animation
       setTimeout(() => {
         onLoginSuccess();
       }, 400);
@@ -251,47 +136,8 @@ const Login = ({ navigation, onLoginSuccess }) => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.container}>
-        {/* Animated Background Elements */}
-        <View style={styles.background}>
-          {/* Floating colored balls */}
-          {floatingBalls.map((ball, index) => (
-            <Animated.View
-              key={index}
-              style={[
-                styles.floatingBall,
-                {
-                  backgroundColor: index % 3 === 0 ? '#5D5FEF' : index % 3 === 1 ? '#FF6B6B' : '#4ECDC4',
-                  transform: [
-                    { translateX: ball.x },
-                    { translateY: ball.y },
-                    { scale: ball.scale },
-                  ],
-                  opacity: ball.opacity,
-                },
-              ]}
-            />
-          ))}
-
-          {/* Number particles */}
-          {numberParticles.map((particle, index) => (
-            <Animated.View
-              key={index}
-              style={[
-                styles.numberParticle,
-                {
-                  transform: [
-                    { translateX: particle.x },
-                    { translateY: particle.y },
-                    { scale: particle.scale },
-                  ],
-                  opacity: particle.opacity,
-                },
-              ]}
-            >
-              <Text style={styles.numberText}>{particle.number}</Text>
-            </Animated.View>
-          ))}
-        </View>
+        {/* Subtle Background Gradient */}
+        <View style={styles.backgroundGradient} />
 
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -312,28 +158,19 @@ const Login = ({ navigation, onLoginSuccess }) => {
                 }
               ]}
             >
-              {/* Animated Header */}
+              {/* Simple Welcome Header */}
               <View style={styles.header}>
-                <Animated.View 
-                  style={[
-                    styles.headerIconContainer,
-                    {
-                      transform: [{ scale: particleScale }]
-                    }
-                  ]}
-                >
-                  <MaterialCommunityIcons 
-                    name="dice-multiple" 
-                    size={32} 
-                    color="#5D5FEF" 
-                  />
-                </Animated.View>
-                <Text style={styles.appName}>Tambola Timez</Text>
-                <Text style={styles.tagline}>Quick Sign In</Text>
+                <View style={styles.logoContainer}>
+                  <Text style={styles.appName}>Tambola Timez</Text>
+                  <Text style={styles.welcomeText}>Welcome Back!</Text>
+                </View>
               </View>
 
-              {/* Compact Login Card */}
-              <Animated.View style={styles.card}>
+              {/* Glassmorphism Login Card */}
+              <View style={styles.card}>
+                {/* Glass effect overlay */}
+                <View style={styles.glassOverlay} />
+                
                 {/* Role Selection */}
                 <View style={styles.roleContainer}>
                   <TouchableOpacity
@@ -344,17 +181,22 @@ const Login = ({ navigation, onLoginSuccess }) => {
                     onPress={() => setSelectedRole("user")}
                     activeOpacity={0.8}
                   >
-                    <Ionicons 
-                      name="person" 
-                      size={18} 
-                      color={selectedRole === "user" ? "#FFF" : "#666"} 
-                    />
-                    <Text style={[
-                      styles.roleButtonText,
-                      selectedRole === "user" && styles.roleButtonTextActive
+                    <View style={[
+                      styles.roleButtonContent,
+                      selectedRole === "user" && styles.roleButtonContentActive
                     ]}>
-                      Player
-                    </Text>
+                      <Ionicons 
+                        name="person" 
+                        size={20} 
+                        color={selectedRole === "user" ? "#FFF" : "#4682B4"} 
+                      />
+                      <Text style={[
+                        styles.roleButtonText,
+                        selectedRole === "user" && styles.roleButtonTextActive
+                      ]}>
+                        Player
+                      </Text>
+                    </View>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -365,27 +207,32 @@ const Login = ({ navigation, onLoginSuccess }) => {
                     onPress={() => setSelectedRole("host")}
                     activeOpacity={0.8}
                   >
-                    <Ionicons 
-                      name="mic" 
-                      size={18} 
-                      color={selectedRole === "host" ? "#FFF" : "#666"} 
-                    />
-                    <Text style={[
-                      styles.roleButtonText,
-                      selectedRole === "host" && styles.roleButtonTextActive
+                    <View style={[
+                      styles.roleButtonContent,
+                      selectedRole === "host" && styles.roleButtonContentActive
                     ]}>
-                      Host
-                    </Text>
+                      <Ionicons 
+                        name="mic" 
+                        size={20} 
+                        color={selectedRole === "host" ? "#FFF" : "#4682B4"} 
+                      />
+                      <Text style={[
+                        styles.roleButtonText,
+                        selectedRole === "host" && styles.roleButtonTextActive
+                      ]}>
+                        Host
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
 
                 {/* Form */}
                 <View style={styles.form}>
                   <View style={styles.inputContainer}>
-                    <Feather name="smartphone" size={18} color="#666" style={styles.inputIcon} />
+                    <Ionicons name="call-outline" size={20} color="#4682B4" style={styles.inputIcon} />
                     <TextInput
                       placeholder="Mobile Number"
-                      placeholderTextColor="#999"
+                      placeholderTextColor="rgba(70, 130, 180, 0.6)"
                       style={styles.input}
                       value={mobile}
                       onChangeText={setMobile}
@@ -395,10 +242,10 @@ const Login = ({ navigation, onLoginSuccess }) => {
                   </View>
 
                   <View style={styles.inputContainer}>
-                    <Feather name="lock" size={18} color="#666" style={styles.inputIcon} />
+                    <Ionicons name="lock-closed-outline" size={20} color="#4682B4" style={styles.inputIcon} />
                     <TextInput
                       placeholder="Password"
-                      placeholderTextColor="#999"
+                      placeholderTextColor="rgba(70, 130, 180, 0.6)"
                       style={styles.input}
                       value={password}
                       onChangeText={setPassword}
@@ -409,10 +256,10 @@ const Login = ({ navigation, onLoginSuccess }) => {
                       style={styles.passwordToggle}
                       onPress={() => setShowPassword(!showPassword)}
                     >
-                      <Feather 
-                        name={showPassword ? "eye-off" : "eye"} 
-                        size={18} 
-                        color="#666" 
+                      <Ionicons 
+                        name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                        size={20} 
+                        color="#4682B4" 
                       />
                     </TouchableOpacity>
                   </View>
@@ -427,10 +274,16 @@ const Login = ({ navigation, onLoginSuccess }) => {
                       disabled={isLoading}
                       activeOpacity={0.9}
                     >
+                      {/* Glass effect overlay */}
+                      <View style={styles.glassEffectOverlay} />
+                      
                       {isLoading ? (
-                        <Feather name="loader" size={20} color="#FFF" style={styles.loadingIcon} />
+                        <Ionicons name="reload-circle" size={24} color="#FFF" style={styles.loadingIcon} />
                       ) : (
-                        <Text style={styles.loginButtonText}>SIGN IN</Text>
+                        <>
+                          <Text style={styles.loginButtonText}>SIGN IN</Text>
+                          <Ionicons name="arrow-forward" size={20} color="#FFF" />
+                        </>
                       )}
                     </TouchableOpacity>
                   </Animated.View>
@@ -454,13 +307,14 @@ const Login = ({ navigation, onLoginSuccess }) => {
                     <Text style={styles.linkText}>Create Account</Text>
                   </TouchableOpacity>
                 </View>
-              </Animated.View>
+              </View>
 
               {/* Bottom Quick Info */}
               <View style={styles.bottomInfo}>
                 <Text style={styles.infoText}>
                   By signing in, you agree to our Terms & Privacy
                 </Text>
+                <Text style={styles.versionText}>Tambola Timez v1.0</Text>
               </View>
             </Animated.View>
           </ScrollView>
@@ -475,35 +329,20 @@ export default Login;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFF',
+    backgroundColor: '#F0F8FF',
   },
-  background: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  floatingBall: {
+  backgroundGradient: {
     position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  numberParticle: {
-    position: 'absolute',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(93, 95, 239, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  numberText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#5D5FEF',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: SCREEN_HEIGHT * 0.3,
+    backgroundColor: 'rgba(135, 206, 235, 0.08)',
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 40,
+    paddingTop: 60,
     paddingBottom: 20,
   },
   mainContent: {
@@ -512,109 +351,148 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 40,
   },
-  headerIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
+  logoContainer: {
     alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#5D5FEF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
   appName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2D3748',
-    marginBottom: 4,
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#4682B4',
+    marginBottom: 8,
+    textShadowColor: 'rgba(70, 130, 180, 0.1)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
-  tagline: {
-    fontSize: 14,
-    color: '#718096',
-    letterSpacing: 0.5,
+  welcomeText: {
+    fontSize: 18,
+    color: '#4A90E2',
+    fontWeight: '500',
+    opacity: 0.9,
   },
   card: {
-    backgroundColor: '#FFF',
-    borderRadius: 20,
-    padding: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 25,
+    padding: 24,
     shadowColor: '#1A202C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  glassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: 25,
   },
   roleContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    padding: 4,
+    backgroundColor: 'rgba(248, 250, 252, 0.8)',
+    borderRadius: 15,
+    padding: 6,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(70, 130, 180, 0.1)',
   },
   roleButton: {
     flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  roleButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 10,
-    gap: 6,
+    borderRadius: 12,
+    gap: 8,
   },
   roleButtonActive: {
-    backgroundColor: '#5D5FEF',
+    backgroundColor: 'rgba(74, 144, 226, 0.2)',
+  },
+  roleButtonContentActive: {
+    backgroundColor: '#4A90E2',
   },
   roleButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#64748B',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#4682B4',
   },
   roleButtonTextActive: {
     color: '#FFF',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   form: {
-    gap: 16,
-    marginBottom: 20,
+    gap: 20,
+    marginBottom: 24,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    backgroundColor: 'rgba(248, 250, 252, 0.9)',
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 14,
-    height: 48,
+    borderColor: 'rgba(70, 130, 180, 0.15)',
+    paddingHorizontal: 16,
+    height: 56,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: '#2D3748',
     height: '100%',
+    fontWeight: '500',
   },
   passwordToggle: {
-    padding: 4,
+    padding: 6,
   },
   loginButton: {
-    backgroundColor: '#5D5FEF',
-    borderRadius: 12,
-    height: 48,
+    backgroundColor: '#4A90E2',
+    borderRadius: 15,
+    height: 56,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#5D5FEF',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
+    flexDirection: 'row',
+    gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  glassEffectOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 15,
   },
   loginButtonDisabled: {
     opacity: 0.7,
@@ -624,37 +502,46 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     color: '#FFF',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   linksRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
+    gap: 20,
   },
   linkButton: {
-    paddingVertical: 4,
+    paddingVertical: 8,
   },
   linkText: {
-    color: '#5D5FEF',
+    color: '#4A90E2',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   separator: {
     width: 1,
-    height: 14,
-    backgroundColor: '#CBD5E0',
+    height: 16,
+    backgroundColor: 'rgba(70, 130, 180, 0.3)',
   },
   bottomInfo: {
-    marginTop: 24,
+    marginTop: 30,
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
   infoText: {
-    color: '#94A3B8',
-    fontSize: 11,
+    color: 'rgba(70, 130, 180, 0.8)',
+    fontSize: 12,
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  versionText: {
+    color: 'rgba(70, 130, 180, 0.6)',
+    fontSize: 11,
   },
 });
