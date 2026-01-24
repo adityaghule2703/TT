@@ -20,6 +20,15 @@ import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 
 const { width } = Dimensions.get('window');
 
+// Color scheme matching Home page
+const PRIMARY_COLOR = "#005F6A"; // Main background color
+const SECONDARY_COLOR = "#004B54"; // Dark teal
+const ACCENT_COLOR = "#D4AF37"; // Gold
+const LIGHT_ACCENT = "#F5E6A8"; // Light gold
+const MUTED_GOLD = "#E6D8A2"; // Muted gold for text
+const DARK_TEAL = "#00343A"; // Darker teal
+const WHITE = "#FFFFFF";
+
 const GAME_ICONS = [
   "https://cdn-icons-png.flaticon.com/512/2331/2331966.png",
   "https://cdn-icons-png.flaticon.com/512/808/808439.png",
@@ -51,6 +60,7 @@ const Game = ({ navigation }) => {
   const floatAnim2 = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  const shineAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     fetchAllData();
@@ -121,6 +131,24 @@ const Game = ({ navigation }) => {
         useNativeDriver: true,
       })
     ).start();
+
+    // Shine animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shineAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(shineAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   };
 
   // Interpolations for animations
@@ -137,6 +165,11 @@ const Game = ({ navigation }) => {
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg']
+  });
+
+  const shineTranslateX = shineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-100, width + 100]
   });
 
   const onRefresh = React.useCallback(() => {
@@ -293,7 +326,7 @@ const Game = ({ navigation }) => {
     return (
       <View style={styles.playingBadge}>
         <View style={styles.playingBadgeIcon}>
-          <Ionicons name="person-circle" size={12} color="#FFF" />
+          <Ionicons name="person-circle" size={12} color={SECONDARY_COLOR} />
         </View>
         <Text style={styles.playingBadgeText}>
           {ticketInfo.tickets > 0 ? `${ticketInfo.tickets} Ticket${ticketInfo.tickets > 1 ? 's' : ''}` : ''}
@@ -327,7 +360,7 @@ const Game = ({ navigation }) => {
         {isPlaying && (
           <View style={styles.playingCardOverlay}>
             <View style={styles.playingCardLabel}>
-              <Ionicons name="checkmark-circle" size={12} color="#FFF" />
+              <Ionicons name="checkmark-circle" size={12} color={WHITE} />
               <Text style={styles.playingCardLabelText}>You're Playing</Text>
             </View>
           </View>
@@ -336,7 +369,7 @@ const Game = ({ navigation }) => {
         {isCompleted && (
           <View style={styles.completedCardOverlay}>
             <View style={styles.completedCardLabel}>
-              <Ionicons name="trophy" size={12} color="#FFF" />
+              <Ionicons name="trophy" size={12} color={WHITE} />
               <Text style={styles.completedCardLabelText}>Game Ended</Text>
             </View>
           </View>
@@ -358,7 +391,7 @@ const Game = ({ navigation }) => {
               'time'
             } 
             size={10} 
-            color="#FFF" 
+            color={WHITE} 
           />
           <Text style={styles.statusText}>
             {isLive ? 'LIVE' : 
@@ -402,7 +435,7 @@ const Game = ({ navigation }) => {
           ]}>
             {game.ticket_type === "paid" ? (
               <>
-                <MaterialIcons name="diamond" size={14} color="#F39C12" />
+                <MaterialIcons name="diamond" size={14} color={ACCENT_COLOR} />
                 <Text style={[
                   styles.gameTypeText,
                   isCompleted && styles.completedTypeText
@@ -412,7 +445,7 @@ const Game = ({ navigation }) => {
               </>
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={14} color="#27AE60" />
+                <Ionicons name="checkmark-circle" size={14} color={ACCENT_COLOR} />
                 <Text style={[
                   styles.gameTypeText,
                   isCompleted && styles.completedTypeText
@@ -431,7 +464,7 @@ const Game = ({ navigation }) => {
                 styles.detailIcon,
                 isCompleted && styles.completedDetailIcon
               ]}>
-                <Ionicons name="calendar" size={14} color="#4A90E2" />
+                <Ionicons name="calendar" size={14} color={ACCENT_COLOR} />
               </View>
               <View>
                 <Text style={[
@@ -454,7 +487,7 @@ const Game = ({ navigation }) => {
                 styles.detailIcon,
                 isCompleted && styles.completedDetailIcon
               ]}>
-                <Ionicons name="time" size={14} color="#4A90E2" />
+                <Ionicons name="time" size={14} color={ACCENT_COLOR} />
               </View>
               <View>
                 <Text style={[
@@ -479,7 +512,7 @@ const Game = ({ navigation }) => {
                 styles.detailIcon,
                 isCompleted && styles.completedDetailIcon
               ]}>
-                <Ionicons name="person" size={14} color="#4A90E2" />
+                <Ionicons name="person" size={14} color={ACCENT_COLOR} />
               </View>
               <View>
                 <Text style={[
@@ -503,7 +536,7 @@ const Game = ({ navigation }) => {
                   styles.detailIcon,
                   isCompleted && styles.completedDetailIcon
                 ]}>
-                  <MaterialIcons name="confirmation-number" size={14} color="#4A90E2" />
+                  <MaterialIcons name="confirmation-number" size={14} color={ACCENT_COLOR} />
                 </View>
                 <View>
                   <Text style={[
@@ -527,7 +560,7 @@ const Game = ({ navigation }) => {
                   styles.detailIcon,
                   isCompleted && styles.completedDetailIcon
                 ]}>
-                  <Ionicons name="trophy" size={14} color="#4A90E2" />
+                  <Ionicons name="trophy" size={14} color={ACCENT_COLOR} />
                 </View>
                 <View>
                   <Text style={[
@@ -556,7 +589,7 @@ const Game = ({ navigation }) => {
             styles.prizeIcon,
             isCompleted && styles.completedPrizeIcon
           ]}>
-            <MaterialIcons name="account-balance-wallet" size={18} color="#4A90E2" />
+            <MaterialIcons name="account-balance-wallet" size={18} color={ACCENT_COLOR} />
           </View>
           <View style={styles.prizeInfo}>
             <Text style={[
@@ -597,7 +630,7 @@ const Game = ({ navigation }) => {
           <Ionicons 
             name={isCompleted ? "trophy" : "arrow-forward"} 
             size={16} 
-            color="#FFF" 
+            color={WHITE} 
           />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -625,7 +658,7 @@ const Game = ({ navigation }) => {
     
     return (
       <View style={styles.loadingMoreContainer}>
-        <ActivityIndicator size="small" color="#4A90E2" />
+        <ActivityIndicator size="small" color={ACCENT_COLOR} />
         <Text style={styles.loadingMoreText}>Loading more games...</Text>
       </View>
     );
@@ -641,7 +674,7 @@ const Game = ({ navigation }) => {
             "search-outline"
           } 
           size={50} 
-          color="#4A90E2" 
+          color={ACCENT_COLOR} 
         />
       </View>
       <Text style={styles.emptyTitle}>
@@ -708,9 +741,10 @@ const Game = ({ navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.backgroundPattern}>
+          {/* Animated poker chips */}
           <Animated.View 
             style={[
-              styles.cloud1, 
+              styles.pokerChip1, 
               { 
                 transform: [
                   { translateY: translateY1 },
@@ -721,7 +755,7 @@ const Game = ({ navigation }) => {
           />
           <Animated.View 
             style={[
-              styles.cloud2, 
+              styles.pokerChip2, 
               { 
                 transform: [
                   { translateY: translateY2 },
@@ -730,22 +764,27 @@ const Game = ({ navigation }) => {
               }
             ]} 
           />
+          
+          {/* Animated shine effect */}
           <Animated.View 
             style={[
-              styles.sun,
+              styles.shineEffect,
               { 
-                transform: [{ rotate: rotate }],
-                opacity: pulseAnim
+                transform: [{ translateX: shineTranslateX }],
+                opacity: shineAnim
               }
             ]} 
           />
+          
+          {/* Gold gradient overlay */}
+          <View style={styles.goldGradient} />
         </View>
         
         <View style={styles.loadingAnimation}>
           <View style={styles.loadingIconWrapper}>
-            <Ionicons name="game-controller" size={40} color="#4A90E2" />
+            <Ionicons name="game-controller" size={40} color={ACCENT_COLOR} />
           </View>
-          <ActivityIndicator size="large" color="#4A90E2" style={styles.loadingSpinner} />
+          <ActivityIndicator size="large" color={ACCENT_COLOR} style={styles.loadingSpinner} />
         </View>
         <Text style={styles.loadingText}>Loading games...</Text>
       </View>
@@ -759,9 +798,10 @@ const Game = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.backgroundPattern}>
+        {/* Animated poker chips */}
         <Animated.View 
           style={[
-            styles.cloud1, 
+            styles.pokerChip1, 
             { 
               transform: [
                 { translateY: translateY1 },
@@ -772,7 +812,7 @@ const Game = ({ navigation }) => {
         />
         <Animated.View 
           style={[
-            styles.cloud2, 
+            styles.pokerChip2, 
             { 
               transform: [
                 { translateY: translateY2 },
@@ -781,18 +821,23 @@ const Game = ({ navigation }) => {
             }
           ]} 
         />
+        
+        {/* Animated shine effect */}
         <Animated.View 
           style={[
-            styles.sun,
+            styles.shineEffect,
             { 
-              transform: [{ rotate: rotate }],
-              opacity: pulseAnim
+              transform: [{ translateX: shineTranslateX }],
+              opacity: shineAnim
             }
           ]} 
         />
-        <View style={styles.skyGradient} />
-        <View style={styles.mountain1} />
-        <View style={styles.mountain2} />
+        
+        {/* Gold gradient overlay */}
+        <View style={styles.goldGradient} />
+        
+        {/* Teal gradient overlay */}
+        <View style={styles.tealGradient} />
       </View>
 
       <Animated.View 
@@ -800,31 +845,15 @@ const Game = ({ navigation }) => {
           styles.header,
           { 
             transform: [{ scale: pulseAnim }],
-            backgroundColor: '#5DADE2'
+            backgroundColor: SECONDARY_COLOR
           }
         ]}
       >
         <View style={styles.headerPattern}>
-          <View style={styles.headerCloud1} />
-          <View style={styles.headerCloud2} />
-          <View style={styles.headerCloud3} />
-          
           <Animated.View 
             style={[
-              styles.sunRay1,
-              { transform: [{ rotate: rotate }] }
-            ]} 
-          />
-          <Animated.View 
-            style={[
-              styles.sunRay2,
-              { transform: [{ rotate: rotate }] }
-            ]} 
-          />
-          <Animated.View 
-            style={[
-              styles.sunRay3,
-              { transform: [{ rotate: rotate }] }
+              styles.headerShine,
+              { transform: [{ translateX: shineTranslateX }] }
             ]} 
           />
         </View>
@@ -837,7 +866,7 @@ const Game = ({ navigation }) => {
             </View>
             {myGamesCount > 0 && (
               <View style={styles.playingCountBadge}>
-                <Ionicons name="checkmark-circle" size={14} color="#4A90E2" />
+                <Ionicons name="checkmark-circle" size={14} color={ACCENT_COLOR} />
                 <Text style={styles.playingCountText}>{myGamesCount}</Text>
               </View>
             )}
@@ -845,12 +874,12 @@ const Game = ({ navigation }) => {
 
           <View style={styles.searchContainer}>
             <View style={styles.searchIcon}>
-              <Feather name="search" size={20} color="#666" />
+              <Feather name="search" size={20} color={MUTED_GOLD} />
             </View>
             <TextInput
               style={styles.searchInput}
               placeholder="Search games by name or ID..."
-              placeholderTextColor="#999"
+              placeholderTextColor={MUTED_GOLD}
               value={searchQuery}
               onChangeText={setSearchQuery}
               returnKeyType="search"
@@ -861,7 +890,7 @@ const Game = ({ navigation }) => {
                 style={styles.clearButton}
                 onPress={() => setSearchQuery('')}
               >
-                <Ionicons name="close-circle" size={20} color="#666" />
+                <Ionicons name="close-circle" size={20} color={MUTED_GOLD} />
               </TouchableOpacity>
             )}
           </View>
@@ -900,8 +929,8 @@ const Game = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#4A90E2"
-            colors={['#4A90E2']}
+            tintColor={ACCENT_COLOR}
+            colors={[ACCENT_COLOR]}
           />
         }
         onEndReached={loadMoreGames}
@@ -919,7 +948,7 @@ export default Game;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F0F8FF",
+    backgroundColor: PRIMARY_COLOR,
   },
   flatList: {
     flex: 1,
@@ -936,7 +965,7 @@ const styles = StyleSheet.create({
   },
   loadingMoreText: {
     fontSize: 14,
-    color: '#4682B4',
+    color: LIGHT_ACCENT,
     marginLeft: 10,
   },
   backgroundPattern: {
@@ -948,81 +977,66 @@ const styles = StyleSheet.create({
     zIndex: -1,
     overflow: 'hidden',
   },
-  cloud1: {
-    position: 'absolute',
-    top: 40,
-    left: width * 0.1,
-    width: 100,
-    height: 40,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cloud2: {
+  // Poker chip animations
+  pokerChip1: {
     position: 'absolute',
     top: 80,
-    right: width * 0.15,
-    width: 80,
-    height: 30,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  sun: {
-    position: 'absolute',
-    top: 30,
-    right: 30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 0 },
+    left: width * 0.1,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  skyGradient: {
+  pokerChip2: {
+    position: 'absolute',
+    top: 120,
+    right: width * 0.15,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  // Shine effect
+  shineEffect: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 100,
+    height: '100%',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
+    transform: [{ skewX: '-20deg' }],
+  },
+  goldGradient: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     height: 300,
-    backgroundColor: 'linear-gradient(to bottom, rgba(135, 206, 235, 0.2), rgba(135, 206, 235, 0))',
+    backgroundColor: 'rgba(212, 175, 55, 0.05)',
   },
-  mountain1: {
+  tealGradient: {
     position: 'absolute',
     bottom: 0,
-    left: -50,
-    width: width + 100,
+    left: 0,
+    right: 0,
     height: 200,
-    backgroundColor: '#4682B4',
-    transform: [{ rotate: '5deg' }],
-    opacity: 0.1,
-  },
-  mountain2: {
-    position: 'absolute',
-    bottom: 0,
-    right: -50,
-    width: width + 100,
-    height: 150,
-    backgroundColor: '#5DADE2',
-    transform: [{ rotate: '-5deg' }],
-    opacity: 0.08,
+    backgroundColor: 'rgba(0, 75, 84, 0.3)',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F0F8FF",
+    backgroundColor: PRIMARY_COLOR,
     position: 'relative',
   },
   loadingAnimation: {
@@ -1033,11 +1047,11 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(74, 144, 226, 0.2)',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   loadingSpinner: {
     position: 'absolute',
@@ -1046,7 +1060,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
     fontWeight: "500",
   },
   header: {
@@ -1063,60 +1077,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    overflow: 'hidden',
   },
-  headerCloud1: {
+  headerShine: {
     position: 'absolute',
-    top: 20,
-    left: 30,
-    width: 80,
-    height: 30,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  headerCloud2: {
-    position: 'absolute',
-    top: 40,
-    right: 40,
-    width: 60,
-    height: 20,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  headerCloud3: {
-    position: 'absolute',
-    bottom: 30,
-    left: width * 0.4,
-    width: 40,
-    height: 15,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  sunRay1: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    width: 80,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ rotate: '0deg' }],
-  },
-  sunRay2: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    width: 80,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ rotate: '45deg' }],
-  },
-  sunRay3: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    width: 80,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ rotate: '90deg' }],
+    top: 0,
+    left: 0,
+    width: 100,
+    height: '100%',
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    transform: [{ skewX: '-20deg' }],
   },
   headerContent: {
     paddingHorizontal: 20,
@@ -1130,15 +1100,15 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: LIGHT_ACCENT,
     letterSpacing: -0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
   appTagline: {
     fontSize: 13,
-    color: "#FFFFFF",
+    color: MUTED_GOLD,
     marginTop: 2,
     fontWeight: "500",
     opacity: 0.9,
@@ -1146,31 +1116,31 @@ const styles = StyleSheet.create({
   playingCountBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: ACCENT_COLOR,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
     gap: 4,
   },
   playingCountText: {
-    color: '#4A90E2',
+    color: SECONDARY_COLOR,
     fontSize: 12,
     fontWeight: '700',
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF",
+    backgroundColor: DARK_TEAL,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "#E8EAED",
-    shadowColor: "#000",
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 4,
   },
   searchIcon: {
     marginRight: 8,
@@ -1178,7 +1148,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: "#212529",
+    color: LIGHT_ACCENT,
     paddingVertical: 4,
   },
   clearButton: {
@@ -1186,16 +1156,16 @@ const styles = StyleSheet.create({
   },
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SECONDARY_COLOR,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-    shadowColor: '#4A90E2',
+    borderBottomColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 4,
   },
   tabButton: {
     flex: 1,
@@ -1205,28 +1175,30 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     marginRight: 10,
-    backgroundColor: '#F0F8FF',
+    backgroundColor: DARK_TEAL,
+    borderWidth: 1,
+    borderColor: ACCENT_COLOR,
   },
   tabButtonActive: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: ACCENT_COLOR,
   },
   tabButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4682B4',
+    color: LIGHT_ACCENT,
   },
   tabButtonTextActive: {
-    color: '#FFFFFF',
+    color: SECONDARY_COLOR,
   },
   tabCount: {
-    backgroundColor: '#FFD700',
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 6,
   },
   tabCountText: {
-    color: '#333',
+    color: LIGHT_ACCENT,
     fontSize: 10,
     fontWeight: '700',
   },
@@ -1243,38 +1215,38 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#4682B4",
+    color: ACCENT_COLOR,
   },
   gameCount: {
     fontSize: 14,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     fontWeight: "500",
     opacity: 0.8,
   },
   gameCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 20,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
     position: 'relative',
     overflow: 'hidden',
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   playingGameCard: {
-    backgroundColor: "#E3F2FD",
-    borderColor: "#4A90E2",
+    backgroundColor: DARK_TEAL,
+    borderColor: ACCENT_COLOR,
     borderWidth: 2,
   },
   completedGameCard: {
-    backgroundColor: "#F8F9FA",
-    borderColor: "#E9ECEF",
+    backgroundColor: DARK_TEAL,
+    borderColor: MUTED_GOLD,
     opacity: 0.95,
   },
   playingCardOverlay: {
@@ -1284,7 +1256,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   playingCardLabel: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: ACCENT_COLOR,
     borderBottomLeftRadius: 12,
     borderTopRightRadius: 14,
     paddingHorizontal: 10,
@@ -1294,7 +1266,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   playingCardLabelText: {
-    color: "#FFF",
+    color: SECONDARY_COLOR,
     fontSize: 10,
     fontWeight: "700",
   },
@@ -1305,7 +1277,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   completedCardLabel: {
-    backgroundColor: "#95A5A6",
+    backgroundColor: MUTED_GOLD,
     borderBottomLeftRadius: 12,
     borderTopRightRadius: 14,
     paddingHorizontal: 10,
@@ -1315,7 +1287,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   completedCardLabelText: {
-    color: "#FFF",
+    color: SECONDARY_COLOR,
     fontSize: 10,
     fontWeight: "700",
   },
@@ -1327,7 +1299,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderBottomLeftRadius: 16,
     borderTopRightRadius: 25,
-    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+    backgroundColor: 'rgba(212, 175, 55, 0.05)',
   },
   statusBadge: {
     position: 'absolute',
@@ -1340,21 +1312,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 4,
     zIndex: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   liveBadge: {
-    backgroundColor: '#27AE60',
+    backgroundColor: ACCENT_COLOR,
   },
   scheduledBadge: {
-    backgroundColor: '#F39C12',
+    backgroundColor: ACCENT_COLOR,
   },
   completedBadge: {
-    backgroundColor: '#95A5A6',
+    backgroundColor: MUTED_GOLD,
   },
   defaultBadge: {
-    backgroundColor: '#95A5A6',
+    backgroundColor: MUTED_GOLD,
   },
   statusText: {
-    color: '#FFF',
+    color: SECONDARY_COLOR,
     fontSize: 10,
     fontWeight: '700',
   },
@@ -1375,21 +1349,21 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 10,
-    backgroundColor: "#F0F8FF",
+    backgroundColor: DARK_TEAL,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.2)",
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
     padding: 8,
-    shadowColor: '#4A90E2',
+    shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 2,
-    elevation: 1,
+    elevation: 2,
   },
   completedGameIconWrapper: {
-    backgroundColor: "#E9ECEF",
-    borderColor: "#95A5A6",
+    backgroundColor: DARK_TEAL,
+    borderColor: MUTED_GOLD,
   },
   gameIcon: {
     width: "100%",
@@ -1401,26 +1375,26 @@ const styles = StyleSheet.create({
   gameName: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
     marginBottom: 2,
   },
   completedGameName: {
-    color: "#95A5A6",
+    color: MUTED_GOLD,
   },
   gameId: {
     fontSize: 12,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     fontWeight: "500",
     opacity: 0.7,
   },
   completedGameId: {
-    color: "#95A5A6",
+    color: MUTED_GOLD,
     opacity: 0.7,
   },
   playingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -1428,19 +1402,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
     gap: 4,
     borderWidth: 1,
-    borderColor: 'rgba(74, 144, 226, 0.2)',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   playingBadgeIcon: {
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#4A90E2',
+    backgroundColor: ACCENT_COLOR,
     justifyContent: 'center',
     alignItems: 'center',
   },
   playingBadgeText: {
     fontSize: 10,
-    color: "#4A90E2",
+    color: ACCENT_COLOR,
     fontWeight: "600",
   },
   gameTypeBadge: {
@@ -1454,24 +1428,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   paidBadge: {
-    backgroundColor: "rgba(243, 156, 18, 0.1)",
-    borderColor: "#F39C12",
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
+    borderColor: ACCENT_COLOR,
   },
   freeBadge: {
-    backgroundColor: "rgba(39, 174, 96, 0.1)",
-    borderColor: "#27AE60",
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
+    borderColor: ACCENT_COLOR,
   },
   completedTypeBadge: {
-    backgroundColor: "rgba(149, 165, 166, 0.1)",
-    borderColor: "#95A5A6",
+    backgroundColor: "rgba(230, 216, 162, 0.1)",
+    borderColor: MUTED_GOLD,
   },
   gameTypeText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#4682B4",
+    color: ACCENT_COLOR,
   },
   completedTypeText: {
-    color: "#95A5A6",
+    color: MUTED_GOLD,
   },
   gameDetails: {
     marginBottom: 16,
@@ -1491,88 +1465,88 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: "#F0F8FF",
+    backgroundColor: DARK_TEAL,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.2)",
+    borderColor: ACCENT_COLOR,
   },
   completedDetailIcon: {
-    backgroundColor: "#F8F9FA",
-    borderColor: "#E9ECEF",
+    backgroundColor: DARK_TEAL,
+    borderColor: MUTED_GOLD,
   },
   detailLabel: {
     fontSize: 10,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     fontWeight: "500",
     marginBottom: 2,
     opacity: 0.7,
   },
   completedDetailLabel: {
-    color: "#95A5A6",
+    color: MUTED_GOLD,
   },
   detailText: {
     fontSize: 12,
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
     fontWeight: "600",
   },
   completedDetailText: {
-    color: "#95A5A6",
+    color: MUTED_GOLD,
   },
   prizeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F0F8FF",
+    backgroundColor: DARK_TEAL,
     padding: 12,
     borderRadius: 10,
     marginBottom: 16,
     gap: 10,
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.2)",
-    shadowColor: '#4A90E2',
+    borderColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.3,
     shadowRadius: 2,
-    elevation: 1,
+    elevation: 2,
   },
   completedPrizeContainer: {
-    backgroundColor: "#F8F9FA",
-    borderColor: "#E9ECEF",
+    backgroundColor: DARK_TEAL,
+    borderColor: MUTED_GOLD,
   },
   prizeIcon: {
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: "rgba(74, 144, 226, 0.1)",
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#4A90E2",
+    borderColor: ACCENT_COLOR,
   },
   completedPrizeIcon: {
-    backgroundColor: "rgba(149, 165, 166, 0.1)",
-    borderColor: "#95A5A6",
+    backgroundColor: "rgba(230, 216, 162, 0.1)",
+    borderColor: MUTED_GOLD,
   },
   prizeInfo: {
     flex: 1,
   },
   prizeLabel: {
     fontSize: 11,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     fontWeight: "500",
     marginBottom: 2,
     opacity: 0.7,
   },
   completedPrizeLabel: {
-    color: "#95A5A6",
+    color: MUTED_GOLD,
   },
   prizeText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
   },
   completedPrizeText: {
-    color: "#95A5A6",
+    color: MUTED_GOLD,
   },
   joinButton: {
     flexDirection: "row",
@@ -1581,99 +1555,99 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     gap: 6,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   paidButton: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: ACCENT_COLOR,
   },
   freeButton: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: ACCENT_COLOR,
   },
   playingJoinButton: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: ACCENT_COLOR,
   },
   completedJoinButton: {
-    backgroundColor: "#95A5A6",
+    backgroundColor: MUTED_GOLD,
   },
   joinButtonText: {
-    color: "#FFF",
+    color: SECONDARY_COLOR,
     fontSize: 14,
     fontWeight: "700",
   },
   emptyState: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 16,
     padding: 32,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
     overflow: 'hidden',
     marginTop: 20,
     marginHorizontal: 20,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   emptyIconWrapper: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: 'rgba(74, 144, 226, 0.2)',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#4682B4",
+    color: ACCENT_COLOR,
     marginBottom: 8,
     textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 14,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     textAlign: "center",
     lineHeight: 20,
     marginBottom: 20,
     opacity: 0.7,
   },
   clearFiltersButton: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: ACCENT_COLOR,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
     marginBottom: 10,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   clearFiltersButtonText: {
-    color: "#FFF",
+    color: SECONDARY_COLOR,
     fontSize: 14,
     fontWeight: "700",
   },
   browseGamesButton: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#4A90E2",
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
   },
   browseGamesButtonText: {
-    color: "#4A90E2",
+    color: ACCENT_COLOR,
     fontSize: 14,
     fontWeight: "700",
   },

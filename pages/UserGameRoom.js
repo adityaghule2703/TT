@@ -24,10 +24,44 @@ import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import { Snackbar } from 'react-native-paper';
 
-const { width, height } = Dimensions.get("window");
-const TICKET_WIDTH = width - 32;
-const CELL_SIZE = Math.max(28, Math.min((TICKET_WIDTH - 40) / 9, 32));
-const TICKET_GRID_HEIGHT = CELL_SIZE * 3;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// EXACT SAME parameters from TicketsScreen
+const NUM_COLUMNS = 9;
+const CELL_MARGIN = 2;
+const TICKET_PADDING = 8;
+const HORIZONTAL_MARGIN = 10;
+
+// EXACT SAME calculation from TicketsScreen
+const CELL_WIDTH = 
+  (SCREEN_WIDTH - 
+   HORIZONTAL_MARGIN * 2 - 
+   TICKET_PADDING * 2 - 
+   CELL_MARGIN * 2 * NUM_COLUMNS) / 
+  NUM_COLUMNS;
+
+// Color scheme matching TicketsScreen
+const ROW_COLOR_1 = "#004B54"; // Dark teal for even rows
+const ROW_COLOR_2 = "#00343A"; // Darker teal for odd rows
+const FILLED_CELL_BG = "#D4AF37"; // Gold for filled cells
+const CELL_BORDER_COLOR = "#D4AF37"; // Gold border
+const NUMBER_COLOR = "#00343A"; // Dark teal for numbers
+
+const PRIMARY_COLOR = "#005F6A"; // Main background color
+const SECONDARY_COLOR = "#004B54"; // Dark teal
+const ACCENT_COLOR = "#D4AF37"; // Gold
+const LIGHT_ACCENT = "#F5E6A8"; // Light gold
+const MUTED_GOLD = "#E6D8A2"; // Muted gold for text
+const DARK_TEAL = "#00343A"; // Darker teal
+const LIGHT_TEAL = "#006B78"; // Light teal
+const SUCCESS_GREEN = "#27AE60";
+const ERROR_RED = "#E74C3C";
+const WARNING_ORANGE = "#F39C12";
+
+// Cell colors for different states
+const EMPTY_CELL_BG = "transparent";
+const MARKED_CELL_BG = "#E74C3C";
+const MARKED_CELL_BORDER = "#C0392B";
 
 const UserGameRoom = ({ navigation, route }) => {
   const { gameId, gameName } = route.params;
@@ -84,8 +118,8 @@ const UserGameRoom = ({ navigation, route }) => {
   const blinkingIntervals = useRef({});
   const blinkingTimeouts = useRef({});
   const gameEndShownRef = useRef(false);
-  const announcedClaimIds = useRef(new Set()); // Track announced claims
-  const isSubmittingClaimRef = useRef(false); // Prevent multiple submissions
+  const announcedClaimIds = useRef(new Set());
+  const isSubmittingClaimRef = useRef(false);
 
   const celebrationOpacity = useRef(new Animated.Value(0)).current;
   const celebrationScale = useRef(new Animated.Value(0.5)).current;
@@ -94,30 +128,9 @@ const UserGameRoom = ({ navigation, route }) => {
 
   const floatAnim1 = useRef(new Animated.Value(0)).current;
   const floatAnim2 = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    confettiTranslateY.current = Array(15).fill().map(() => new Animated.Value(-50));
-    startAnimations();
-  }, []);
-
-  const PRIMARY_COLOR = "#4A90E2";
-  const SUCCESS_COLOR = "#27AE60";
-  const WARNING_COLOR = "#F39C12";
-  const DANGER_COLOR = "#E74C3C";
-  const GRAY_COLOR = "#6C757D";
-  const LIGHT_GRAY = "#F8F9FA";
-  const BORDER_COLOR = "#E9ECEF";
-  const BACKGROUND_COLOR = "#FFFFFF";
-  const SECONDARY_COLOR = "#5DADE2";
-  const LIGHT_BLUE = "#F0F8FF";
-
-  const EMPTY_CELL_BG = "#F5F5F5";
-  const EMPTY_CELL_BORDER = "#E0E0E0";
-  const FILLED_CELL_BG = "#FFF9C4";
-  const FILLED_CELL_BORDER = "#FFD600";
-  const CELL_TEXT_COLOR = "#2C3E50";
-  const MARKED_CELL_BG = "#E74C3C";
-  const MARKED_CELL_BORDER = "#C0392B";
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const shineAnim = useRef(new Animated.Value(0)).current;
 
   const GAME_IMAGES = {
     ticket: "https://cdn-icons-png.flaticon.com/512/2589/2589909.png",
@@ -136,6 +149,11 @@ const UserGameRoom = ({ navigation, route }) => {
     firework: "https://cdn-icons-png.flaticon.com/512/599/599499.png",
     star: "https://cdn-icons-png.flaticon.com/512/1828/1828970.png",
   };
+
+  useEffect(() => {
+    confettiTranslateY.current = Array(15).fill().map(() => new Animated.Value(-50));
+    startAnimations();
+  }, []);
 
   const startAnimations = () => {
     Animated.loop(
@@ -171,16 +189,69 @@ const UserGameRoom = ({ navigation, route }) => {
         }),
       ])
     ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.02,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 20000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shineAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(shineAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   };
 
   const translateY1 = floatAnim1.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 10]
+    outputRange: [0, 15]
   });
 
   const translateY2 = floatAnim2.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -8]
+    outputRange: [0, -10]
+  });
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
+  const shineTranslateX = shineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-100, SCREEN_WIDTH + 100]
   });
 
   useEffect(() => {
@@ -684,7 +755,6 @@ const UserGameRoom = ({ navigation, route }) => {
         
         updatePatternCounts(newClaims);
         
-        // Clear announced claims when claims list is reset
         if (!initialClaimsFetched) {
           announcedClaimIds.current.clear();
         }
@@ -741,15 +811,12 @@ const UserGameRoom = ({ navigation, route }) => {
   const showNotification = (notification) => {
     const { type, claim, message } = notification;
     
-    // Skip if this claim was already announced
     if (announcedClaimIds.current.has(claim.id)) {
       return;
     }
     
-    // Mark this claim as announced
     announcedClaimIds.current.add(claim.id);
     
-    // Clean up old claim IDs after some time
     setTimeout(() => {
       announcedClaimIds.current.delete(claim.id);
     }, 10000);
@@ -819,7 +886,7 @@ const UserGameRoom = ({ navigation, route }) => {
     confettiTranslateY.current.forEach((anim, index) => {
       anim.setValue(-50);
       Animated.timing(anim, {
-        toValue: height + 50,
+        toValue: Dimensions.get("window").height + 50,
         duration: 1500 + Math.random() * 1000,
         delay: index * 100,
         easing: Easing.linear,
@@ -1519,7 +1586,7 @@ const UserGameRoom = ({ navigation, route }) => {
             onPress={handleViewAllCalledNumbers}
           >
             <Text style={styles.viewAllGridButtonText}>View All</Text>
-            <Ionicons name="expand" size={14} color={PRIMARY_COLOR} />
+            <Ionicons name="expand" size={14} color={ACCENT_COLOR} />
           </TouchableOpacity>
         </View>
         
@@ -1550,7 +1617,7 @@ const UserGameRoom = ({ navigation, route }) => {
                     </Text>
                     {isLatest && (
                       <View style={styles.latestIndicatorCompact}>
-                        <Ionicons name="star" size={8} color={WARNING_COLOR} />
+                        <Ionicons name="star" size={8} color={WARNING_ORANGE} />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -1590,12 +1657,17 @@ const UserGameRoom = ({ navigation, route }) => {
     });
 
     return (
-      <View style={[styles.ticketGridContainer, { 
-        height: TICKET_GRID_HEIGHT + 8,
-        marginBottom: 4
-      }]}>
+      <View style={styles.ticket}>
         {processedData.map((row, rowIndex) => (
-          <View key={`row-${rowIndex}`} style={styles.ticketRow}>
+          <View 
+            key={`row-${rowIndex}`} 
+            style={[
+              styles.row,
+              { 
+                backgroundColor: rowIndex % 2 === 0 ? ROW_COLOR_1 : ROW_COLOR_2,
+              }
+            ]}
+          >
             {row.map((cell, colIndex) => {
               const cellObj = cell;
               const cellNumber = cellObj?.number;
@@ -1610,7 +1682,7 @@ const UserGameRoom = ({ navigation, route }) => {
               
               if (isEmpty) {
                 cellBackgroundColor = EMPTY_CELL_BG;
-                cellBorderColor = EMPTY_CELL_BORDER;
+                cellBorderColor = 'transparent';
                 textColor = "transparent";
               } else if (isMarked) {
                 cellBackgroundColor = MARKED_CELL_BG;
@@ -1618,23 +1690,22 @@ const UserGameRoom = ({ navigation, route }) => {
                 textColor = "#FFFFFF";
               } else {
                 cellBackgroundColor = FILLED_CELL_BG;
-                cellBorderColor = FILLED_CELL_BORDER;
-                textColor = CELL_TEXT_COLOR;
+                cellBorderColor = CELL_BORDER_COLOR;
+                textColor = NUMBER_COLOR;
               }
               
               return (
                 <TouchableOpacity
                   key={`cell-${rowIndex}-${colIndex}`}
                   style={[
-                    styles.ticketCell,
+                    styles.cell,
                     { 
-                      width: CELL_SIZE,
-                      height: CELL_SIZE,
+                      width: CELL_WIDTH,
+                      height: CELL_WIDTH,
+                      margin: CELL_MARGIN,
                       backgroundColor: cellBackgroundColor,
                       borderColor: cellBorderColor,
                     },
-                    isEmpty ? styles.emptyCell : styles.filledCell,
-                    isMarked && styles.markedCell,
                     shouldBlink && styles.blinkingCellBorder,
                   ]}
                   onPress={() => cellNumber && handleNumberClick(ticketId, cellNumber, isMarked)}
@@ -1649,7 +1720,7 @@ const UserGameRoom = ({ navigation, route }) => {
                             styles.blinkingOverlay,
                             {
                               opacity: blinkingAnim,
-                              backgroundColor: WARNING_COLOR,
+                              backgroundColor: WARNING_ORANGE,
                               transform: [{
                                 scale: blinkingAnim.interpolate({
                                   inputRange: [0, 1],
@@ -1660,7 +1731,7 @@ const UserGameRoom = ({ navigation, route }) => {
                           ]}
                         >
                           <Text style={[
-                            styles.cellNumber, 
+                            styles.number, 
                             { 
                               color: textColor,
                               textShadowColor: 'rgba(243, 156, 18, 0.8)',
@@ -1672,7 +1743,7 @@ const UserGameRoom = ({ navigation, route }) => {
                           </Text>
                         </Animated.View>
                       ) : (
-                        <Text style={[styles.cellNumber, { color: textColor }]}>
+                        <Text style={[styles.number, { color: textColor }]}>
                           {cellNumber}
                         </Text>
                       )}
@@ -1705,16 +1776,17 @@ const UserGameRoom = ({ navigation, route }) => {
             style={styles.viewPatternsButton}
             onPress={() => handleViewPatterns(item.id)}
           >
-            <Ionicons name="eye-outline" size={16} color={PRIMARY_COLOR} />
+            <Ionicons name="eye-outline" size={16} color={ACCENT_COLOR} />
             <Text style={styles.viewPatternsButtonText}>Patterns</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={styles.menuButton}
+            style={styles.claimButton}
             onPress={() => openMenu(item.id)}
             ref={el => menuRefs.current[index] = el}
           >
-            <Ionicons name="ellipsis-vertical" size={18} color={GRAY_COLOR} />
+            <Ionicons name="trophy" size={16} color={SECONDARY_COLOR} />
+            <Text style={styles.claimButtonText}>Claim</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1800,13 +1872,13 @@ const UserGameRoom = ({ navigation, route }) => {
                   disabled={loadingPatterns}
                 >
                   {loadingPatterns ? (
-                    <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                    <ActivityIndicator size="small" color={ACCENT_COLOR} />
                   ) : (
-                    <Ionicons name="refresh" size={20} color={PRIMARY_COLOR} />
+                    <Ionicons name="refresh" size={20} color={ACCENT_COLOR} />
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity onPress={closeMenu}>
-                  <Ionicons name="close" size={24} color="#FFF" />
+                  <Ionicons name="close" size={24} color={LIGHT_ACCENT} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1814,18 +1886,18 @@ const UserGameRoom = ({ navigation, route }) => {
             <ScrollView style={styles.patternsMenuScroll}>
               {loadingPatterns ? (
                 <View style={styles.patternsLoadingContainer}>
-                  <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+                  <ActivityIndicator size="large" color={ACCENT_COLOR} />
                   <Text style={styles.patternsLoadingText}>Loading patterns...</Text>
                 </View>
               ) : patternsForClaim.length === 0 ? (
                 <View style={styles.noPatternsContainer}>
-                  <Ionicons name="alert-circle-outline" size={40} color={WARNING_COLOR} />
+                  <Ionicons name="alert-circle-outline" size={40} color={WARNING_ORANGE} />
                   <Text style={styles.noPatternsText}>No patterns available for this game</Text>
                   <TouchableOpacity
                     style={styles.retryButton}
                     onPress={handleRefreshPatterns}
                   >
-                    <Ionicons name="refresh" size={16} color={PRIMARY_COLOR} />
+                    <Ionicons name="refresh" size={16} color={ACCENT_COLOR} />
                     <Text style={styles.retryButtonText}>Refresh Patterns</Text>
                   </TouchableOpacity>
                 </View>
@@ -1849,7 +1921,7 @@ const UserGameRoom = ({ navigation, route }) => {
                         <Ionicons 
                           name={isClaimed ? "checkmark-circle" : (isLimitReached ? "lock-closed" : "trophy-outline")} 
                           size={20} 
-                          color={isClaimed ? SUCCESS_COLOR : (isLimitReached ? DANGER_COLOR : SECONDARY_COLOR)} 
+                          color={isClaimed ? SUCCESS_GREEN : (isLimitReached ? ERROR_RED : ACCENT_COLOR)} 
                         />
                         <View style={styles.patternMenuItemInfo}>
                           <Text style={[
@@ -1880,11 +1952,11 @@ const UserGameRoom = ({ navigation, route }) => {
                           </Text>
                         </View>
                         {submittingClaim && pattern.patternOnTicket ? (
-                          <ActivityIndicator size="small" color={SECONDARY_COLOR} />
+                          <ActivityIndicator size="small" color={ACCENT_COLOR} />
                         ) : (
                           <View style={styles.patternStatusContainer}>
                             {isDisabled && !isClaimed && (
-                              <Ionicons name="lock-closed" size={16} color={DANGER_COLOR} />
+                              <Ionicons name="lock-closed" size={16} color={ERROR_RED} />
                             )}
                           </View>
                         )}
@@ -1924,9 +1996,9 @@ const UserGameRoom = ({ navigation, route }) => {
                   disabled={loadingPatterns}
                 >
                   {loadingPatterns ? (
-                    <ActivityIndicator size="small" color="#FFF" />
+                    <ActivityIndicator size="small" color={LIGHT_ACCENT} />
                   ) : (
-                    <Ionicons name="refresh" size={20} color="#FFF" />
+                    <Ionicons name="refresh" size={20} color={LIGHT_ACCENT} />
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity 
@@ -1936,7 +2008,7 @@ const UserGameRoom = ({ navigation, route }) => {
                   }}
                   style={styles.patternsModalCloseButton}
                 >
-                  <Ionicons name="close" size={24} color="#FFF" />
+                  <Ionicons name="close" size={24} color={LIGHT_ACCENT} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1947,7 +2019,7 @@ const UserGameRoom = ({ navigation, route }) => {
             
             {blinkingPattern && (
               <View style={styles.currentBlinkingPatternContainer}>
-                <Ionicons name="star" size={18} color={WARNING_COLOR} />
+                <Ionicons name="star" size={18} color={WARNING_ORANGE} />
                 <Text style={styles.currentBlinkingPatternText}>
                   Showing: <Text style={styles.currentBlinkingPatternName}>{blinkingPattern.display_name}</Text>
                 </Text>
@@ -1955,14 +2027,14 @@ const UserGameRoom = ({ navigation, route }) => {
                   style={styles.stopBlinkingButton}
                   onPress={stopAllBlinking}
                 >
-                  <Ionicons name="stop-circle" size={16} color={DANGER_COLOR} />
+                  <Ionicons name="stop-circle" size={16} color={ERROR_RED} />
                   <Text style={styles.stopBlinkingText}>Stop</Text>
                 </TouchableOpacity>
               </View>
             )}
             
             <View style={styles.earlyFiveNoteContainer}>
-              <Ionicons name="information-circle" size={18} color={PRIMARY_COLOR} />
+              <Ionicons name="information-circle" size={18} color={ACCENT_COLOR} />
               <Text style={styles.earlyFiveNoteText}>
                 <Text style={styles.earlyFiveNoteBold}>Early Five pattern:</Text> Shows the first 5 called numbers on each ticket
               </Text>
@@ -1970,14 +2042,14 @@ const UserGameRoom = ({ navigation, route }) => {
             
             {loadingPatterns ? (
               <View style={styles.patternsLoadingContainer}>
-                <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+                <ActivityIndicator size="large" color={ACCENT_COLOR} />
                 <Text style={styles.patternsLoadingText}>Loading patterns...</Text>
               </View>
             ) : (
               <ScrollView style={styles.patternsList} showsVerticalScrollIndicator={false}>
                 {availablePatterns.length === 0 ? (
                   <View style={styles.noAvailablePatternsContainer}>
-                    <Ionicons name="alert-circle-outline" size={40} color={WARNING_COLOR} />
+                    <Ionicons name="alert-circle-outline" size={40} color={WARNING_ORANGE} />
                     <Text style={styles.noAvailablePatternsText}>No patterns available</Text>
                   </View>
                 ) : (
@@ -1997,7 +2069,7 @@ const UserGameRoom = ({ navigation, route }) => {
                           <Ionicons 
                             name="star" 
                             size={18} 
-                            color={isSelected ? WARNING_COLOR : PRIMARY_COLOR} 
+                            color={isSelected ? WARNING_ORANGE : ACCENT_COLOR} 
                           />
                           <View style={styles.patternListItemInfo}>
                             <Text style={styles.patternListItemName}>
@@ -2012,9 +2084,9 @@ const UserGameRoom = ({ navigation, route }) => {
                           </View>
                           <View style={styles.patternActionContainer}>
                             {isSelected ? (
-                              <Ionicons name="checkmark-circle" size={22} color={SUCCESS_COLOR} />
+                              <Ionicons name="checkmark-circle" size={22} color={SUCCESS_GREEN} />
                             ) : (
-                              <Ionicons name="eye" size={18} color={PRIMARY_COLOR} />
+                              <Ionicons name="eye" size={18} color={ACCENT_COLOR} />
                             )}
                           </View>
                         </View>
@@ -2033,7 +2105,7 @@ const UserGameRoom = ({ navigation, route }) => {
                   stopAllBlinking();
                 }}
               >
-                <Ionicons name="refresh" size={16} color={GRAY_COLOR} />
+                <Ionicons name="refresh" size={16} color={MUTED_GOLD} />
                 <Text style={styles.clearSelectionButtonText}>Clear Selection</Text>
               </TouchableOpacity>
               
@@ -2073,7 +2145,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 {
                   left: `${(index * 5) % 100}%`,
                   transform: [{ translateY: anim }],
-                  backgroundColor: [DANGER_COLOR, PRIMARY_COLOR, WARNING_COLOR, SUCCESS_COLOR][index % 4],
+                  backgroundColor: [ERROR_RED, ACCENT_COLOR, WARNING_ORANGE, SUCCESS_GREEN][index % 4],
                 }
               ]}
             />
@@ -2090,7 +2162,7 @@ const UserGameRoom = ({ navigation, route }) => {
             }
           ]}>
             <View style={styles.celebrationInner}>
-              <Ionicons name="trophy" size={40} color={WARNING_COLOR} style={styles.trophyIcon} />
+              <Ionicons name="trophy" size={40} color={WARNING_ORANGE} style={styles.trophyIcon} />
               
               <Text style={styles.winningTitle}>{winningMessage}</Text>
               
@@ -2105,9 +2177,9 @@ const UserGameRoom = ({ navigation, route }) => {
               </View>
               
               <View style={styles.celebrationMessage}>
-                <Ionicons name="sparkles" size={16} color={WARNING_COLOR} />
+                <Ionicons name="sparkles" size={16} color={WARNING_ORANGE} />
                 <Text style={styles.celebrationText}>CONGRATULATIONS!</Text>
-                <Ionicons name="sparkles" size={16} color={WARNING_COLOR} />
+                <Ionicons name="sparkles" size={16} color={WARNING_ORANGE} />
               </View>
             </View>
 
@@ -2126,13 +2198,13 @@ const UserGameRoom = ({ navigation, route }) => {
   const getSnackbarStyle = () => {
     switch (snackbarType) {
       case 'success':
-        return { backgroundColor: SUCCESS_COLOR };
+        return { backgroundColor: SUCCESS_GREEN };
       case 'error':
-        return { backgroundColor: DANGER_COLOR };
+        return { backgroundColor: ERROR_RED };
       case 'warning':
-        return { backgroundColor: WARNING_COLOR };
+        return { backgroundColor: WARNING_ORANGE };
       default:
-        return { backgroundColor: PRIMARY_COLOR };
+        return { backgroundColor: ACCENT_COLOR };
     }
   };
 
@@ -2141,9 +2213,9 @@ const UserGameRoom = ({ navigation, route }) => {
       <View style={styles.loadingContainer}>
         <View style={styles.loadingContent}>
           <View style={styles.loadingIconWrapper}>
-            <MaterialIcons name="confirmation-number" size={40} color={PRIMARY_COLOR} />
+            <MaterialIcons name="confirmation-number" size={40} color={ACCENT_COLOR} />
           </View>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} style={styles.loadingSpinner} />
+          <ActivityIndicator size="large" color={ACCENT_COLOR} style={styles.loadingSpinner} />
           <Text style={styles.loadingText}>Loading Game Room...</Text>
         </View>
       </View>
@@ -2152,12 +2224,12 @@ const UserGameRoom = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#5DADE2" barStyle="light-content" />
+      <StatusBar backgroundColor={SECONDARY_COLOR} barStyle="light-content" />
 
       <View style={styles.backgroundPattern}>
         <Animated.View 
           style={[
-            styles.cloud1, 
+            styles.pokerChip1, 
             { 
               transform: [
                 { translateY: translateY1 },
@@ -2168,12 +2240,33 @@ const UserGameRoom = ({ navigation, route }) => {
         />
         <Animated.View 
           style={[
-            styles.cloud2, 
+            styles.pokerChip2, 
             { 
               transform: [
                 { translateY: translateY2 },
                 { translateX: translateY1 }
               ] 
+            }
+          ]} 
+        />
+        <Animated.View 
+          style={[
+            styles.pokerChip3, 
+            { 
+              transform: [
+                { translateY: translateY1 },
+                { translateX: translateY2 }
+              ] 
+            }
+          ]} 
+        />
+        
+        <Animated.View 
+          style={[
+            styles.shineEffect,
+            { 
+              transform: [{ translateX: shineTranslateX }],
+              opacity: shineAnim
             }
           ]} 
         />
@@ -2258,7 +2351,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 style={styles.viewWinnersButton}
                 onPress={handleViewWinners}
               >
-                <Ionicons name="trophy" size={20} color="#FFF" />
+                <Ionicons name="trophy" size={20} color={SECONDARY_COLOR} />
                 <Text style={styles.viewWinnersButtonText}>View Winners</Text>
               </TouchableOpacity>
               
@@ -2287,7 +2380,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 onPress={() => setShowVoiceModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Ionicons name="close" size={24} color={GRAY_COLOR} />
+                <Ionicons name="close" size={24} color={MUTED_GOLD} />
               </TouchableOpacity>
             </View>
             
@@ -2306,7 +2399,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 <Ionicons 
                   name="female" 
                   size={24} 
-                  color={voiceType === 'female' ? PRIMARY_COLOR : GRAY_COLOR} 
+                  color={voiceType === 'female' ? ACCENT_COLOR : MUTED_GOLD} 
                 />
               </View>
               <View style={styles.voiceOptionInfo}>
@@ -2314,7 +2407,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 <Text style={styles.voiceOptionDesc}>Higher pitch, clear pronunciation</Text>
               </View>
               {voiceType === 'female' && (
-                <Ionicons name="checkmark-circle" size={24} color={PRIMARY_COLOR} />
+                <Ionicons name="checkmark-circle" size={24} color={ACCENT_COLOR} />
               )}
             </TouchableOpacity>
             
@@ -2329,7 +2422,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 <Ionicons 
                   name="male" 
                   size={24} 
-                  color={voiceType === 'male' ? PRIMARY_COLOR : GRAY_COLOR} 
+                  color={voiceType === 'male' ? ACCENT_COLOR : MUTED_GOLD} 
                 />
               </View>
               <View style={styles.voiceOptionInfo}>
@@ -2337,7 +2430,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 <Text style={styles.voiceOptionDesc}>Lower pitch, deeper tone</Text>
               </View>
               {voiceType === 'male' && (
-                <Ionicons name="checkmark-circle" size={24} color={PRIMARY_COLOR} />
+                <Ionicons name="checkmark-circle" size={24} color={ACCENT_COLOR} />
               )}
             </TouchableOpacity>
             
@@ -2351,7 +2444,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 }
               }}
             >
-              <Ionicons name="volume-high" size={20} color="#FFF" />
+              <Ionicons name="volume-high" size={20} color={SECONDARY_COLOR} />
               <Text style={styles.testVoiceButtonText}>Test Voice</Text>
             </TouchableOpacity>
           </View>
@@ -2362,7 +2455,12 @@ const UserGameRoom = ({ navigation, route }) => {
 
       <View style={styles.header}>
         <View style={styles.headerPattern}>
-          <View style={styles.headerCloud1} />
+          <Animated.View 
+            style={[
+              styles.headerShine,
+              { transform: [{ translateX: shineTranslateX }] }
+            ]} 
+          />
         </View>
 
         <View style={styles.headerContent}>
@@ -2371,13 +2469,13 @@ const UserGameRoom = ({ navigation, route }) => {
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="arrow-back" size={22} color="#FFF" />
+              <Ionicons name="arrow-back" size={24} color={ACCENT_COLOR} />
             </TouchableOpacity>
 
             <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle} numberOfLines={1}>Game Room</Text>
+              <Text style={styles.headerTitle}>Game Room</Text>
               <View style={styles.gameInfoContainer}>
-                <Ionicons name="game-controller" size={14} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="game-controller" size={16} color="rgba(212, 175, 55, 0.8)" />
                 <Text style={styles.gameName} numberOfLines={1}>
                   {gameName || "Tambola Game"}
                 </Text>
@@ -2389,7 +2487,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 style={styles.voiceButton}
                 onPress={() => setShowVoiceModal(true)}
               >
-                <Ionicons name={voiceType === 'male' ? "male" : "female"} size={16} color="#FFF" />
+                <Ionicons name={voiceType === 'male' ? "male" : "female"} size={16} color={ACCENT_COLOR} />
                 <Text style={styles.voiceButtonText}>
                   {voiceType === 'male' ? 'Male' : 'Female'}
                 </Text>
@@ -2406,102 +2504,83 @@ const UserGameRoom = ({ navigation, route }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={PRIMARY_COLOR}
-            colors={[PRIMARY_COLOR]}
+            tintColor={ACCENT_COLOR}
+            colors={[ACCENT_COLOR]}
           />
         }
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.content}>
+          {/* All Numbers Section moved to top */}
+          {renderAllCalledNumbersSection()}
+
+          {/* Last Called Section - updated design */}
           <View style={styles.card}>
             {calledNumbers.length > 0 ? (
-              <View style={styles.compactNumberDisplay}>
-                <View style={styles.lastNumberLeft}>
-                  <View style={styles.sectionHeader}>
-                    <Image
-                      source={{ uri: GAME_IMAGES.megaphone }}
-                      style={styles.sectionIcon}
-                    />
-                    <Text style={styles.sectionTitle}>Last Called</Text>
-                  </View>
-                  
+              <View style={styles.lastCalledSection}>
+                <View style={styles.lastCalledHeader}>
+                  <Image
+                    source={{ uri: GAME_IMAGES.megaphone }}
+                    style={styles.sectionIcon}
+                  />
+                  <Text style={styles.sectionTitle}>Last Called Numbers</Text>
                   <TouchableOpacity
-                    style={styles.compactLastNumberContainer}
-                    onPress={() => speakNumber(calledNumbers[calledNumbers.length - 1])}
-                    activeOpacity={0.8}
+                    style={styles.voiceIndicator}
+                    onPress={() => setShowVoiceModal(true)}
                   >
-                    <Text style={styles.compactLastNumber}>
-                      {calledNumbers[calledNumbers.length - 1]}
-                    </Text>
-                    <Text style={styles.compactLastNumberLabel}>
-                      {calledNumbers.length >= 90 || gameStatus?.status === 'completed'
-                        ? "Game Completed" 
-                        : `Tap to hear`}
-                    </Text>
+                    <Ionicons 
+                      name={voiceType === 'male' ? "male" : "female"} 
+                      size={14} 
+                      color={ACCENT_COLOR} 
+                    />
                   </TouchableOpacity>
                 </View>
-
-                <View style={styles.recentNumbersRight}>
-                  <View style={styles.sectionHeader}>
-                    <Image
-                      source={{ uri: GAME_IMAGES.numbers }}
-                      style={styles.sectionIcon}
-                    />
-                    <Text style={styles.sectionTitle}>Recent</Text>
-                    <TouchableOpacity
-                      style={styles.voiceIndicator}
-                      onPress={() => setShowVoiceModal(true)}
-                    >
-                      <Ionicons 
-                        name={voiceType === 'male' ? "male" : "female"} 
-                        size={14} 
-                        color={PRIMARY_COLOR} 
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <View style={styles.recentNumbersGrid}>
-                    {calledNumbers.slice(-4).reverse().map((num, index) => (
+                
+                <View style={styles.circularNumbersGrid}>
+                  {calledNumbers.slice(-5).reverse().map((num, index) => {
+                    const isLatest = index === 0;
+                    return (
                       <TouchableOpacity
                         key={index}
                         style={[
-                          styles.numberChip,
-                          index === 0 && styles.latestChip
+                          styles.circularNumberItem,
+                          isLatest && styles.latestCircularNumber
                         ]}
                         onPress={() => speakNumber(num)}
                       >
                         <Text style={[
-                          styles.numberChipText,
-                          index === 0 && styles.latestChipText
+                          styles.circularNumberText,
+                          isLatest && styles.latestCircularNumberText
                         ]}>
                           {num}
                         </Text>
+                        {isLatest && (
+                          <View style={styles.latestBadge}>
+                            <Ionicons name="star" size={8} color={SECONDARY_COLOR} />
+                          </View>
+                        )}
                       </TouchableOpacity>
-                    ))}
-                    
-                    {calledNumbers.length > 4 && (
-                      <TouchableOpacity
-                        style={styles.viewMoreButton}
-                        onPress={handleViewAllCalledNumbers}
-                      >
-                        <Text style={styles.viewMoreText}>More</Text>
-                        <Ionicons name="chevron-forward" size={12} color={PRIMARY_COLOR} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                    );
+                  })}
                 </View>
+                
+                <TouchableOpacity
+                  style={styles.viewAllButton}
+                  onPress={handleViewAllCalledNumbers}
+                >
+                  <Text style={styles.viewAllButtonText}>View All Called Numbers</Text>
+                  <Ionicons name="chevron-forward" size={14} color={ACCENT_COLOR} />
+                </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.waitingSection}>
-                <Ionicons name="hourglass-outline" size={32} color={WARNING_COLOR} />
+                <Ionicons name="hourglass-outline" size={32} color={WARNING_ORANGE} />
                 <Text style={styles.waitingText}>
                   Waiting for numbers to be called...
                 </Text>
               </View>
             )}
           </View>
-
-          {renderAllCalledNumbersSection()}
 
           <View style={styles.ticketsSection}>
             {myTickets.length === 0 ? (
@@ -2519,7 +2598,7 @@ const UserGameRoom = ({ navigation, route }) => {
               <>
                 {blinkingPattern && (
                   <View style={styles.activePatternContainer}>
-                    <Ionicons name="star" size={14} color={WARNING_COLOR} />
+                    <Ionicons name="star" size={14} color={WARNING_ORANGE} />
                     <Text style={styles.activePatternText}>
                       Showing: <Text style={styles.activePatternName}>{blinkingPattern.display_name}</Text>
                     </Text>
@@ -2527,7 +2606,7 @@ const UserGameRoom = ({ navigation, route }) => {
                       style={styles.stopBlinkingSmallButton}
                       onPress={stopAllBlinking}
                     >
-                      <Ionicons name="close" size={12} color={DANGER_COLOR} />
+                      <Ionicons name="close" size={12} color={ERROR_RED} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -2541,7 +2620,7 @@ const UserGameRoom = ({ navigation, route }) => {
                 </View>
 
                 <Text style={styles.ticketsHint}>
-                  Tap numbers to mark/unmark them • Long press to hear number • Tap Patterns to view • Tap ⋮ to submit claim
+                  Tap numbers to mark/unmark them • Long press to hear number • Tap Patterns to view • Tap Claim to submit
                 </Text>
               </>
             )}
@@ -2557,7 +2636,7 @@ const UserGameRoom = ({ navigation, route }) => {
         activeOpacity={0.9}
       >
         <View style={styles.chatButtonContent}>
-          <Ionicons name="chatbubble-ellipses" size={20} color="#FFF" />
+          <Ionicons name="chatbubble-ellipses" size={20} color={SECONDARY_COLOR} />
           {participantCount > 0 && (
             <View style={styles.chatBadge}>
               <Text style={styles.chatBadgeText}>
@@ -2597,7 +2676,7 @@ const UserGameRoom = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F0F8FF",
+    backgroundColor: PRIMARY_COLOR,
   },
   container: {
     flex: 1,
@@ -2606,7 +2685,8 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   content: {
-    padding: 12,
+    padding: HORIZONTAL_MARGIN,
+    paddingTop: 20,
     zIndex: 1,
   },
   backgroundPattern: {
@@ -2618,40 +2698,63 @@ const styles = StyleSheet.create({
     zIndex: -1,
     overflow: 'hidden',
   },
-  cloud1: {
-    position: 'absolute',
-    top: 40,
-    left: width * 0.1,
-    width: 80,
-    height: 30,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  cloud2: {
+  pokerChip1: {
     position: 'absolute',
     top: 80,
-    right: width * 0.15,
-    width: 60,
-    height: 20,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    shadowColor: '#87CEEB',
+    left: SCREEN_WIDTH * 0.1,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  pokerChip2: {
+    position: 'absolute',
+    top: 120,
+    right: SCREEN_WIDTH * 0.15,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  pokerChip3: {
+    position: 'absolute',
+    top: 180,
+    left: SCREEN_WIDTH * 0.6,
+    width: 25,
+    height: 25,
+    borderRadius: 12.5,
+    backgroundColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  shineEffect: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 100,
+    height: '100%',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
+    transform: [{ skewX: '-20deg' }],
   },
   header: {
-    paddingTop: 20,
-    paddingBottom: 16,
-    backgroundColor: "#5DADE2",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingTop: 40,
+    paddingBottom: 20,
+    backgroundColor: SECONDARY_COLOR,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -2661,54 +2764,59 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    overflow: 'hidden',
   },
-  headerCloud1: {
+  headerShine: {
     position: 'absolute',
-    top: 15,
-    left: 20,
-    width: 60,
-    height: 20,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    top: 0,
+    left: 0,
+    width: 100,
+    height: '100%',
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    transform: [{ skewX: '-20deg' }],
   },
   headerContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   headerTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 20,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderColor: "rgba(212, 175, 55, 0.3)",
   },
   headerTextContainer: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 12,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "800",
-    color: "#FFFFFF",
-    marginBottom: 2,
+    color: LIGHT_ACCENT,
+    letterSpacing: -0.5,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   gameInfoContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 6,
   },
   gameName: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.9)",
+    fontSize: 14,
+    color: MUTED_GOLD,
     fontWeight: "500",
-    flex: 1,
   },
   headerActions: {
     flexDirection: "row",
@@ -2718,27 +2826,27 @@ const styles = StyleSheet.create({
   voiceButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderColor: "rgba(212, 175, 55, 0.3)",
     gap: 4,
   },
   voiceButtonText: {
     fontSize: 11,
-    color: "#FFF",
+    color: ACCENT_COLOR,
     fontWeight: "600",
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
-    shadowColor: "#4A90E2",
+    borderColor: "rgba(212, 175, 55, 0.1)",
+    shadowColor: ACCENT_COLOR,
     shadowOffset: {
       width: 0,
       height: 3,
@@ -2747,24 +2855,13 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
-  compactNumberDisplay: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
+  lastCalledSection: {
+    marginBottom: 0,
   },
-  lastNumberLeft: {
-    flex: 1,
-    minWidth: 110,
-  },
-  recentNumbersRight: {
-    flex: 1,
-    minWidth: 110,
-  },
-  sectionHeader: {
+  lastCalledHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 16,
     gap: 6,
   },
   sectionIcon: {
@@ -2774,80 +2871,65 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#4682B4",
+    color: ACCENT_COLOR,
+    flex: 1,
   },
   voiceIndicator: {
-    marginLeft: 'auto',
     padding: 3,
   },
-  compactLastNumberContainer: {
+  circularNumbersGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#F3F0FF",
-    padding: 14,
-    borderRadius: 14,
+    marginBottom: 16,
+  },
+  circularNumberItem: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: DARK_TEAL,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.3)",
+    position: 'relative',
+  },
+  latestCircularNumber: {
+    backgroundColor: ACCENT_COLOR,
+    borderColor: ACCENT_COLOR,
     borderWidth: 2,
-    borderColor: "#4A90E2",
   },
-  compactLastNumber: {
-    fontSize: 36,
-    fontWeight: "900",
-    color: "#4A90E2",
-    marginBottom: 4,
-  },
-  compactLastNumberLabel: {
-    fontSize: 11,
-    color: "#6C757D",
-    fontStyle: "italic",
-    textAlign: 'center',
-  },
-  recentNumbersGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 6,
-  },
-  numberChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: 'center',
-    backgroundColor: "#F8F9FA",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    width: 38,
-    height: 38,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  latestChip: {
-    backgroundColor: "#4A90E2",
-    borderColor: "#4A90E2",
-  },
-  numberChipText: {
-    fontSize: 14,
+  circularNumberText: {
+    fontSize: 16,
     fontWeight: "600",
-    color: "#6C757D",
+    color: MUTED_GOLD,
   },
-  latestChipText: {
-    color: "#FFFFFF",
+  latestCircularNumberText: {
+    color: SECONDARY_COLOR,
+    fontWeight: "700",
   },
-  viewMoreButton: {
+  latestBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: LIGHT_ACCENT,
+    borderRadius: 5,
+    padding: 1,
+  },
+  viewAllButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: 'center',
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: DARK_TEAL,
+    paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#4A90E2",
-    gap: 4,
-    height: 38,
-    minWidth: 80,
+    borderColor: "rgba(212, 175, 55, 0.2)",
+    gap: 6,
   },
-  viewMoreText: {
-    fontSize: 12,
-    color: "#4A90E2",
+  viewAllButtonText: {
+    fontSize: 13,
+    color: ACCENT_COLOR,
     fontWeight: "600",
   },
   waitingSection: {
@@ -2856,19 +2938,19 @@ const styles = StyleSheet.create({
   },
   waitingText: {
     fontSize: 14,
-    color: "#F39C12",
+    color: WARNING_ORANGE,
     textAlign: "center",
     marginTop: 12,
     fontStyle: "italic",
   },
   allNumbersCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
-    shadowColor: '#4A90E2',
+    borderColor: "rgba(212, 175, 55, 0.1)",
+    shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
@@ -2892,10 +2974,10 @@ const styles = StyleSheet.create({
   allNumbersTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#4682B4',
+    color: ACCENT_COLOR,
   },
   calledCountBadge: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: ACCENT_COLOR,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
@@ -2904,7 +2986,7 @@ const styles = StyleSheet.create({
   calledCountText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: SECONDARY_COLOR,
   },
   viewAllGridButton: {
     flexDirection: 'row',
@@ -2912,14 +2994,14 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: DARK_TEAL,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   viewAllGridButtonText: {
     fontSize: 12,
-    color: '#4A90E2',
+    color: ACCENT_COLOR,
     fontWeight: '600',
   },
   numbersGridCompact: {
@@ -2937,38 +3019,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
-    backgroundColor: '#F8F9FA',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
+    backgroundColor: DARK_TEAL,
     marginHorizontal: 2,
     position: 'relative',
   },
   calledNumberItem: {
-    backgroundColor: '#27AE60',
-    borderColor: '#27AE60',
+    backgroundColor: SUCCESS_GREEN,
+    borderColor: SUCCESS_GREEN,
   },
   latestNumberItem: {
-    backgroundColor: '#F39C12',
-    borderColor: '#F39C12',
+    backgroundColor: WARNING_ORANGE,
+    borderColor: WARNING_ORANGE,
     borderWidth: 2,
   },
   numberItemTextCompact: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#6C757D',
+    color: MUTED_GOLD,
   },
   calledNumberText: {
-    color: '#FFFFFF',
+    color: SECONDARY_COLOR,
     fontWeight: '700',
   },
   latestNumberText: {
-    color: '#FFFFFF',
+    color: SECONDARY_COLOR,
     fontWeight: '900',
   },
   latestIndicatorCompact: {
     position: 'absolute',
     top: -2,
     right: -2,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 5,
     padding: 1,
   },
@@ -2980,7 +3062,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#E9ECEF',
+    borderTopColor: 'rgba(212, 175, 55, 0.2)',
   },
   legendItem: {
     flexDirection: 'row',
@@ -2992,20 +3074,20 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 3,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   legendNormal: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: DARK_TEAL,
   },
   legendCalled: {
-    backgroundColor: '#27AE60',
+    backgroundColor: SUCCESS_GREEN,
   },
   legendLatest: {
-    backgroundColor: '#F39C12',
+    backgroundColor: WARNING_ORANGE,
   },
   legendText: {
     fontSize: 10,
-    color: '#6C757D',
+    color: MUTED_GOLD,
   },
   ticketsSection: {
     marginBottom: 12,
@@ -3018,35 +3100,35 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#F39C12',
+    borderColor: WARNING_ORANGE,
   },
   activePatternText: {
     fontSize: 13,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     marginLeft: 6,
     flex: 1,
   },
   activePatternName: {
     fontWeight: '700',
-    color: '#F39C12',
+    color: WARNING_ORANGE,
   },
   stopBlinkingSmallButton: {
     padding: 3,
   },
   ticketsList: {
-    gap: 16,
+    gap: 20,
   },
   ticketWrapper: {
-    marginBottom: 6,
+    marginBottom: 16,
   },
   ticketItemContainer: {
-    marginBottom: 4,
+    marginBottom: 0,
   },
   ticketHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 8,
     paddingHorizontal: 4,
   },
   ticketNumberContainer: {
@@ -3064,7 +3146,7 @@ const styles = StyleSheet.create({
   },
   ticketLabel: {
     fontSize: 13,
-    color: "#6C757D",
+    color: MUTED_GOLD,
     fontWeight: "600",
   },
   ticketActions: {
@@ -3075,90 +3157,79 @@ const styles = StyleSheet.create({
   viewPatternsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: DARK_TEAL,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#4A90E2',
+    borderColor: ACCENT_COLOR,
     gap: 4,
   },
   viewPatternsButtonText: {
     fontSize: 12,
-    color: '#4A90E2',
+    color: ACCENT_COLOR,
     fontWeight: "600",
   },
-  menuButton: {
-    padding: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 10,
-    width: 34,
-    height: 34,
-    justifyContent: 'center',
+  claimButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: ACCENT_COLOR,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    borderColor: ACCENT_COLOR,
+    gap: 4,
   },
+  claimButtonText: {
+    fontSize: 12,
+    color: SECONDARY_COLOR,
+    fontWeight: "600",
+  },
+  // Updated ticketCard to match TicketsScreen style
   ticketCard: {
-  backgroundColor: "#FFFFFF",
-  borderRadius: 14,
-  padding: 12,
-  paddingBottom: 10,
-  borderWidth: 0,
-  position: 'relative',
-  overflow: 'hidden',
-  shadowColor: "#4A90E2",
-  shadowOffset: {
-    width: 0,
-    height: 3,
-  },
-  shadowOpacity: 0.1,
-  shadowRadius: 6,
-  elevation: 6,
-  minHeight: 124,
-},
-  ticketGridContainer: {
-  overflow: 'hidden',
-  borderRadius: 6,
-  alignSelf: 'center',
-  marginHorizontal: 2,
-},
- ticketRow: {
-  flexDirection: "row",
-  justifyContent: "center",
-  marginBottom: 2,
-},
-  ticketCell: {
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 2,
-    borderRadius: 6,
+    backgroundColor: SECONDARY_COLOR,
+    borderRadius: 12,
+    padding: TICKET_PADDING,
     borderWidth: 2,
+    borderColor: ACCENT_COLOR,
+    overflow: "hidden",
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  emptyCell: {
-    backgroundColor: "#F5F5F5",
-    borderColor: "#E0E0E0",
+  // Updated ticket style - exactly like TicketsScreen
+  ticket: {
+    backgroundColor: SECONDARY_COLOR,
+    padding: 0,
+    borderWidth: 0,
+    borderRadius: 0,
+    overflow: "hidden",
+    width: CELL_WIDTH * NUM_COLUMNS + CELL_MARGIN * 2 * NUM_COLUMNS,
+    alignSelf: 'center',
   },
-  filledCell: {
-    backgroundColor: "#FFF9C4",
-    borderColor: "#FFD600",
+  row: {
+    flexDirection: "row",
+    width: '100%',
   },
-  markedCell: {
-    backgroundColor: "#E74C3C",
-    borderColor: "#C0392B",
+  cell: {
+    borderWidth: 1,
+    borderColor: ACCENT_COLOR,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 2,
+    margin: CELL_MARGIN,
   },
-  cellNumber: {
-    fontSize: 14,
-    fontWeight: '800',
+  number: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: DARK_TEAL,
   },
   blinkingCellBorder: {
-    borderWidth: 3,
-    borderColor: '#F39C12',
+    borderWidth: 2,
+    borderColor: WARNING_ORANGE,
   },
   blinkingOverlay: {
     position: 'absolute',
@@ -3166,11 +3237,11 @@ const styles = StyleSheet.create({
     height: '120%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: 2,
   },
   ticketsHint: {
     fontSize: 11,
-    color: "#6C757D",
+    color: MUTED_GOLD,
     textAlign: "center",
     marginTop: 16,
     fontStyle: "italic",
@@ -3179,17 +3250,17 @@ const styles = StyleSheet.create({
   },
   emptyTicketsContainer: {
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 14,
-    padding: 24,
+    padding: 32,
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderColor: "rgba(212, 175, 55, 0.2)",
     marginTop: 12,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   emptyIcon: {
     width: 60,
@@ -3198,19 +3269,19 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#4682B4",
-    marginBottom: 6,
+    fontSize: 18,
+    fontWeight: "800",
+    color: ACCENT_COLOR,
+    marginBottom: 8,
     textAlign: "center",
   },
   emptySubtitle: {
-    fontSize: 13,
-    color: "#6C757D",
+    fontSize: 14,
+    color: MUTED_GOLD,
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 20,
     marginBottom: 20,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   menuOverlay: {
     flex: 1,
@@ -3219,7 +3290,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menuContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 14,
     width: '85%',
     maxHeight: '60%',
@@ -3231,13 +3302,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-    backgroundColor: '#4A90E2',
+    borderBottomColor: 'rgba(212, 175, 55, 0.2)',
+    backgroundColor: DARK_TEAL,
   },
   menuTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: LIGHT_ACCENT,
   },
   menuHeaderActions: {
     flexDirection: 'row',
@@ -3253,10 +3324,10 @@ const styles = StyleSheet.create({
   patternMenuItem: {
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
+    borderBottomColor: 'rgba(212, 175, 55, 0.1)',
   },
   disabledPatternItem: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: DARK_TEAL,
     opacity: 0.7,
   },
   patternMenuItemContent: {
@@ -3270,33 +3341,33 @@ const styles = StyleSheet.create({
   patternMenuItemName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#212529',
+    color: LIGHT_ACCENT,
     marginBottom: 3,
   },
   patternMenuItemDesc: {
     fontSize: 12,
-    color: '#6C757D',
+    color: MUTED_GOLD,
   },
   patternStatusContainer: {
     marginLeft: 6,
   },
   patternLimitText: {
-    color: '#F39C12',
+    color: WARNING_ORANGE,
     fontWeight: '600',
   },
   limitReachedText: {
-    color: '#E74C3C',
+    color: ERROR_RED,
     fontWeight: '700',
   },
   claimedBadge: {
     fontSize: 11,
-    color: '#27AE60',
+    color: SUCCESS_GREEN,
     fontWeight: '600',
     marginLeft: 4,
   },
   limitReachedBadge: {
     fontSize: 11,
-    color: '#E74C3C',
+    color: ERROR_RED,
     fontWeight: '600',
     marginLeft: 4,
   },
@@ -3306,7 +3377,7 @@ const styles = StyleSheet.create({
   },
   noPatternsText: {
     fontSize: 14,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     marginTop: 12,
     textAlign: 'center',
     fontWeight: '600',
@@ -3317,19 +3388,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: DARK_TEAL,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#4A90E2',
+    borderColor: ACCENT_COLOR,
     gap: 6,
   },
   retryButtonText: {
     fontSize: 13,
-    color: '#4A90E2',
+    color: ACCENT_COLOR,
     fontWeight: '600',
   },
   disabledPatternName: {
-    color: '#6C757D',
+    color: MUTED_GOLD,
     textDecorationLine: 'none',
   },
   disabledPatternDesc: {
@@ -3342,7 +3413,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   patternsModalContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 16,
     width: '90%',
     maxHeight: '75%',
@@ -3354,13 +3425,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-    backgroundColor: '#4A90E2',
+    borderBottomColor: 'rgba(212, 175, 55, 0.2)',
+    backgroundColor: DARK_TEAL,
   },
   patternsModalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: LIGHT_ACCENT,
   },
   patternsModalHeaderActions: {
     flexDirection: 'row',
@@ -3375,11 +3446,11 @@ const styles = StyleSheet.create({
   },
   patternsModalSubtitle: {
     fontSize: 14,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     textAlign: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: DARK_TEAL,
   },
   currentBlinkingPatternContainer: {
     flexDirection: 'row',
@@ -3390,54 +3461,54 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#F39C12',
+    borderColor: WARNING_ORANGE,
   },
   currentBlinkingPatternText: {
     fontSize: 13,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     marginLeft: 8,
     flex: 1,
   },
   currentBlinkingPatternName: {
     fontWeight: '700',
-    color: '#F39C12',
+    color: WARNING_ORANGE,
   },
   stopBlinkingButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SECONDARY_COLOR,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 5,
     borderWidth: 1,
-    borderColor: '#E74C3C',
+    borderColor: ERROR_RED,
     gap: 4,
   },
   stopBlinkingText: {
     fontSize: 12,
-    color: '#E74C3C',
+    color: ERROR_RED,
     fontWeight: '600',
   },
   earlyFiveNoteContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     padding: 12,
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#4A90E2',
+    borderColor: ACCENT_COLOR,
   },
   earlyFiveNoteText: {
     fontSize: 13,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     marginLeft: 8,
     flex: 1,
   },
   earlyFiveNoteBold: {
     fontWeight: '700',
-    color: '#4A90E2',
+    color: ACCENT_COLOR,
   },
   patternsLoadingContainer: {
     padding: 32,
@@ -3446,7 +3517,7 @@ const styles = StyleSheet.create({
   patternsLoadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#6C757D',
+    color: MUTED_GOLD,
   },
   patternsList: {
     maxHeight: 350,
@@ -3454,12 +3525,12 @@ const styles = StyleSheet.create({
   patternListItem: {
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
+    borderBottomColor: 'rgba(212, 175, 55, 0.1)',
   },
   selectedPatternListItem: {
-    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+    backgroundColor: 'rgba(212, 175, 55, 0.05)',
     borderLeftWidth: 4,
-    borderLeftColor: '#4A90E2',
+    borderLeftColor: ACCENT_COLOR,
   },
   patternListItemContent: {
     flexDirection: 'row',
@@ -3472,16 +3543,16 @@ const styles = StyleSheet.create({
   patternListItemName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#212529',
+    color: LIGHT_ACCENT,
     marginBottom: 3,
   },
   patternListItemDesc: {
     fontSize: 12,
-    color: '#6C757D',
+    color: MUTED_GOLD,
   },
   selectedBadge: {
     fontSize: 12,
-    color: '#27AE60',
+    color: SUCCESS_GREEN,
     fontWeight: '600',
     marginLeft: 4,
   },
@@ -3491,7 +3562,7 @@ const styles = StyleSheet.create({
   },
   noAvailablePatternsText: {
     fontSize: 14,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     marginTop: 12,
     textAlign: 'center',
     fontWeight: '600',
@@ -3501,33 +3572,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E9ECEF',
-    backgroundColor: '#F8F9FA',
+    borderTopColor: 'rgba(212, 175, 55, 0.2)',
+    backgroundColor: DARK_TEAL,
   },
   clearSelectionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
     gap: 4,
   },
   clearSelectionButtonText: {
     fontSize: 13,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     fontWeight: '600',
   },
   closePatternsButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#4A90E2',
+    backgroundColor: ACCENT_COLOR,
     borderRadius: 8,
   },
   closePatternsButtonText: {
-    color: '#FFFFFF',
+    color: SECONDARY_COLOR,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -3544,19 +3615,19 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   celebrationContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
     width: '80%',
     maxWidth: 300,
-    shadowColor: '#F39C12',
+    shadowColor: WARNING_ORANGE,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 12,
     borderWidth: 3,
-    borderColor: '#F39C12',
+    borderColor: WARNING_ORANGE,
   },
   celebrationInner: {
     alignItems: 'center',
@@ -3565,7 +3636,7 @@ const styles = StyleSheet.create({
   },
   trophyIcon: {
     marginBottom: 8,
-    shadowColor: '#F39C12',
+    shadowColor: WARNING_ORANGE,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.6,
     shadowRadius: 4,
@@ -3573,30 +3644,30 @@ const styles = StyleSheet.create({
   winningTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#E74C3C',
+    color: ERROR_RED,
     textAlign: 'center',
     marginBottom: 10,
   },
   winnerInfo: {
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     padding: 10,
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#4A90E2',
+    borderColor: ACCENT_COLOR,
     width: '100%',
   },
   winnerName: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#212529',
+    color: LIGHT_ACCENT,
     marginBottom: 4,
     textAlign: 'center',
   },
   winnerPattern: {
     fontSize: 13,
-    color: '#E74C3C',
+    color: ERROR_RED,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -3607,19 +3678,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#E74C3C',
+    borderColor: ERROR_RED,
     width: '100%',
   },
   prizeAmount: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#E74C3C',
+    color: ERROR_RED,
     marginBottom: 4,
   },
   prizeLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#6C757D',
+    color: MUTED_GOLD,
     letterSpacing: 1,
   },
   celebrationMessage: {
@@ -3630,26 +3701,26 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#F39C12',
+    borderColor: WARNING_ORANGE,
   },
   celebrationText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#212529',
+    color: LIGHT_ACCENT,
     marginHorizontal: 6,
   },
   closeCelebrationButton: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: ACCENT_COLOR,
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: SECONDARY_COLOR,
     width: '100%',
     alignItems: 'center',
   },
   closeCelebrationText: {
-    color: '#FFFFFF',
+    color: SECONDARY_COLOR,
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -3680,7 +3751,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   gameEndModalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 20,
     padding: 20,
     width: '100%',
@@ -3691,7 +3762,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   gameEndModalHeader: {
     alignItems: 'center',
@@ -3705,7 +3776,7 @@ const styles = StyleSheet.create({
   gameEndModalTitle: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#F39C12',
+    color: WARNING_ORANGE,
     textAlign: 'center',
   },
   gameEndModalBody: {
@@ -3714,13 +3785,13 @@ const styles = StyleSheet.create({
   gameEndCongratulations: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#4A90E2',
+    color: ACCENT_COLOR,
     textAlign: 'center',
     marginBottom: 10,
   },
   gameEndMessage: {
     fontSize: 14,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 20,
@@ -3728,12 +3799,12 @@ const styles = StyleSheet.create({
   gameEndStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: DARK_TEAL,
     borderRadius: 12,
     padding: 12,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   endStatItem: {
     alignItems: 'center',
@@ -3742,17 +3813,17 @@ const styles = StyleSheet.create({
   endStatValue: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#212529',
+    color: LIGHT_ACCENT,
     marginBottom: 4,
   },
   endStatLabel: {
     fontSize: 11,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     fontWeight: '600',
   },
   gameEndThanks: {
     fontSize: 13,
-    color: '#212529',
+    color: LIGHT_ACCENT,
     textAlign: 'center',
     fontStyle: 'italic',
     lineHeight: 18,
@@ -3761,7 +3832,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   viewWinnersButton: {
-    backgroundColor: '#F39C12',
+    backgroundColor: WARNING_ORANGE,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3770,20 +3841,20 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   viewWinnersButtonText: {
-    color: '#FFF',
+    color: SECONDARY_COLOR,
     fontSize: 14,
     fontWeight: '700',
   },
   closeButton: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: DARK_TEAL,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   closeButtonText: {
-    color: '#6C757D',
+    color: MUTED_GOLD,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -3794,7 +3865,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 16,
     padding: 20,
     width: '90%',
@@ -3809,14 +3880,14 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#212529',
+    color: LIGHT_ACCENT,
   },
   modalCloseButton: {
     padding: 4,
   },
   modalSubtitle: {
     fontSize: 13,
-    color: '#6C757D',
+    color: MUTED_GOLD,
     marginBottom: 20,
     lineHeight: 18,
   },
@@ -3826,12 +3897,12 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
     marginBottom: 10,
   },
   selectedVoiceOption: {
-    borderColor: '#4A90E2',
-    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+    borderColor: ACCENT_COLOR,
+    backgroundColor: 'rgba(212, 175, 55, 0.05)',
   },
   voiceOptionIcon: {
     marginRight: 12,
@@ -3842,25 +3913,25 @@ const styles = StyleSheet.create({
   voiceOptionName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#212529',
+    color: LIGHT_ACCENT,
     marginBottom: 2,
   },
   voiceOptionDesc: {
     fontSize: 12,
-    color: '#6C757D',
+    color: MUTED_GOLD,
   },
   testVoiceButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4A90E2',
+    backgroundColor: ACCENT_COLOR,
     paddingVertical: 12,
     borderRadius: 10,
     marginTop: 12,
     gap: 6,
   },
   testVoiceButtonText: {
-    color: '#FFF',
+    color: SECONDARY_COLOR,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -3868,36 +3939,36 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F0F8FF",
+    backgroundColor: PRIMARY_COLOR,
   },
   loadingContent: {
     alignItems: 'center',
   },
   loadingIconWrapper: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(74, 144, 226, 0.2)',
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
   },
   loadingSpinner: {
-    marginTop: 8,
+    marginTop: 10,
   },
   loadingText: {
-    fontSize: 15,
-    color: "#4682B4",
+    fontSize: 16,
+    color: LIGHT_ACCENT,
     fontWeight: "500",
-    marginTop: 16,
+    marginTop: 20,
   },
   floatingChatButton: {
     position: 'absolute',
     bottom: 16,
     right: 16,
-    backgroundColor: '#4A90E2',
+    backgroundColor: ACCENT_COLOR,
     borderRadius: 20,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -3920,23 +3991,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#E74C3C',
+    backgroundColor: ERROR_RED,
     borderRadius: 6,
     minWidth: 14,
     height: 14,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FFF',
+    borderColor: SECONDARY_COLOR,
   },
   chatBadgeText: {
-    color: '#FFF',
+    color: SECONDARY_COLOR,
     fontSize: 8,
     fontWeight: 'bold',
     paddingHorizontal: 2,
   },
   chatButtonText: {
-    color: '#FFF',
+    color: SECONDARY_COLOR,
     fontSize: 13,
     fontWeight: 'bold',
   },

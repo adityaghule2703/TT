@@ -15,10 +15,12 @@ import {
   RefreshControl,
   SafeAreaView,
   StatusBar,
+  Dimensions,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Ionicons } from '@expo/vector-icons';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental &&
@@ -33,10 +35,68 @@ const Faqs = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState({});
   const [search, setSearch] = useState("");
+  const [orientation, setOrientation] = useState('PORTRAIT');
+  const { width, height } = Dimensions.get('window');
 
   useEffect(() => {
+    // Allow all orientations
+    ScreenOrientation.unlockAsync();
+    
+    // Get initial orientation
+    checkOrientation();
+    
+    // Subscribe to orientation changes
+    const dimensionSubscription = Dimensions.addEventListener('change', ({ window }) => {
+      const newOrientation = window.width > window.height ? 'LANDSCAPE' : 'PORTRAIT';
+      setOrientation(newOrientation);
+    });
+    
+    // Also listen to screen orientation changes
+    const orientationSubscription = ScreenOrientation.addOrientationChangeListener((event) => {
+      const newOrientation = event.orientationInfo.orientation;
+      if (newOrientation === 1 || newOrientation === 2) {
+        setOrientation('PORTRAIT');
+      } else {
+        setOrientation('LANDSCAPE');
+      }
+    });
+    
     fetchData();
+    
+    return () => {
+      dimensionSubscription?.remove();
+      orientationSubscription?.remove();
+      // Optional: Lock back to portrait when leaving screen
+      // ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    };
   }, []);
+
+  const checkOrientation = async () => {
+    try {
+      const currentOrientation = await ScreenOrientation.getOrientationAsync();
+      if (currentOrientation === 1 || currentOrientation === 2) {
+        setOrientation('PORTRAIT');
+      } else {
+        setOrientation('LANDSCAPE');
+      }
+    } catch (error) {
+      console.log('Error getting orientation:', error);
+    }
+  };
+
+  const toggleOrientationLock = async () => {
+    try {
+      if (orientation === 'PORTRAIT') {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        setOrientation('LANDSCAPE');
+      } else {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        setOrientation('PORTRAIT');
+      }
+    } catch (error) {
+      console.log('Error changing orientation:', error);
+    }
+  };
 
   const fetchData = async () => {
     await Promise.all([fetchFaqs(), fetchHelpLinks()]);
@@ -104,7 +164,7 @@ const Faqs = () => {
   const renderHelpLinks = () => {
     if (linksLoading) {
       return (
-        <View style={styles.helpLinksContainer}>
+        <View style={orientation === 'LANDSCAPE' ? styles.helpLinksContainerLandscape : styles.helpLinksContainer}>
           <ActivityIndicator size="small" color="#4A90E2" />
         </View>
       );
@@ -113,20 +173,22 @@ const Faqs = () => {
     if (helpLinks.length === 0) return null;
 
     return (
-      <View style={styles.helpLinksContainer}>
+      <View style={orientation === 'LANDSCAPE' ? styles.helpLinksContainerLandscape : styles.helpLinksContainer}>
         <View style={styles.helpLinksHeader}>
-          <Ionicons name="videocam" size={22} color="#4A90E2" />
-          <Text style={styles.helpLinksTitle}>Helpful Videos</Text>
+          <Ionicons name="videocam" size={orientation === 'LANDSCAPE' ? 20 : 22} color="#4A90E2" />
+          <Text style={[styles.helpLinksTitle, { fontSize: orientation === 'LANDSCAPE' ? 18 : 20 }]}>
+            Helpful Videos
+          </Text>
         </View>
-        <Text style={styles.helpLinksSubtitle}>
+        <Text style={[styles.helpLinksSubtitle, { fontSize: orientation === 'LANDSCAPE' ? 13 : 14 }]}>
           Watch tutorials to learn how to play Tambola games
         </Text>
         
-        <View style={styles.linksList}>
+        <View style={orientation === 'LANDSCAPE' ? styles.linksListLandscape : styles.linksList}>
           {helpLinks.map((link, index) => (
             <TouchableOpacity
               key={link.key || index}
-              style={styles.linkItem}
+              style={orientation === 'LANDSCAPE' ? styles.linkItemLandscape : styles.linkItem}
               onPress={() => openYouTubeLink(link.url)}
               activeOpacity={0.7}
             >
@@ -134,10 +196,10 @@ const Faqs = () => {
                 <Ionicons name="play-circle" size={20} color="#4A90E2" />
               </View>
               <View style={styles.linkContent}>
-                <Text style={styles.linkTitle} numberOfLines={2}>
+                <Text style={[styles.linkTitle, { fontSize: orientation === 'LANDSCAPE' ? 14 : 15 }]} numberOfLines={2}>
                   {link.title}
                 </Text>
-                <Text style={styles.linkDescription} numberOfLines={1}>
+                <Text style={[styles.linkDescription, { fontSize: orientation === 'LANDSCAPE' ? 12 : 13 }]} numberOfLines={1}>
                   {link.description}
                 </Text>
               </View>
@@ -154,7 +216,10 @@ const Faqs = () => {
       <StatusBar backgroundColor="#F0F8FF" barStyle="dark-content" />
       <ScrollView 
         style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: orientation === 'LANDSCAPE' ? 25 : 20 }
+        ]}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
@@ -166,25 +231,56 @@ const Faqs = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* HEADER */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Help Desk</Text>
-          <TouchableOpacity>
-            <Ionicons name="settings-outline" size={24} color="#4A90E2" />
-          </TouchableOpacity>
+        <View style={[
+          styles.header,
+          { marginTop: orientation === 'LANDSCAPE' ? 15 : 25 }
+        ]}>
+          <Text style={[
+            styles.headerTitle,
+            { fontSize: orientation === 'LANDSCAPE' ? 24 : 28 }
+          ]}>
+            Help Desk
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity onPress={toggleOrientationLock} style={{ marginRight: 15 }}>
+              <Ionicons 
+                name={orientation === 'LANDSCAPE' ? 'phone-portrait-outline' : 'phone-landscape-outline'} 
+                size={22} 
+                color="#4A90E2" 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <Ionicons name="settings-outline" size={24} color="#4A90E2" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* TOP ILLUSTRATION */}
-        <View style={styles.topImageWrapper}>
+        <View style={[
+          styles.topImageWrapper,
+          { marginBottom: orientation === 'LANDSCAPE' ? 10 : 15 }
+        ]}>
           <Image
             source={{
               uri: "https://cdn-icons-png.flaticon.com/512/3062/3062634.png",
             }}
-            style={styles.topImage}
+            style={{
+              width: orientation === 'LANDSCAPE' ? 80 : 120,
+              height: orientation === 'LANDSCAPE' ? 80 : 120,
+              opacity: 0.8,
+            }}
           />
         </View>
 
         {/* INTRO */}
-        <Text style={styles.introText}>
+        <Text style={[
+          styles.introText,
+          { 
+            fontSize: orientation === 'LANDSCAPE' ? 14 : 15,
+            lineHeight: orientation === 'LANDSCAPE' ? 20 : 22,
+            marginBottom: orientation === 'LANDSCAPE' ? 15 : 20
+          }
+        ]}>
           We're here to help you with anything and everything on Tambola Timez. Use the search below or check our frequently asked questions.
         </Text>
 
@@ -203,15 +299,26 @@ const Faqs = () => {
         {renderHelpLinks()}
 
         {/* FAQ LIST */}
-        <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+        <Text style={[
+          styles.sectionTitle,
+          { fontSize: orientation === 'LANDSCAPE' ? 16 : 18 }
+        ]}>
+          Frequently Asked Questions
+        </Text>
 
         {loading && <ActivityIndicator size="large" color="#4A90E2" style={{ marginTop: 20 }} />}
 
         {!loading &&
           filteredFaqs.map((faq) => (
-            <View key={faq.id} style={styles.faqCard}>
+            <View key={faq.id} style={[
+              styles.faqCard,
+              { marginBottom: orientation === 'LANDSCAPE' ? 8 : 12 }
+            ]}>
               <TouchableOpacity
-                style={styles.faqHeader}
+                style={[
+                  styles.faqHeader,
+                  { padding: orientation === 'LANDSCAPE' ? 12 : 18 }
+                ]}
                 onPress={() => toggleFaq(faq.id)}
               >
                 <View style={styles.faqTitleWrapper}>
@@ -221,7 +328,12 @@ const Faqs = () => {
                     }}
                     style={styles.faqIcon}
                   />
-                  <Text style={styles.faqQuestion}>{faq.question}</Text>
+                  <Text style={[
+                    styles.faqQuestion,
+                    { fontSize: orientation === 'LANDSCAPE' ? 14 : 15 }
+                  ]}>
+                    {faq.question}
+                  </Text>
                 </View>
                 <Ionicons 
                   name={expanded[faq.id] ? "chevron-up" : "chevron-down"} 
@@ -230,8 +342,19 @@ const Faqs = () => {
                 />
               </TouchableOpacity>
               {expanded[faq.id] && (
-                <View style={styles.faqAnswerWrapper}>
-                  <Text style={styles.faqAnswer}>{faq.answer}</Text>
+                <View style={[
+                  styles.faqAnswerWrapper,
+                  { 
+                    paddingHorizontal: orientation === 'LANDSCAPE' ? 12 : 18,
+                    paddingBottom: orientation === 'LANDSCAPE' ? 12 : 18
+                  }
+                ]}>
+                  <Text style={[
+                    styles.faqAnswer,
+                    { fontSize: orientation === 'LANDSCAPE' ? 13 : 14 }
+                  ]}>
+                    {faq.answer}
+                  </Text>
                 </View>
               )}
             </View>
@@ -242,13 +365,19 @@ const Faqs = () => {
         )}
 
         {/* CTA BUTTON */}
-        <TouchableOpacity style={styles.ctaButton}>
+        <TouchableOpacity style={[
+          styles.ctaButton,
+          { marginTop: orientation === 'LANDSCAPE' ? 20 : 30 }
+        ]}>
           <Text style={styles.ctaText}>Still stuck? Help us a mail away</Text>
           <Text style={styles.ctaBtnText}>Send a message</Text>
         </TouchableOpacity>
 
         {/* Bottom spacing */}
-        <View style={styles.bottomSpace} />
+        <View style={[
+          styles.bottomSpace,
+          { height: orientation === 'LANDSCAPE' ? 20 : 30 }
+        ]} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -266,35 +395,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#F0F8FF",
   },
   scrollContent: {
-    paddingHorizontal: 20,
     paddingBottom: 30,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 25,
     marginBottom: 15,
   },
   headerTitle: { 
-    fontSize: 28,
     fontWeight: "700",
     color: "#4682B4",
     letterSpacing: -0.5,
   },
   topImageWrapper: { 
     alignItems: "center", 
-    marginBottom: 15 
-  },
-  topImage: { 
-    width: 120, 
-    height: 120, 
-    opacity: 0.8,
   },
   introText: {
-    fontSize: 15,
     color: "#4682B4",
-    marginBottom: 20,
     lineHeight: 22,
     textAlign: "center",
   },
@@ -318,12 +436,26 @@ const styles = StyleSheet.create({
     height: "100%",
     color: "#4682B4",
   },
-  // Help Links Styles
+  // Help Links Styles - Portrait
   helpLinksContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     marginBottom: 24,
     padding: 20,
+    borderWidth: 1,
+    borderColor: "#E9ECEF",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  // Help Links Styles - Landscape
+  helpLinksContainerLandscape: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    marginBottom: 20,
+    padding: 15,
     borderWidth: 1,
     borderColor: "#E9ECEF",
     shadowColor: "#000",
@@ -338,18 +470,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   helpLinksTitle: {
-    fontSize: 20,
     fontWeight: "700",
     color: "#4682B4",
     marginLeft: 10,
   },
   helpLinksSubtitle: {
-    fontSize: 14,
     color: "#4682B4",
     marginBottom: 20,
     lineHeight: 20,
   },
   linksList: {
+    gap: 12,
+  },
+  linksListLandscape: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   linkItem: {
@@ -360,6 +495,18 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "rgba(74, 144, 226, 0.1)",
+  },
+  linkItemLandscape: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(74, 144, 226, 0.05)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(74, 144, 226, 0.1)",
+    width: '48%',
+    marginRight: '4%',
+    marginBottom: 12,
   },
   linkIconContainer: {
     width: 40,
@@ -376,20 +523,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   linkTitle: {
-    fontSize: 15,
     fontWeight: "600",
     color: "#4682B4",
     marginBottom: 4,
     lineHeight: 20,
   },
   linkDescription: {
-    fontSize: 13,
     color: "#4682B4",
     lineHeight: 18,
   },
   // FAQ Section
   sectionTitle: { 
-    fontSize: 18,
     fontWeight: "700", 
     marginBottom: 16,
     color: "#4682B4",
@@ -397,7 +541,6 @@ const styles = StyleSheet.create({
   faqCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    marginBottom: 12,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#E9ECEF",
@@ -411,7 +554,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 18,
   },
   faqTitleWrapper: { 
     flexDirection: "row", 
@@ -424,7 +566,6 @@ const styles = StyleSheet.create({
     height: 24,
   },
   faqQuestion: { 
-    fontSize: 15, 
     fontWeight: "600", 
     color: "#4682B4", 
     flex: 1,
@@ -433,13 +574,11 @@ const styles = StyleSheet.create({
   faqAnswerWrapper: {
     backgroundColor: "rgba(74, 144, 226, 0.03)",
     paddingHorizontal: 18,
-    paddingBottom: 18,
     paddingTop: 2,
     borderTopWidth: 1,
     borderTopColor: "rgba(74, 144, 226, 0.1)",
   },
   faqAnswer: { 
-    fontSize: 14, 
     color: "#4682B4", 
     lineHeight: 22 
   },
@@ -455,7 +594,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 18,
     paddingHorizontal: 24,
-    marginTop: 30,
     alignItems: "center",
     shadowColor: "#4A90E2",
     shadowOpacity: 0.2,
@@ -477,6 +615,5 @@ const styles = StyleSheet.create({
     fontSize: 16 
   },
   bottomSpace: {
-    height: 30,
   },
 });

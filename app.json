@@ -4,35 +4,32 @@
     "slug": "TambolaTimez",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/total.png",
+    "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
     "jsEngine": "hermes",
+
     "splash": {
-      "image": "./assets/total.png",
-      "resizeMode": "contain",
+      "image": "./assets/tambola-splash.png",
+      "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },
+
     "android": {
       "package": "com.adi_ghule.TambolaTimez",
-      "edgeToEdgeEnabled": true,
-      "enableProguardInReleaseBuilds": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/tambola.jpg",
+        "foregroundImage": "./assets/icon-foreground.png",
         "backgroundColor": "#ffffff"
       }
     },
-    "plugins": [
-      "expo-font"
-    ],
+
     "ios": {
       "bundleIdentifier": "com.adi-ghule.TambolaTimez"
     },
+
     "extra": {
       "eas": {
         "projectId": "7f32d5f2-00cf-4b4e-b037-7ef56bc4e9cf"
       }
-    },
-    "owner": "mahesh1234567"
+    }
   }
 }

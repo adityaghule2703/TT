@@ -14,9 +14,10 @@ import {
   Dimensions,
   Animated,
   Easing,
+  SafeAreaView,
 } from "react-native";
 import axios from "axios";
-import { FontAwesome, Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
+import { FontAwesome, Ionicons, MaterialIcons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from '@react-navigation/native';
 
@@ -37,12 +38,12 @@ const Home = () => {
   const [refreshing, setRefreshing] = useState(false);
   
   const sliderRef = useRef(null);
+  const scrollInterval = useRef(null);
   
   // Animation values
-  const floatAnim1 = useRef(new Animated.Value(0)).current;
-  const floatAnim2 = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const shineAnim = useRef(new Animated.Value(0)).current;
+  const chipFloatAnim = useRef(new Animated.Value(0)).current;
+  const cardRotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     fetchNotifications();
@@ -54,108 +55,106 @@ const Home = () => {
     startAnimations();
   }, []);
 
+  useEffect(() => {
+    // Auto-scroll slider
+    if (sliders.length > 1) {
+      startAutoScroll();
+    }
+    
+    return () => {
+      if (scrollInterval.current) {
+        clearInterval(scrollInterval.current);
+      }
+    };
+  }, [sliders.length, activeSlide]);
+
+  const startAutoScroll = () => {
+    if (scrollInterval.current) {
+      clearInterval(scrollInterval.current);
+    }
+    
+    scrollInterval.current = setInterval(() => {
+      let nextIndex = activeSlide + 1;
+      if (nextIndex >= sliders.length) {
+        nextIndex = 0;
+      }
+      
+      setActiveSlide(nextIndex);
+      if (sliderRef.current) {
+        sliderRef.current.scrollToIndex({
+          index: nextIndex,
+          animated: true
+        });
+      }
+    }, 3000);
+  };
+
   const startAnimations = () => {
-    // First floating animation
+    // Shine animation
     Animated.loop(
       Animated.sequence([
-        Animated.timing(floatAnim1, {
+        Animated.timing(shineAnim, {
           toValue: 1,
-          duration: 4000,
+          duration: 2000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
-        Animated.timing(floatAnim1, {
+        Animated.delay(1000),
+        Animated.timing(shineAnim, {
           toValue: 0,
-          duration: 4000,
+          duration: 2000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ])
     ).start();
 
-    // Second floating animation (different timing)
+    // Card rotation animation
     Animated.loop(
       Animated.sequence([
-        Animated.timing(floatAnim2, {
+        Animated.timing(cardRotateAnim, {
           toValue: 1,
-          duration: 5000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim2, {
-          toValue: 0,
-          duration: 5000,
-          easing: Easing.inOut(Easing.ease),
+          duration: 15000,
+          easing: Easing.linear,
           useNativeDriver: true,
         }),
       ])
     ).start();
 
-    // Pulse animation for subtle effect
+    // Chip float animation
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.02,
-          duration: 3000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
+        Animated.timing(chipFloatAnim, {
           toValue: 1,
           duration: 3000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
+        Animated.timing(chipFloatAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
       ])
-    ).start();
-
-    // Slow rotation animation
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 20000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
     ).start();
   };
 
-  // Interpolations for animations
-  const translateY1 = floatAnim1.interpolate({
+  // Interpolations
+  const shineTranslateX = shineAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 15]
+    outputRange: [-100, width + 100]
   });
 
-  const translateY2 = floatAnim2.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -10]
-  });
-
-  const rotate = rotateAnim.interpolate({
+  const rotate = cardRotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg']
   });
 
-  useEffect(() => {
-    if (sliders.length > 1) {
-      const interval = setInterval(() => {
-        if (activeSlide < sliders.length - 1) {
-          setActiveSlide(activeSlide + 1);
-        } else {
-          setActiveSlide(0);
-        }
-        
-        if (sliderRef.current) {
-          sliderRef.current.scrollToIndex({
-            index: activeSlide < sliders.length - 1 ? activeSlide + 1 : 0,
-            animated: true
-          });
-        }
-      }, 3000);
-
-      return () => clearInterval(interval);
-    }
-  }, [activeSlide, sliders.length]);
+  const chipTranslateY = chipFloatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 10]
+  });
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -186,11 +185,15 @@ const Home = () => {
 
   const fetchSliders = async () => {
     try {
+      setLoadingSliders(true);
       const res = await axios.get(
         "https://exilance.com/tambolatimez/public/api/user/sliders"
       );
+      console.log("Sliders API Response:", res.data);
       if (res.data.success) {
         setSliders(res.data.data);
+      } else {
+        console.log("Sliders API returned unsuccessful:", res.data);
       }
     } catch (error) {
       console.log("Error fetching sliders:", error);
@@ -297,19 +300,19 @@ const Home = () => {
   const getPatternColor = (logicType) => {
     switch (logicType) {
       case 'position_based':
-        return '#4A90E2'; // Sky Blue
+        return '#D4AF37'; // Gold
       case 'count_based':
-        return '#7EC8E3'; // Light Blue
+        return '#FFD700'; // Golden yellow
       case 'all_numbers':
-        return '#87CEEB'; // Sky Blue
+        return '#C5B358'; // Golden bronze
       case 'row_complete':
-        return '#4682B4'; // Steel Blue
+        return '#F9A825'; // Golden amber
       case 'number_based':
-        return '#5DADE2'; // Bright Blue
+        return '#D4AF37'; // Gold
       case 'number_range':
-        return '#6495ED'; // Cornflower Blue
+        return '#FFC72C'; // Golden orange
       default:
-        return '#4A90E2'; // Primary Sky Blue
+        return '#D4AF37';
     }
   };
 
@@ -332,31 +335,43 @@ const Home = () => {
         style={styles.patternCard}
         onPress={() => handlePatternPress(pattern)}
       >
-        <View style={[styles.patternIconContainer, { backgroundColor: color + '15' }]}>
-          <Ionicons name={icon} size={28} color={color} />
+        <View style={[styles.patternIconContainer, { backgroundColor: color + '30' }]}>
+          <Ionicons name={icon} size={26} color={color} />
         </View>
-        <Text style={[styles.patternText, { color: color }]} numberOfLines={1}>
+        <Text style={[styles.patternText, { color: '#F5E6A8' }]} numberOfLines={2}>
           {pattern.display_name || formatPatternName(pattern.pattern_name)}
-        </Text>
-        <Text style={styles.patternDescription} numberOfLines={1}>
-          {pattern.description || 'Tap to view details'}
         </Text>
       </TouchableOpacity>
     );
   };
 
-  const renderSliderItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.slideContainer}
-      activeOpacity={0.9}
-      onPress={() => console.log("Slider clicked:", item.id)}
-    >
+  const renderSliderItem = ({ item, index }) => (
+    <View style={styles.slideContainer}>
       <Image
-        source={{ uri: item.image_url }}
+        source={{ 
+          uri: item.image_url || 'https://images.unsplash.com/photo-1589998059171-988d887df646?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80'
+        }}
         style={styles.sliderImage}
         resizeMode="cover"
+        onError={(error) => {
+          console.log("Image loading error:", error.nativeEvent.error);
+        }}
       />
-    </TouchableOpacity>
+      <View style={styles.sliderOverlay} />
+      
+      <View style={styles.sliderContent}>
+        <Text style={styles.sliderTitle}>{item.title || "Tambola Timez"}</Text>
+        {item.description && (
+          <Text style={styles.sliderDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+        )}
+        <TouchableOpacity style={styles.exploreButton}>
+          <Text style={styles.exploreButtonText}>Explore</Text>
+          <Ionicons name="arrow-forward" size={14} color="#004B54" />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   const handleScroll = (event) => {
@@ -366,6 +381,11 @@ const Home = () => {
     
     if (currentIndex !== activeSlide) {
       setActiveSlide(currentIndex);
+      // Reset auto-scroll timer
+      if (scrollInterval.current) {
+        clearInterval(scrollInterval.current);
+      }
+      startAutoScroll();
     }
   };
 
@@ -383,6 +403,11 @@ const Home = () => {
                 index,
                 animated: true
               });
+              // Reset auto-scroll timer
+              if (scrollInterval.current) {
+                clearInterval(scrollInterval.current);
+              }
+              startAutoScroll();
             }}
           >
             <View
@@ -407,8 +432,23 @@ const Home = () => {
     
     return (
       <View key={game.id || index} style={[styles.gameCard, isPlaying && styles.playingGameCard]}>
-        <View style={styles.gameCardPattern} />
+        {/* Game Card Background Pattern */}
+        <View style={styles.gameCardBackground}>
+          <Animated.View 
+            style={[
+              styles.cardPattern1,
+              { transform: [{ rotate: rotate }] }
+            ]}
+          />
+          <Animated.View 
+            style={[
+              styles.cardPattern2,
+              { transform: [{ translateY: chipTranslateY }] }
+            ]}
+          />
+        </View>
         
+        {/* Status Badge */}
         <View style={[styles.statusBadge, 
           game.status === 'live' ? styles.liveBadge :
           game.status === 'scheduled' ? styles.scheduledBadge :
@@ -416,7 +456,7 @@ const Home = () => {
         ]}>
           <Ionicons 
             name={game.status === 'live' ? 'radio-button-on' : 'time'} 
-            size={10} 
+            size={12} 
             color="#FFF" 
           />
           <Text style={styles.statusText}>
@@ -424,13 +464,14 @@ const Home = () => {
           </Text>
         </View>
 
+        {/* Game Header */}
         <View style={styles.cardHeader}>
           <View style={styles.gameIconContainer}>
             <View style={styles.gameIconWrapper}>
-              <Ionicons name="game-controller" size={24} color="#4A90E2" />
+              <FontAwesome name="diamond" size={22} color="#D4AF37" />
             </View>
             <View style={styles.gameInfo}>
-              <Text style={styles.gameName} numberOfLines={1}>{game.game_name || "Game"}</Text>
+              <Text style={styles.gameName} numberOfLines={1}>{game.game_name || "Tambola Game"}</Text>
               <Text style={styles.gameId}>ID: {game.game_code || "N/A"}</Text>
             </View>
           </View>
@@ -441,23 +482,24 @@ const Home = () => {
           ]}>
             {game.ticket_type === "paid" ? (
               <>
-                <MaterialIcons name="diamond" size={14} color="#F39C12" />
+                <FontAwesome name="diamond" size={14} color="#FFD700" />
                 <Text style={styles.gameTypeText}>₹{ticketCost}</Text>
               </>
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={14} color="#27AE60" />
+                <Ionicons name="checkmark-circle" size={14} color="#FFD700" />
                 <Text style={styles.gameTypeText}>FREE</Text>
               </>
             )}
           </View>
         </View>
 
+        {/* Game Details */}
         <View style={styles.gameDetails}>
           <View style={styles.detailRow}>
             <View style={styles.detailItem}>
               <View style={styles.detailIcon}>
-                <Ionicons name="calendar" size={14} color="#4A90E2" />
+                <Ionicons name="calendar" size={16} color="#D4AF37" />
               </View>
               <View>
                 <Text style={styles.detailLabel}>Date</Text>
@@ -469,7 +511,7 @@ const Home = () => {
             
             <View style={styles.detailItem}>
               <View style={styles.detailIcon}>
-                <Ionicons name="time" size={14} color="#4A90E2" />
+                <Ionicons name="time" size={16} color="#D4AF37" />
               </View>
               <View>
                 <Text style={styles.detailLabel}>Time</Text>
@@ -481,7 +523,7 @@ const Home = () => {
           <View style={styles.detailRow}>
             <View style={styles.detailItem}>
               <View style={styles.detailIcon}>
-                <Ionicons name="person" size={14} color="#4A90E2" />
+                <Ionicons name="person" size={16} color="#D4AF37" />
               </View>
               <View>
                 <Text style={styles.detailLabel}>Host</Text>
@@ -494,7 +536,7 @@ const Home = () => {
             {game.available_tickets !== undefined && (
               <View style={styles.detailItem}>
                 <View style={styles.detailIcon}>
-                  <MaterialIcons name="confirmation-number" size={14} color="#4A90E2" />
+                  <MaterialIcons name="confirmation-number" size={16} color="#D4AF37" />
                 </View>
                 <View>
                   <Text style={styles.detailLabel}>Tickets</Text>
@@ -507,9 +549,10 @@ const Home = () => {
           </View>
         </View>
 
+        {/* Prize Pool */}
         <View style={styles.prizeContainer}>
           <View style={styles.prizeIcon}>
-            <MaterialIcons name="account-balance-wallet" size={18} color="#4A90E2" />
+            <FontAwesome name="trophy" size={18} color="#D4AF37" />
           </View>
           <View style={styles.prizeInfo}>
             <Text style={styles.prizeLabel}>Prize Pool</Text>
@@ -521,6 +564,7 @@ const Home = () => {
           </View>
         </View>
 
+        {/* Join Button */}
         <TouchableOpacity 
           style={[
             styles.joinButton,
@@ -528,922 +572,793 @@ const Home = () => {
           ]}
           onPress={() => handleGamePress(game)}
         >
-          {/* Glass effect overlay */}
-          <View style={styles.glassEffectOverlay} />
-          
           <Text style={styles.joinButtonText}>
             {game.status === 'live' ? 'JOIN GAME' : 'VIEW DETAILS'}
           </Text>
-          <Ionicons name="arrow-forward" size={16} color="#FFF" />
+          <Ionicons name="arrow-forward" size={18} color="#FFF" />
         </TouchableOpacity>
       </View>
     );
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor="#4A90E2"
-          colors={['#4A90E2']}
-        />
-      }
-    >
-      {/* Background Design Patterns */}
-      <View style={styles.backgroundPattern}>
-        {/* Animated floating clouds */}
-        <Animated.View 
-          style={[
-            styles.cloud1, 
-            { 
-              transform: [
-                { translateY: translateY1 },
-                { translateX: translateY2 }
-              ] 
-            }
-          ]} 
-        />
-        <Animated.View 
-          style={[
-            styles.cloud2, 
-            { 
-              transform: [
-                { translateY: translateY2 },
-                { translateX: translateY1 }
-              ] 
-            }
-          ]} 
-        />
-        <Animated.View 
-          style={[
-            styles.cloud3, 
-            { 
-              transform: [
-                { translateY: translateY1 },
-                { translateX: translateY2 }
-              ] 
-            }
-          ]} 
-        />
-        
-        {/* Sun */}
-        <Animated.View 
-          style={[
-            styles.sun,
-            { 
-              transform: [{ rotate: rotate }],
-              opacity: pulseAnim
-            }
-          ]} 
-        />
-        
-        {/* Sky gradient overlay */}
-        <View style={styles.skyGradient} />
-        
-        {/* Mountain silhouette */}
-        <View style={styles.mountain1} />
-        <View style={styles.mountain2} />
-        
-        {/* Bird silhouettes */}
-        <Animated.View 
-          style={[
-            styles.bird1,
-            { transform: [{ translateX: floatAnim1.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 50]
-            }) }] }
-          ]} 
-        />
-        <Animated.View 
-          style={[
-            styles.bird2,
-            { transform: [{ translateX: floatAnim2.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, -30]
-            }) }] }
-          ]} 
-        />
-      </View>
-
-      {/* Header with sky background */}
-      <Animated.View 
-        style={[
-          styles.header,
-          { 
-            transform: [{ scale: pulseAnim }],
-            backgroundColor: '#5DADE2' // Lighter sky blue for header
-          }
-        ]}
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#D4AF37"
+            colors={['#D4AF37']}
+          />
+        }
       >
-        {/* Header sky pattern */}
-        <View style={styles.headerPattern}>
-          <View style={styles.headerCloud1} />
-          <View style={styles.headerCloud2} />
-          <View style={styles.headerCloud3} />
-          
-          {/* Sun rays in header */}
-          <Animated.View 
-            style={[
-              styles.sunRay1,
-              { transform: [{ rotate: rotate }] }
-            ]} 
-          />
-          <Animated.View 
-            style={[
-              styles.sunRay2,
-              { transform: [{ rotate: rotate }] }
-            ]} 
-          />
-          <Animated.View 
-            style={[
-              styles.sunRay3,
-              { transform: [{ rotate: rotate }] }
-            ]} 
-          />
+        {/* HEADER */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.welcome}>Welcome</Text>
+            <Text style={styles.appTitle}>Tambola Timez</Text>
+          </View>
+
+          <TouchableOpacity onPress={() => setModalVisible(true)}>
+            <Ionicons name="notifications" size={26} color="#D4AF37" />
+            {notifications.length > 0 && <View style={styles.dot} />}
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.headerContent}>
-          <View style={styles.headerTopRow}>
-            <Text style={styles.appName}>Tambola Timez</Text>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => setModalVisible(true)}
+        {/* SLIDER SECTION */}
+        {loadingSliders ? (
+          <View style={styles.sliderLoadingContainer}>
+            <ActivityIndicator size="large" color="#D4AF37" />
+            <Text style={styles.loadingText}>Loading offers...</Text>
+          </View>
+        ) : sliders.length > 0 ? (
+          <View style={styles.sliderSection}>
+            <View style={styles.sliderWrapper}>
+              <FlatList
+                ref={sliderRef}
+                data={sliders}
+                renderItem={renderSliderItem}
+                keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={handleScroll}
+                onMomentumScrollEnd={(event) => {
+                  const slideSize = event.nativeEvent.layoutMeasurement.width;
+                  const contentOffset = event.nativeEvent.contentOffset.x;
+                  const currentIndex = Math.floor(contentOffset / slideSize);
+                  setActiveSlide(currentIndex);
+                }}
+                scrollEventThrottle={16}
+                initialScrollIndex={0}
+                style={styles.sliderFlatList}
+              />
+              
+              {/* Pagination Dots */}
+              {renderPagination()}
+              
+              {/* Slide Indicator */}
+              <View style={styles.slideIndicator}>
+                <Text style={styles.slideIndicatorText}>
+                  {activeSlide + 1} / {sliders.length}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.bannerCard}>
+            <View style={styles.bannerContent}>
+              <View style={styles.bannerTextContainer}>
+                <Text style={styles.bannerTitle}>Play Tambola Now</Text>
+                <Text style={styles.bannerSubTitle}>Win exciting prizes daily!</Text>
+                <TouchableOpacity 
+                  style={styles.getStartedBtn}
+                  onPress={handleAllGamesPress}
+                >
+                  <Text style={styles.getStartedText}>Play Now</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#004B54" />
+                </TouchableOpacity>
+              </View>
+              <Image
+                source={{
+                  uri: "https://cdn-icons-png.flaticon.com/512/616/616554.png",
+                }}
+                style={styles.bannerImage}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* QUICK ACTIONS */}
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={[styles.quickAction, styles.depositBtn]}>
+            <View style={styles.quickActionIcon}>
+              <FontAwesome name="money" size={22} color="#FFF" />
+            </View>
+            <Text style={styles.quickActionText}>Deposit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.quickAction, styles.withdrawBtn]}>
+            <View style={styles.quickActionIcon}>
+              <FontAwesome name="bank" size={22} color="#FFF" />
+            </View>
+            <Text style={styles.quickActionText}>Withdraw</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.quickAction, styles.referBtn]}>
+            <View style={styles.quickActionIcon}>
+              <FontAwesome name="users" size={22} color="#FFF" />
+            </View>
+            <Text style={styles.quickActionText}>Refer & Earn</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.quickAction, styles.supportBtn]}>
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="headset" size={22} color="#FFF" />
+            </View>
+            <Text style={styles.quickActionText}>Support</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* PATTERNS SECTION */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleContainer}>
+              <Ionicons name="grid-outline" size={24} color="#D4AF37" />
+              <Text style={styles.sectionTitle}>PATTERNS</Text>
+            </View>
+            <TouchableOpacity onPress={handleAllPatternsPress}>
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loadingPatterns ? (
+            <View style={styles.patternsLoadingContainer}>
+              <ActivityIndicator size="small" color="#D4AF37" />
+              <Text style={styles.loadingText}>Loading patterns...</Text>
+            </View>
+          ) : patterns.length > 0 ? (
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.patternContainer}
             >
-              <Ionicons name="notifications-outline" size={24} color="#FFF" />
-              {notifications.length > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{notifications.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-            <TextInput
-              placeholder="Search rooms or games"
-              placeholderTextColor="#999"
-              style={styles.searchInput}
-            />
-            <TouchableOpacity style={styles.filterButton}>
-              <Feather name="filter" size={18} color="#4A90E2" />
-            </TouchableOpacity>
-          </View>
+              {patterns.map((pattern) => renderPatternCard(pattern))}
+            </ScrollView>
+          ) : (
+            <View style={styles.noPatternsContainer}>
+              <Text style={styles.noPatternsText}>No patterns available</Text>
+              <TouchableOpacity onPress={fetchPatterns}>
+                <Text style={styles.retryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      </Animated.View>
 
-      {loadingSliders ? (
-        <View style={styles.sliderLoadingContainer}>
-          <ActivityIndicator size="large" color="#4A90E2" />
-        </View>
-      ) : sliders.length > 0 ? (
-        <View style={styles.sliderWrapper}>
-          <FlatList
-            ref={sliderRef}
-            data={sliders}
-            renderItem={renderSliderItem}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-            getItemLayout={(data, index) => ({
-              length: width - 40,
-              offset: (width - 40) * index,
-              index,
-            })}
-          />
-          {renderPagination()}
-        </View>
-      ) : (
-        <View style={styles.bannerCard}>
-          <View style={styles.bannerContent}>
-            <View style={styles.bannerTextContainer}>
-              <Text style={styles.bannerTitle}>Play Tambola Now</Text>
-              <Text style={styles.bannerSubTitle}>Win exciting prizes daily!</Text>
+        {/* ALL GAMES SECTION */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleContainer}>
+              <Ionicons name="game-controller-outline" size={24} color="#D4AF37" />
+              <Text style={styles.sectionTitle}>ALL GAMES</Text>
+            </View>
+            <TouchableOpacity onPress={handleAllGamesPress}>
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loadingGames ? (
+            <View style={styles.gamesLoadingContainer}>
+              <ActivityIndicator size="large" color="#D4AF37" />
+              <Text style={styles.loadingText}>Loading games...</Text>
+            </View>
+          ) : games.length > 0 ? (
+            <View style={styles.gamesContainer}>
+              {games.slice(0, 3).map((game, index) => renderGameCard(game, index))}
+            </View>
+          ) : (
+            <View style={styles.noGamesContainer}>
+              <Ionicons name="game-controller-outline" size={55} color="#F5E6A8" />
+              <Text style={styles.noGamesText}>No games available at the moment</Text>
               <TouchableOpacity 
-                style={styles.getStartedBtn}
+                style={styles.refreshGamesBtn}
                 onPress={handleAllGamesPress}
               >
-                <View style={styles.glassEffectOverlay} />
-                <Text style={styles.getStartedText}>Play Now</Text>
-                <Ionicons name="arrow-forward" size={16} color="#4A90E2" />
+                <Text style={styles.refreshGamesText}>Browse Games</Text>
               </TouchableOpacity>
             </View>
-            <Image
-              source={{
-                uri: "https://cdn-icons-png.flaticon.com/512/616/616554.png",
-              }}
-              style={styles.bannerImage}
-            />
-          </View>
+          )}
         </View>
-      )}
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Patterns</Text>
-        <TouchableOpacity onPress={handleAllPatternsPress}>
-          <Text style={styles.seeAll}>See All</Text>
-        </TouchableOpacity>
-      </View>
-
-      {loadingPatterns ? (
-        <View style={styles.patternsLoadingContainer}>
-          <ActivityIndicator size="small" color="#4A90E2" />
-          <Text style={styles.loadingText}>Loading patterns...</Text>
-        </View>
-      ) : patterns.length > 0 ? (
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.patternContainer}
-        >
-          {patterns.map((pattern) => renderPatternCard(pattern))}
-        </ScrollView>
-      ) : (
-        <View style={styles.noPatternsContainer}>
-          <Text style={styles.noPatternsText}>No patterns available</Text>
-          <TouchableOpacity onPress={fetchPatterns}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>All Games</Text>
-        <TouchableOpacity onPress={handleAllGamesPress}>
-          <Text style={styles.seeAll}>See All</Text>
-        </TouchableOpacity>
-      </View>
-
-      {loadingGames ? (
-        <View style={styles.gamesLoadingContainer}>
-          <ActivityIndicator size="large" color="#4A90E2" />
-          <Text style={styles.loadingText}>Loading games...</Text>
-        </View>
-      ) : games.length > 0 ? (
-        <View style={styles.gamesContainer}>
-          {games.slice(0, 3).map((game, index) => renderGameCard(game, index))}
-        </View>
-      ) : (
-        <View style={styles.noGamesContainer}>
-          <Ionicons name="game-controller-outline" size={50} color="#E3F2FD" />
-          <Text style={styles.noGamesText}>No games available at the moment</Text>
-          <TouchableOpacity 
-            style={styles.refreshGamesBtn}
-            onPress={handleAllGamesPress}
-          >
-            <View style={styles.glassEffectOverlay} />
-            <Text style={styles.refreshGamesText}>Browse Games</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Winners</Text>
-        <TouchableOpacity onPress={handleViewAllWinners}>
-          <Text style={styles.seeAll}>See All</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.winnersContainer}>
-        {[
-          { id: 1, name: "Amit", prize: "Won Full House 🏆", time: "2 min ago", color: "#4A90E2" },
-          { id: 2, name: "Neha", prize: "Won Early 5 🎉", time: "5 min ago", color: "#7EC8E3" },
-          { id: 3, name: "Rahul", prize: "Won Corners ✨", time: "10 min ago", color: "#5DADE2" },
-        ].map((winner) => (
-          <View key={winner.id} style={styles.winnerCard}>
-            <View style={styles.winnerInfo}>
-              <View style={[styles.winnerAvatar, { backgroundColor: winner.color }]}>
-                <Text style={styles.winnerInitial}>{winner.name.charAt(0)}</Text>
-              </View>
-              <View>
-                <Text style={styles.winnerName}>{winner.name}</Text>
-                <Text style={styles.winnerPrize}>{winner.prize}</Text>
-              </View>
+        {/* RECENT WINNERS SECTION */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleContainer}>
+              <FontAwesome name="trophy" size={24} color="#D4AF37" />
+              <Text style={styles.sectionTitle}>RECENT WINNERS</Text>
             </View>
-            <Text style={styles.winnerTime}>{winner.time}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>Why Play With Us?</Text>
-        <View style={styles.infoList}>
-          <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={20} color="#4A90E2" />
-            <Text style={styles.infoText}>Fast & Fair Games</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={20} color="#4A90E2" />
-            <Text style={styles.infoText}>Real Players</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={20} color="#4A90E2" />
-            <Text style={styles.infoText}>24x7 Rooms Available</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="checkmark-circle" size={20} color="#4A90E2" />
-            <Text style={styles.infoText}>Safe & Fun Experience</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.bottomSpace} />
-
-      <Modal visible={modalVisible} transparent={true} animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Notifications</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            {loadingNotifications ? (
-              <ActivityIndicator size="large" color="#4A90E2" style={styles.loadingIndicator} />
-            ) : (
-              <FlatList
-                data={notifications}
-                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-                renderItem={({ item }) => (
-                  <View style={styles.notificationItem}>
-                    <View style={styles.notificationIcon}>
-                      <Ionicons name="notifications" size={20} color="#4A90E2" />
-                    </View>
-                    <View style={styles.notificationContent}>
-                      <Text style={styles.notificationTitle}>{item.title || "New Update"}</Text>
-                      <Text style={styles.notificationMessage}>
-                        {item.message || "Check out the new features!"}
-                      </Text>
-                      <Text style={styles.notificationDate}>
-                        {item.created_at ? new Date(item.created_at).toLocaleString() : "Just now"}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-                ListEmptyComponent={
-                  <View style={styles.emptyNotifications}>
-                    <Ionicons name="notifications-off" size={50} color="#E3F2FD" />
-                    <Text style={styles.emptyText}>No notifications yet</Text>
-                  </View>
-                }
-              />
-            )}
-
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setModalVisible(false)}
-            >
-              <View style={styles.glassEffectOverlay} />
-              <Text style={styles.closeBtnText}>Close</Text>
+            <TouchableOpacity onPress={handleViewAllWinners}>
+              <Text style={styles.seeAll}>See All</Text>
             </TouchableOpacity>
           </View>
+
+          <View style={styles.winnersContainer}>
+            {[
+              { id: 1, name: "Amit Sharma", prize: "Won Full House 🏆", time: "2 min ago", color: "#D4AF37" },
+              { id: 2, name: "Neha Gupta", prize: "Won Early 5 🎉", time: "5 min ago", color: "#FFD700" },
+              { id: 3, name: "Rahul Verma", prize: "Won Corners ✨", time: "10 min ago", color: "#C5B358" },
+            ].map((winner) => (
+              <View key={winner.id} style={styles.winnerCard}>
+                <View style={styles.winnerInfo}>
+                  <View style={[styles.winnerAvatar, { backgroundColor: winner.color }]}>
+                    <Text style={styles.winnerInitial}>{winner.name.charAt(0)}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.winnerName}>{winner.name}</Text>
+                    <Text style={styles.winnerPrize}>{winner.prize}</Text>
+                  </View>
+                </View>
+                <Text style={styles.winnerTime}>{winner.time}</Text>
+              </View>
+            ))}
+          </View>
         </View>
-      </Modal>
-    </ScrollView>
+
+        {/* WHY PLAY WITH US SECTION */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleContainer}>
+              <Ionicons name="shield-checkmark" size={24} color="#D4AF37" />
+              <Text style={styles.sectionTitle}>WHY PLAY WITH US</Text>
+            </View>
+          </View>
+          
+          <View style={styles.infoCard}>
+            <View style={styles.infoList}>
+              <View style={styles.infoItem}>
+                <View style={styles.infoIcon}>
+                  <Ionicons name="checkmark-circle" size={22} color="#D4AF37" />
+                </View>
+                <Text style={styles.infoText}>Fast & Fair Games</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <View style={styles.infoIcon}>
+                  <Ionicons name="checkmark-circle" size={22} color="#D4AF37" />
+                </View>
+                <Text style={styles.infoText}>Real Players</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <View style={styles.infoIcon}>
+                  <Ionicons name="checkmark-circle" size={22} color="#D4AF37" />
+                </View>
+                <Text style={styles.infoText}>24x7 Rooms Available</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <View style={styles.infoIcon}>
+                  <Ionicons name="checkmark-circle" size={22} color="#D4AF37" />
+                </View>
+                <Text style={styles.infoText}>Safe & Fun Experience</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.bottomSpace} />
+
+        {/* NOTIFICATIONS MODAL */}
+        <Modal visible={modalVisible} transparent={true} animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Notifications</Text>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <Ionicons name="close" size={26} color="#F5E6A8" />
+                </TouchableOpacity>
+              </View>
+
+              {loadingNotifications ? (
+                <ActivityIndicator size="large" color="#D4AF37" style={styles.loadingIndicator} />
+              ) : (
+                <FlatList
+                  data={notifications}
+                  keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                  renderItem={({ item }) => (
+                    <View style={styles.notificationItem}>
+                      <View style={styles.notificationIcon}>
+                        <Ionicons name="notifications" size={22} color="#D4AF37" />
+                      </View>
+                      <View style={styles.notificationContent}>
+                        <Text style={styles.notificationTitle}>{item.title || "New Update"}</Text>
+                        <Text style={styles.notificationMessage}>
+                          {item.message || "Check out the new features!"}
+                        </Text>
+                        <Text style={styles.notificationDate}>
+                          {item.created_at ? new Date(item.created_at).toLocaleString() : "Just now"}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                  ListEmptyComponent={
+                    <View style={styles.emptyNotifications}>
+                      <Ionicons name="notifications-off" size={55} color="#F5E6A8" />
+                      <Text style={styles.emptyText}>No notifications yet</Text>
+                    </View>
+                  }
+                />
+              )}
+
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.closeBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F0F8FF", // Alice Blue
+    backgroundColor: "#005F6A", // Main background color
   },
-  backgroundPattern: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: -1,
-    overflow: 'hidden',
-  },
-  // Cloud animations
-  cloud1: {
-    position: 'absolute',
-    top: 40,
-    left: width * 0.1,
-    width: 100,
-    height: 40,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cloud2: {
-    position: 'absolute',
-    top: 80,
-    right: width * 0.15,
-    width: 80,
-    height: 30,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cloud3: {
-    position: 'absolute',
-    top: 120,
-    left: width * 0.6,
-    width: 60,
-    height: 25,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  // Sun
-  sun: {
-    position: 'absolute',
-    top: 30,
-    right: 30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  // Sky gradient
-  skyGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: height * 0.3,
-    backgroundColor: 'linear-gradient(to bottom, rgba(135, 206, 235, 0.2), rgba(135, 206, 235, 0))',
-  },
-  // Mountains
-  mountain1: {
-    position: 'absolute',
-    bottom: 0,
-    left: -50,
-    width: width + 100,
-    height: 200,
-    backgroundColor: '#4682B4',
-    transform: [{ rotate: '5deg' }],
-    opacity: 0.1,
-  },
-  mountain2: {
-    position: 'absolute',
-    bottom: 0,
-    right: -50,
-    width: width + 100,
-    height: 150,
-    backgroundColor: '#5DADE2',
-    transform: [{ rotate: '-5deg' }],
-    opacity: 0.08,
-  },
-  // Birds
-  bird1: {
-    position: 'absolute',
-    top: 150,
-    left: 50,
-    width: 20,
-    height: 20,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    transform: [{ rotate: '-30deg' }],
-  },
-  bird2: {
-    position: 'absolute',
-    top: 180,
-    right: 70,
-    width: 15,
-    height: 15,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    transform: [{ rotate: '30deg' }],
-  },
-  // Header sky pattern
   header: {
-    paddingTop: 30,
-    paddingBottom: 20,
-    backgroundColor: "#5DADE2",
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  headerPattern: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  headerCloud1: {
-    position: 'absolute',
-    top: 20,
-    left: 30,
-    width: 80,
-    height: 30,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  headerCloud2: {
-    position: 'absolute',
-    top: 40,
-    right: 40,
-    width: 60,
-    height: 20,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  headerCloud3: {
-    position: 'absolute',
-    bottom: 30,
-    left: width * 0.4,
-    width: 40,
-    height: 15,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  sunRay1: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    width: 80,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ rotate: '0deg' }],
-  },
-  sunRay2: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    width: 80,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ rotate: '45deg' }],
-  },
-  sunRay3: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    width: 80,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ rotate: '90deg' }],
-  },
-  headerContent: {
-    paddingHorizontal: 20,
-  },
-  headerTopRow: {
+    padding: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 5,
   },
-  appName: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#FFF",
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+  welcome: {
+    color: "#E6D8A2",
+    fontSize: 14,
   },
-  notificationButton: {
-    position: "relative",
-    padding: 8,
+  appTitle: {
+    color: "#F5E6A8",
+    fontSize: 26,
+    fontWeight: "bold",
   },
-  badge: {
+  dot: {
     position: "absolute",
-    top: 4,
-    right: 4,
-    backgroundColor: "#FFF",
-    borderRadius: 10,
-    width: 16,
-    height: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#5DADE2",
+    right: -2,
+    top: -2,
+    width: 8,
+    height: 8,
+    backgroundColor: "red",
+    borderRadius: 4,
   },
-  badgeText: {
-    color: "#5DADE2",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: "#E8EAED",
-    width: "100%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchIcon: {
-    marginRight: 12,
-  },
-  searchInput: {
-    flex: 1,
-    height: 50,
-    fontSize: 15,
-    color: "#333",
-  },
-  filterButton: {
-    padding: 8,
+  sliderSection: {
+    marginTop: 10,
+    marginBottom: 20,
+    paddingHorizontal: 20,
   },
   sliderWrapper: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 16,
-    overflow: "hidden",
-    height: 180,
-    position: "relative",
-    backgroundColor: "#F0F8FF",
+    height: 220,
+    position: 'relative',
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  sliderFlatList: {
+    height: 220,
   },
   sliderLoadingContainer: {
-    height: 180,
-    marginHorizontal: 20,
+    height: 220,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginTop: 20,
-    borderRadius: 16,
-    backgroundColor: "#4A90E2",
-    justifyContent: "center",
-    alignItems: "center",
+    marginBottom: 20,
+    marginHorizontal: 20,
+    backgroundColor: 'rgba(0, 75, 84, 0.5)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   slideContainer: {
     width: width - 40,
-    height: 180,
+    height: 220,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sliderImage: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 16,
+    width: '100%',
+    height: '100%',
+  },
+  sliderOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 75, 84, 0.4)',
+  },
+  sliderContent: {
+    position: 'absolute',
+    bottom: 25,
+    left: 25,
+    right: 25,
+  },
+  sliderTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#F5E6A8',
+    marginBottom: 6,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 4,
+  },
+  sliderDescription: {
+    fontSize: 15,
+    color: '#D4AF37',
+    marginBottom: 15,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  exploreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D4AF37',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    alignSelf: 'flex-start',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  exploreButtonText: {
+    color: '#004B54',
+    fontSize: 14,
+    fontWeight: '700',
   },
   paginationContainer: {
-    flexDirection: "row",
-    position: "absolute",
-    bottom: 10,
-    alignSelf: "center",
+    flexDirection: 'row',
+    position: 'absolute',
+    bottom: 15,
+    alignSelf: 'center',
+    zIndex: 2,
   },
   paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginHorizontal: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
   paginationDotActive: {
-    backgroundColor: "#4A90E2",
-    width: 20,
+    backgroundColor: '#D4AF37',
+    width: 24,
   },
   paginationDotInactive: {
-    backgroundColor: "rgba(74, 144, 226, 0.5)",
+    backgroundColor: 'rgba(212, 175, 55, 0.5)',
+  },
+  slideIndicator: {
+    position: 'absolute',
+    top: 15,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    zIndex: 2,
+    borderWidth: 1,
+    borderColor: '#D4AF37',
+  },
+  slideIndicatorText: {
+    color: '#D4AF37',
+    fontSize: 13,
+    fontWeight: '700',
   },
   bannerCard: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: '#004B54',
     marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 16,
-    overflow: "hidden",
+    marginTop: 10,
+    marginBottom: 20,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+    overflow: 'hidden',
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   bannerContent: {
-    flexDirection: "row",
-    padding: 20,
-    alignItems: "center",
+    flexDirection: 'row',
+    padding: 25,
+    alignItems: 'center',
   },
   bannerTextContainer: {
     flex: 1,
   },
   bannerTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#FFF",
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#F5E6A8',
+    marginBottom: 6,
   },
   bannerSubTitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.9)",
-    marginBottom: 16,
+    fontSize: 15,
+    color: '#D4AF37',
+    marginBottom: 18,
+    fontWeight: '600',
   },
   getStartedBtn: {
-    backgroundColor: "#FFF",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    backgroundColor: '#D4AF37',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 25,
-    alignSelf: "flex-start",
-    gap: 8,
-    overflow: 'hidden',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    alignSelf: 'flex-start',
+    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  getStartedText: {
+    color: '#004B54',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  bannerImage: {
+    width: 110,
+    height: 110,
+    marginLeft: 15,
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#D4AF37',
+    fontSize: 14,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 28,
+  },
+  quickAction: {
+    alignItems: 'center',
+    width: (width - 60) / 4,
+    paddingVertical: 15,
+    borderRadius: 15,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 6,
   },
-  getStartedText: {
-    color: "#4A90E2",
-    fontWeight: "700",
-    fontSize: 14,
+  quickActionIcon: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  bannerImage: {
-    width: 100,
-    height: 100,
-    marginLeft: 10,
+  depositBtn: {
+    backgroundColor: '#D4AF37', // Gold
+  },
+  withdrawBtn: {
+    backgroundColor: '#FF6B6B', // Coral Red
+  },
+  referBtn: {
+    backgroundColor: '#4ECDC4', // Turquoise
+  },
+  supportBtn: {
+    backgroundColor: '#9B59B6', // Purple
+  },
+  quickActionText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 28,
   },
   sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    marginTop: 30,
-    marginBottom: 15,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "800",
-    color: "#4682B4",
+    fontWeight: '800',
+    color: '#F5E6A8',
+    letterSpacing: 0.5,
   },
   seeAll: {
-    fontSize: 14,
-    color: "#4A90E2",
-    fontWeight: "600",
+    fontSize: 15,
+    color: '#D4AF37',
+    fontWeight: '700',
   },
   patternsLoadingContainer: {
-    height: 120,
+    height: 100,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 8,
-    color: "#4682B4",
-    fontSize: 14,
+    backgroundColor: 'rgba(0, 75, 84, 0.5)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   noPatternsContainer: {
-    height: 120,
+    height: 100,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 75, 84, 0.5)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   noPatternsText: {
-    color: '#4682B4',
-    fontSize: 14,
-    marginBottom: 8,
+    color: '#F5E6A8',
+    fontSize: 15,
+    marginBottom: 10,
   },
   retryText: {
-    color: '#4A90E2',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#D4AF37',
+    fontSize: 15,
+    fontWeight: '700',
   },
   patternContainer: {
-    paddingHorizontal: 15,
+    gap: 15,
   },
   patternCard: {
-    alignItems: "center",
-    marginHorizontal: 8,
-    width: 90,
+    alignItems: 'center',
+    width: 100,
+    backgroundColor: '#004B54',
+    borderRadius: 15,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   patternIconContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#FFF",
-    justifyContent: "center",
-    alignItems: "center",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.2)",
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
   },
   patternText: {
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 2,
-  },
-  patternDescription: {
-    fontSize: 10,
-    color: "#666",
-    textAlign: "center",
-    marginTop: 2,
-    opacity: 0.8,
-  },
-  gamesContainer: {
-    paddingHorizontal: 20,
-    gap: 12,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   gamesLoadingContainer: {
-    padding: 40,
-    alignItems: "center",
-    justifyContent: "center",
+    padding: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 75, 84, 0.5)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   noGamesContainer: {
-    backgroundColor: "#FFF",
-    marginHorizontal: 20,
-    padding: 30,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  noGamesText: {
-    marginTop: 10,
-    color: "#4682B4",
-    fontSize: 14,
-    textAlign: "center",
-  },
-  refreshGamesBtn: {
-    marginTop: 15,
-    backgroundColor: "#4A90E2",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    overflow: 'hidden',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#004B54',
+    padding: 35,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
-    elevation: 6,
+    elevation: 4,
+  },
+  noGamesText: {
+    marginTop: 12,
+    color: '#F5E6A8',
+    fontSize: 15,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  refreshGamesBtn: {
+    marginTop: 18,
+    backgroundColor: '#D4AF37',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   refreshGamesText: {
-    color: "#FFF",
-    fontWeight: "600",
+    color: '#004B54',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  gamesContainer: {
+    gap: 15,
   },
   gameCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    backgroundColor: '#004B54',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
     position: 'relative',
     overflow: 'hidden',
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  playingGameCard: {
-    backgroundColor: "#E3F2FD",
-    borderColor: "#4A90E2",
-    borderWidth: 2,
-  },
-  gameCardPattern: {
+  gameCardBackground: {
     position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
-    width: 50,
-    height: 50,
-    borderBottomLeftRadius: 16,
-    borderTopRightRadius: 25,
-    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+    right: 0,
+    bottom: 0,
+  },
+  cardPattern1: {
+    position: 'absolute',
+    top: -50,
+    right: -50,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(212, 175, 55, 0.08)',
+  },
+  cardPattern2: {
+    position: 'absolute',
+    bottom: -30,
+    left: -30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 215, 0, 0.08)',
   },
   statusBadge: {
     position: 'absolute',
-    top: 12,
-    left: 12,
+    top: 15,
+    left: 15,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    gap: 5,
     zIndex: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   liveBadge: {
     backgroundColor: '#27AE60',
@@ -1456,383 +1371,361 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#FFF',
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
   },
   cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginTop: 8,
-    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 18,
   },
   gameIconContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    gap: 12,
+    gap: 14,
   },
   gameIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: "#F8F9FA",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-    padding: 8,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    width: 55,
+    height: 55,
+    borderRadius: 12,
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.4)',
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   gameInfo: {
     flex: 1,
   },
   gameName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#212529",
-    marginBottom: 2,
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#F5E6A8',
+    marginBottom: 3,
   },
   gameId: {
-    fontSize: 12,
-    color: "#6C757D",
-    fontWeight: "500",
+    fontSize: 13,
+    color: '#D4AF37',
+    fontWeight: '600',
   },
   gameTypeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    gap: 4,
-    marginLeft: 8,
-    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 5,
+    marginLeft: 10,
+    borderWidth: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   paidBadge: {
-    backgroundColor: "rgba(243, 156, 18, 0.1)",
-    borderColor: "#F39C12",
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    borderColor: '#D4AF37',
   },
   freeBadge: {
-    backgroundColor: "rgba(39, 174, 96, 0.1)",
-    borderColor: "#27AE60",
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    borderColor: '#FFD700',
   },
   gameTypeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#212529",
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#F5E6A8',
   },
   gameDetails: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
   detailItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
     flex: 1,
   },
   detailIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: "#F8F9FA",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
   },
   detailLabel: {
-    fontSize: 10,
-    color: "#6C757D",
-    fontWeight: "500",
-    marginBottom: 2,
+    fontSize: 11,
+    color: '#D4AF37',
+    fontWeight: '600',
+    marginBottom: 3,
   },
   detailText: {
-    fontSize: 12,
-    color: "#212529",
-    fontWeight: "600",
+    fontSize: 14,
+    color: '#F5E6A8',
+    fontWeight: '700',
   },
   prizeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F8F9FA",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 16,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 18,
+    gap: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
   },
   prizeIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: "rgba(74, 144, 226, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#4A90E2",
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: 'rgba(212, 175, 55, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 3,
   },
   prizeInfo: {
     flex: 1,
   },
   prizeLabel: {
-    fontSize: 11,
-    color: "#6C757D",
-    fontWeight: "500",
-    marginBottom: 2,
+    fontSize: 12,
+    color: '#FFD700',
+    fontWeight: '600',
+    marginBottom: 3,
   },
   prizeText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#212529",
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#F5E6A8',
   },
   joinButton: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 6,
-    overflow: 'hidden',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowRadius: 6,
+    elevation: 6,
   },
   paidButton: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: '#D4AF37',
   },
   freeButton: {
-    backgroundColor: "#4A90E2",
-  },
-  glassEffectOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.4)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: 12,
+    backgroundColor: '#FFD700',
   },
   joinButtonText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontWeight: "700",
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    color: '#004B54',
+    fontSize: 15,
+    fontWeight: '800',
   },
   winnersContainer: {
-    paddingHorizontal: 20,
     gap: 12,
   },
   winnerCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  winnerInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  winnerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: '#4A90E2',
+    backgroundColor: '#004B54',
+    borderRadius: 15,
+    padding: 18,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  winnerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  winnerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   winnerInitial: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "700",
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '800',
   },
   winnerName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#4682B4",
-    marginBottom: 2,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#F5E6A8',
+    marginBottom: 3,
   },
   winnerPrize: {
-    fontSize: 13,
-    color: "#4A90E2",
+    fontSize: 14,
+    color: '#D4AF37',
+    fontWeight: '600',
   },
   winnerTime: {
-    fontSize: 12,
-    color: "#4682B4",
-    opacity: 0.7,
+    fontSize: 13,
+    color: '#F5E6A8',
+    opacity: 0.8,
+    fontWeight: '600',
   },
   infoCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 20,
-    marginTop: 30,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#4682B4",
-    marginBottom: 16,
+    backgroundColor: '#004B54',
+    borderRadius: 18,
+    padding: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
   },
   infoList: {
-    gap: 12,
+    gap: 15,
   },
   infoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  infoIcon: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   infoText: {
-    fontSize: 15,
-    color: "#4682B4",
-    fontWeight: "500",
+    fontSize: 16,
+    color: '#F5E6A8',
+    fontWeight: '600',
   },
   bottomSpace: {
-    height: 20,
+    height: 25,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
-    width: "90%",
-    height: "70%",
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
+    width: '90%',
+    height: '75%',
+    backgroundColor: '#004B54',
+    borderRadius: 22,
+    padding: 22,
+    borderWidth: 3,
+    borderColor: '#D4AF37',
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 15,
   },
   modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+    paddingBottom: 18,
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(212, 175, 55, 0.3)',
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#4682B4",
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#F5E6A8',
   },
   notificationItem: {
-    flexDirection: "row",
-    paddingVertical: 12,
+    flexDirection: 'row',
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(74, 144, 226, 0.1)",
+    borderBottomColor: 'rgba(212, 175, 55, 0.15)',
   },
   notificationIcon: {
-    marginRight: 12,
+    marginRight: 14,
+    marginTop: 2,
   },
   notificationContent: {
     flex: 1,
   },
   notificationTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#4682B4",
-    marginBottom: 2,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#F5E6A8',
+    marginBottom: 3,
   },
   notificationMessage: {
-    fontSize: 13,
-    color: "#4A90E2",
-    marginBottom: 4,
+    fontSize: 14,
+    color: '#FFD700',
+    marginBottom: 5,
+    lineHeight: 20,
   },
   notificationDate: {
-    fontSize: 11,
-    color: "#4682B4",
+    fontSize: 12,
+    color: '#F5E6A8',
     opacity: 0.7,
+    fontWeight: '600',
   },
   emptyNotifications: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 45,
   },
   emptyText: {
-    fontSize: 16,
-    color: "#4682B4",
+    fontSize: 17,
+    color: '#F5E6A8',
     opacity: 0.7,
-    marginTop: 10,
+    marginTop: 12,
+    fontWeight: '600',
   },
   loadingIndicator: {
-    marginVertical: 20,
+    marginVertical: 22,
   },
   closeBtn: {
-    backgroundColor: "#4A90E2",
-    padding: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 15,
+    backgroundColor: '#D4AF37',
+    padding: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: 18,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    overflow: 'hidden',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowRadius: 6,
+    elevation: 6,
   },
   closeBtnText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontWeight: "700",
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    color: '#004B54',
+    fontSize: 15,
+    fontWeight: '800',
   },
 });
 

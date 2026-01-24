@@ -25,6 +25,15 @@ import { Ionicons, MaterialIcons, FontAwesome } from "@expo/vector-icons";
 const { width } = Dimensions.get('window');
 const BASE_URL = "https://exilance.com/tambolatimez/public/";
 
+// Color scheme matching Home page
+const PRIMARY_COLOR = "#005F6A"; // Main background color
+const SECONDARY_COLOR = "#004B54"; // Dark teal
+const ACCENT_COLOR = "#D4AF37"; // Gold
+const LIGHT_ACCENT = "#F5E6A8"; // Light gold
+const MUTED_GOLD = "#E6D8A2"; // Muted gold for text
+const DARK_TEAL = "#00343A"; // Darker teal
+const WHITE = "#FFFFFF";
+
 const Profile = ({ onLogout, navigation }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +56,7 @@ const Profile = ({ onLogout, navigation }) => {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const shineAnim = useRef(new Animated.Value(0)).current;
 
   // Helper function to get full image URL
   const getFullImageUrl = (imagePath) => {
@@ -139,6 +149,24 @@ const Profile = ({ onLogout, navigation }) => {
         useNativeDriver: true,
       })
     ).start();
+
+    // Shine animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shineAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(shineAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   };
 
   // Interpolations for animations
@@ -155,6 +183,11 @@ const Profile = ({ onLogout, navigation }) => {
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg']
+  });
+
+  const shineTranslateX = shineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-100, width + 100]
   });
 
   const animateButton = () => {
@@ -393,7 +426,7 @@ const Profile = ({ onLogout, navigation }) => {
   const renderNotificationItem = ({ item }) => (
     <View style={styles.notificationItem}>
       <View style={styles.notificationIcon}>
-        <Ionicons name="notifications" size={20} color="#4A90E2" />
+        <Ionicons name="notifications" size={20} color={ACCENT_COLOR} />
       </View>
       <View style={styles.notificationContent}>
         <Text style={styles.notificationTitle}>{item.title || "New Update"}</Text>
@@ -410,7 +443,7 @@ const Profile = ({ onLogout, navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
+        <ActivityIndicator size="large" color={ACCENT_COLOR} />
         <Text style={styles.loadingText}>Loading Profile...</Text>
       </View>
     );
@@ -421,10 +454,10 @@ const Profile = ({ onLogout, navigation }) => {
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         {/* BACKGROUND PATTERNS - Matching Home design */}
         <View style={styles.backgroundPattern}>
-          {/* Animated floating clouds */}
+          {/* Animated floating poker chips */}
           <Animated.View 
             style={[
-              styles.cloud1, 
+              styles.pokerChip1, 
               { 
                 transform: [
                   { translateY: translateY1 },
@@ -435,7 +468,7 @@ const Profile = ({ onLogout, navigation }) => {
           />
           <Animated.View 
             style={[
-              styles.cloud2, 
+              styles.pokerChip2, 
               { 
                 transform: [
                   { translateY: translateY2 },
@@ -444,51 +477,20 @@ const Profile = ({ onLogout, navigation }) => {
               }
             ]} 
           />
+          
+          {/* Animated shine effect */}
           <Animated.View 
             style={[
-              styles.cloud3, 
+              styles.shineEffect,
               { 
-                transform: [
-                  { translateY: translateY1 },
-                  { translateX: translateY2 }
-                ] 
+                transform: [{ translateX: shineTranslateX }],
+                opacity: shineAnim
               }
             ]} 
           />
           
-          {/* Sun */}
-          <Animated.View 
-            style={[
-              styles.sun,
-              { 
-                transform: [{ rotate: rotate }],
-                opacity: pulseAnim
-              }
-            ]} 
-          />
-          
-          {/* Sky gradient overlay */}
-          <View style={styles.skyGradient} />
-          
-          {/* Bird silhouettes */}
-          <Animated.View 
-            style={[
-              styles.bird1,
-              { transform: [{ translateX: floatAnim1.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 50]
-              }) }] }
-            ]} 
-          />
-          <Animated.View 
-            style={[
-              styles.bird2,
-              { transform: [{ translateX: floatAnim2.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, -30]
-              }) }] }
-            ]} 
-          />
+          {/* Gold gradient overlay */}
+          <View style={styles.goldGradient} />
         </View>
 
         <ScrollView
@@ -497,12 +499,12 @@ const Profile = ({ onLogout, navigation }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#4A90E2"
-              colors={['#4A90E2']}
+              tintColor={ACCENT_COLOR}
+              colors={[ACCENT_COLOR]}
             />
           }
         >
-          {/* HEADER - Sky Blue Background */}
+          {/* HEADER - Dark Teal Background */}
           <Animated.View 
             style={[
               styles.header,
@@ -512,39 +514,30 @@ const Profile = ({ onLogout, navigation }) => {
             ]}
           >
             <View style={styles.headerPattern}>
-              <View style={styles.headerCloud1} />
-              <View style={styles.headerCloud2} />
-              <View style={styles.headerCloud3} />
-              
-              {/* Sun rays in header */}
               <Animated.View 
                 style={[
-                  styles.sunRay1,
-                  { transform: [{ rotate: rotate }] }
-                ]} 
-              />
-              <Animated.View 
-                style={[
-                  styles.sunRay2,
-                  { transform: [{ rotate: rotate }] }
-                ]} 
-              />
-              <Animated.View 
-                style={[
-                  styles.sunRay3,
-                  { transform: [{ rotate: rotate }] }
+                  styles.headerShine,
+                  { transform: [{ translateX: shineTranslateX }] }
                 ]} 
               />
             </View>
 
             <View style={styles.headerContent}>
               <View style={styles.headerTopRow}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => navigation.goBack()}
+                >
+                  <Ionicons name="arrow-back" size={24} color={ACCENT_COLOR} />
+                </TouchableOpacity>
+                
                 <Text style={styles.headerTitle}>My Profile</Text>
+                
                 <TouchableOpacity
                   style={styles.notificationButton}
                   onPress={openNotificationModal}
                 >
-                  <Ionicons name="notifications-outline" size={24} color="#FFF" />
+                  <Ionicons name="notifications-outline" size={24} color={ACCENT_COLOR} />
                   {notifications.length > 0 && (
                     <View style={styles.badge}>
                       <Text style={styles.badgeText}>
@@ -585,7 +578,7 @@ const Profile = ({ onLogout, navigation }) => {
                 />
                 {editMode && (
                   <View style={styles.editImageBadge}>
-                    <Ionicons name="camera" size={16} color="#FFFFFF" />
+                    <Ionicons name="camera" size={16} color={WHITE} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -597,7 +590,7 @@ const Profile = ({ onLogout, navigation }) => {
                     value={formData.name}
                     onChangeText={(text) => handleInputChange("name", text)}
                     placeholder="Enter your name"
-                    placeholderTextColor="#4682B4"
+                    placeholderTextColor={MUTED_GOLD}
                   />
                 </View>
               ) : (
@@ -624,7 +617,7 @@ const Profile = ({ onLogout, navigation }) => {
                   <Ionicons 
                     name={editMode ? "checkmark" : "pencil"} 
                     size={18} 
-                    color="#FFFFFF" 
+                    color={WHITE} 
                   />
                   <Text style={styles.editButtonText}>
                     {saving ? "Saving..." : editMode ? "Save" : "Edit Profile"}
@@ -649,7 +642,7 @@ const Profile = ({ onLogout, navigation }) => {
                     }
                   }}
                 >
-                  <Ionicons name="close" size={18} color="#4682B4" />
+                  <Ionicons name="close" size={18} color={MUTED_GOLD} />
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
               )}
@@ -659,7 +652,7 @@ const Profile = ({ onLogout, navigation }) => {
           {/* ACCOUNT INFORMATION - Email and Mobile are READ ONLY */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="person-circle" size={22} color="#4A90E2" />
+              <Ionicons name="person-circle" size={22} color={ACCENT_COLOR} />
               <Text style={styles.sectionTitle}>Account Information</Text>
             </View>
             
@@ -669,7 +662,7 @@ const Profile = ({ onLogout, navigation }) => {
               {/* Email - Always Read Only */}
               <View style={styles.infoRow}>
                 <View style={styles.infoIcon}>
-                  <Ionicons name="mail" size={16} color="#4A90E2" />
+                  <Ionicons name="mail" size={16} color={ACCENT_COLOR} />
                 </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Email Address</Text>
@@ -680,7 +673,7 @@ const Profile = ({ onLogout, navigation }) => {
               {/* Mobile - Always Read Only */}
               <View style={styles.infoRow}>
                 <View style={styles.infoIcon}>
-                  <Ionicons name="phone-portrait" size={16} color="#4A90E2" />
+                  <Ionicons name="phone-portrait" size={16} color={ACCENT_COLOR} />
                 </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Mobile Number</Text>
@@ -694,7 +687,7 @@ const Profile = ({ onLogout, navigation }) => {
           {!editMode && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="stats-chart" size={22} color="#4A90E2" />
+                <Ionicons name="stats-chart" size={22} color={ACCENT_COLOR} />
                 <Text style={styles.sectionTitle}>Stats & Referral</Text>
               </View>
               
@@ -704,7 +697,7 @@ const Profile = ({ onLogout, navigation }) => {
                 <View style={styles.statsGrid}>
                   <View style={styles.statItem}>
                     <View style={styles.statIconContainer}>
-                      <Ionicons name="gift" size={20} color="#FF6B35" />
+                      <Ionicons name="gift" size={20} color={ACCENT_COLOR} />
                     </View>
                     <Text style={styles.statLabel}>Referral Code</Text>
                     <Text style={styles.statValue}>{user?.referral_code || "N/A"}</Text>
@@ -712,7 +705,7 @@ const Profile = ({ onLogout, navigation }) => {
                   
                   <View style={styles.statItem}>
                     <View style={styles.statIconContainer}>
-                      <Ionicons name="star" size={20} color="#FFD700" />
+                      <Ionicons name="star" size={20} color={ACCENT_COLOR} />
                     </View>
                     <Text style={styles.statLabel}>Referral Points</Text>
                     <Text style={styles.statValue}>{user?.referral_points || "0"}</Text>
@@ -722,7 +715,7 @@ const Profile = ({ onLogout, navigation }) => {
                 <View style={styles.additionalInfo}>
                   <View style={styles.infoRow}>
                     <View style={styles.infoIcon}>
-                      <Ionicons name="shield-checkmark" size={16} color="#4A90E2" />
+                      <Ionicons name="shield-checkmark" size={16} color={ACCENT_COLOR} />
                     </View>
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>Account Status</Text>
@@ -732,7 +725,7 @@ const Profile = ({ onLogout, navigation }) => {
                   
                   <View style={styles.infoRow}>
                     <View style={styles.infoIcon}>
-                      <Ionicons name="people" size={16} color="#4A90E2" />
+                      <Ionicons name="people" size={16} color={ACCENT_COLOR} />
                     </View>
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>Under Referral</Text>
@@ -748,7 +741,7 @@ const Profile = ({ onLogout, navigation }) => {
           {!editMode && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="settings" size={22} color="#4A90E2" />
+                <Ionicons name="settings" size={22} color={ACCENT_COLOR} />
                 <Text style={styles.sectionTitle}>Settings</Text>
               </View>
               
@@ -757,25 +750,25 @@ const Profile = ({ onLogout, navigation }) => {
                   { 
                     icon: "ticket", 
                     title: "My Tickets", 
-                    color: "#4A90E2",
-                    onPress: () => handleNavigation('Game')
+                    color: ACCENT_COLOR,
+                    onPress: () => handleNavigation('TicketsScreen')
                   },
                   { 
                     icon: "notifications", 
                     title: "Notifications", 
-                    color: "#5DADE2",
+                    color: ACCENT_COLOR,
                     onPress: openNotificationModal
                   },
                   { 
                     icon: "lock-closed", 
                     title: "Privacy & Security", 
-                    color: "#7EC8E3",
+                    color: ACCENT_COLOR,
                     onPress: () => Alert.alert("Coming Soon", "Privacy & Security settings will be available soon!")
                   },
                   { 
                     icon: "help-circle", 
                     title: "Help & Support", 
-                    color: "#4682B4",
+                    color: ACCENT_COLOR,
                     onPress: () => Alert.alert("Help & Support", "Contact support@example.com for assistance")
                   },
                 ].map((item, index) => (
@@ -784,8 +777,8 @@ const Profile = ({ onLogout, navigation }) => {
                     style={styles.optionItem}
                     onPress={item.onPress}
                   >
-                    <View style={[styles.optionIcon, { backgroundColor: `${item.color}15` }]}>
-                      <Ionicons name={item.icon} size={22} color={item.color} />
+                    <View style={[styles.optionIcon, { backgroundColor: `${ACCENT_COLOR}15` }]}>
+                      <Ionicons name={item.icon} size={22} color={ACCENT_COLOR} />
                     </View>
                     <View style={styles.optionContent}>
                       <Text style={styles.optionTitle}>{item.title}</Text>
@@ -795,7 +788,7 @@ const Profile = ({ onLogout, navigation }) => {
                          index === 2 ? "Security settings" : "Get help & support"}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#4682B4" />
+                    <Ionicons name="chevron-forward" size={20} color={ACCENT_COLOR} />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -809,7 +802,7 @@ const Profile = ({ onLogout, navigation }) => {
           >
             <View style={styles.glassEffectOverlay} />
             <View style={styles.logoutIcon}>
-              <Ionicons name="log-out" size={22} color="#FFFFFF" />
+              <Ionicons name="log-out" size={22} color={WHITE} />
             </View>
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
@@ -838,7 +831,7 @@ const Profile = ({ onLogout, navigation }) => {
               onPress={() => handleImagePick("camera")}
             >
               <View style={styles.modalOptionIcon}>
-                <Ionicons name="camera" size={24} color="#4A90E2" />
+                <Ionicons name="camera" size={24} color={ACCENT_COLOR} />
               </View>
               <View style={styles.modalOptionContent}>
                 <Text style={styles.modalOptionTitle}>Take Photo</Text>
@@ -851,7 +844,7 @@ const Profile = ({ onLogout, navigation }) => {
               onPress={() => handleImagePick("gallery")}
             >
               <View style={styles.modalOptionIcon}>
-                <Ionicons name="images" size={24} color="#4A90E2" />
+                <Ionicons name="images" size={24} color={ACCENT_COLOR} />
               </View>
               <View style={styles.modalOptionContent}>
                 <Text style={styles.modalOptionTitle}>Choose from Gallery</Text>
@@ -881,13 +874,13 @@ const Profile = ({ onLogout, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Notifications</Text>
               <TouchableOpacity onPress={() => setNotificationModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#4682B4" />
+                <Ionicons name="close" size={24} color={ACCENT_COLOR} />
               </TouchableOpacity>
             </View>
 
             {loadingNotifications ? (
               <View style={styles.loadingContainerModal}>
-                <ActivityIndicator size="large" color="#4A90E2" />
+                <ActivityIndicator size="large" color={ACCENT_COLOR} />
                 <Text style={styles.loadingTextModal}>Loading notifications...</Text>
               </View>
             ) : notifications.length > 0 ? (
@@ -898,14 +891,14 @@ const Profile = ({ onLogout, navigation }) => {
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
                   <View style={styles.emptyNotifications}>
-                    <Ionicons name="notifications-off" size={50} color="#E3F2FD" />
+                    <Ionicons name="notifications-off" size={50} color={LIGHT_ACCENT} />
                     <Text style={styles.emptyText}>No notifications yet</Text>
                   </View>
                 }
               />
             ) : (
               <View style={styles.emptyNotifications}>
-                <Ionicons name="notifications-off" size={50} color="#E3F2FD" />
+                <Ionicons name="notifications-off" size={50} color={LIGHT_ACCENT} />
                 <Text style={styles.emptyText}>No notifications yet</Text>
               </View>
             )}
@@ -929,18 +922,18 @@ export default Profile;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F0F8FF",
+    backgroundColor: PRIMARY_COLOR,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F0F8FF",
+    backgroundColor: PRIMARY_COLOR,
   },
   loadingText: {
     marginTop: 20,
     fontSize: 16,
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
     fontWeight: "500",
   },
   content: {
@@ -956,97 +949,58 @@ const styles = StyleSheet.create({
     zIndex: -1,
     overflow: 'hidden',
   },
-  cloud1: {
-    position: 'absolute',
-    top: 40,
-    left: width * 0.1,
-    width: 100,
-    height: 40,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cloud2: {
+  // Poker chip animations
+  pokerChip1: {
     position: 'absolute',
     top: 80,
-    right: width * 0.15,
-    width: 80,
-    height: 30,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    left: width * 0.1,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  cloud3: {
+  pokerChip2: {
     position: 'absolute',
     top: 120,
-    left: width * 0.6,
-    width: 60,
-    height: 25,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    right: width * 0.15,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 5,
   },
-  sun: {
+  // Shine effect
+  shineEffect: {
     position: 'absolute',
-    top: 30,
-    right: 30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
+    top: 0,
+    left: 0,
+    width: 100,
+    height: '100%',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
+    transform: [{ skewX: '-20deg' }],
   },
-  skyGradient: {
+  goldGradient: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     height: 300,
-    backgroundColor: 'rgba(135, 206, 235, 0.1)',
-  },
-  bird1: {
-    position: 'absolute',
-    top: 150,
-    left: 50,
-    width: 20,
-    height: 20,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    transform: [{ rotate: '-30deg' }],
-  },
-  bird2: {
-    position: 'absolute',
-    top: 180,
-    right: 70,
-    width: 15,
-    height: 15,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    transform: [{ rotate: '30deg' }],
+    backgroundColor: 'rgba(212, 175, 55, 0.05)',
   },
   // Header
   header: {
     paddingTop: 20,
     paddingBottom: 20,
-    backgroundColor: "#5DADE2",
+    backgroundColor: SECONDARY_COLOR,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
     position: 'relative',
@@ -1058,60 +1012,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    overflow: 'hidden',
   },
-  headerCloud1: {
+  headerShine: {
     position: 'absolute',
-    top: 20,
-    left: 30,
-    width: 80,
-    height: 30,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  headerCloud2: {
-    position: 'absolute',
-    top: 40,
-    right: 40,
-    width: 60,
-    height: 20,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  headerCloud3: {
-    position: 'absolute',
-    bottom: 30,
-    left: width * 0.4,
-    width: 40,
-    height: 15,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  sunRay1: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    width: 80,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ rotate: '0deg' }],
-  },
-  sunRay2: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    width: 80,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ rotate: '45deg' }],
-  },
-  sunRay3: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    width: 80,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ rotate: '90deg' }],
+    top: 0,
+    left: 0,
+    width: 100,
+    height: '100%',
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    transform: [{ skewX: '-20deg' }],
   },
   headerContent: {
     paddingHorizontal: 20,
@@ -1122,18 +1032,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 0,
   },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.3)",
+  },
   headerTitle: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#FFF",
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    color: LIGHT_ACCENT,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.9)",
+    color: MUTED_GOLD,
     fontWeight: "500",
+    textAlign: 'center',
+    marginTop: 4,
   },
   notificationButton: {
     position: "relative",
@@ -1143,37 +1065,37 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 4,
     right: 4,
-    backgroundColor: "#FFF",
+    backgroundColor: WHITE,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#5DADE2",
+    borderColor: ACCENT_COLOR,
     paddingHorizontal: 4,
   },
   badgeText: {
-    color: "#5DADE2",
+    color: SECONDARY_COLOR,
     fontSize: 10,
     fontWeight: "700",
   },
   profileCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 16,
     marginHorizontal: 20,
     padding: 24,
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
     overflow: 'hidden',
     position: 'relative',
     marginTop: 20,
     marginBottom: 24,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   profilePattern: {
     position: 'absolute',
@@ -1191,7 +1113,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+    backgroundColor: 'rgba(212, 175, 55, 0.05)',
   },
   profilePatternDots: {
     position: 'absolute',
@@ -1199,7 +1121,7 @@ const styles = StyleSheet.create({
     right: 20,
     width: 30,
     height: 30,
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     borderRadius: 15,
   },
   profileHeader: {
@@ -1214,25 +1136,25 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 3,
-    borderColor: "#FFFFFF",
-    backgroundColor: "#F8F9FA",
+    borderColor: ACCENT_COLOR,
+    backgroundColor: DARK_TEAL,
   },
   profileImageEdit: {
     borderWidth: 3,
-    borderColor: "#4A90E2",
+    borderColor: ACCENT_COLOR,
   },
   editImageBadge: {
     position: "absolute",
     bottom: 5,
     right: 5,
-    backgroundColor: "#4A90E2",
+    backgroundColor: ACCENT_COLOR,
     width: 32,
     height: 32,
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#FFFFFF",
+    borderColor: WHITE,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1246,15 +1168,15 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#212529",
+    color: LIGHT_ACCENT,
     marginBottom: 4,
     textAlign: "center",
   },
   userRole: {
     fontSize: 14,
-    color: "#4A90E2",
+    color: ACCENT_COLOR,
     fontWeight: "600",
-    backgroundColor: "rgba(74, 144, 226, 0.1)",
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1266,24 +1188,24 @@ const styles = StyleSheet.create({
   nameInput: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#212529",
+    color: LIGHT_ACCENT,
     textAlign: "center",
     borderBottomWidth: 2,
-    borderBottomColor: "#4A90E2",
+    borderBottomColor: ACCENT_COLOR,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: DARK_TEAL,
     borderRadius: 8,
   },
   editButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#4A90E2",
+    backgroundColor: ACCENT_COLOR,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
     gap: 8,
-    shadowColor: "#4A90E2",
+    shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -1309,7 +1231,7 @@ const styles = StyleSheet.create({
     shadowColor: "#28A745",
   },
   editButtonText: {
-    color: "#FFFFFF",
+    color: SECONDARY_COLOR,
     fontWeight: "700",
     fontSize: 14,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
@@ -1326,7 +1248,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   cancelButtonText: {
-    color: "#4682B4",
+    color: MUTED_GOLD,
     fontWeight: "500",
     fontSize: 13,
   },
@@ -1343,21 +1265,21 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#4682B4",
+    color: ACCENT_COLOR,
   },
   infoCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 12,
     padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   infoPattern: {
     position: 'absolute',
@@ -1367,20 +1289,20 @@ const styles = StyleSheet.create({
     height: 60,
     borderBottomLeftRadius: 12,
     borderTopRightRadius: 20,
-    backgroundColor: 'rgba(74, 144, 226, 0.02)',
+    backgroundColor: 'rgba(212, 175, 55, 0.02)',
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(74, 144, 226, 0.1)",
+    borderBottomColor: "rgba(212, 175, 55, 0.1)",
   },
   infoIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(74, 144, 226, 0.1)",
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -1390,38 +1312,38 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     marginBottom: 2,
     fontWeight: "500",
   },
   infoValue: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#212529",
+    color: LIGHT_ACCENT,
   },
   statusValue: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#28A745",
-    backgroundColor: "rgba(40, 167, 69, 0.1)",
+    color: ACCENT_COLOR,
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
     alignSelf: 'flex-start',
   },
   statsCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 12,
     padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   statsPattern: {
     position: 'absolute',
@@ -1431,7 +1353,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderTopRightRadius: 12,
     borderBottomLeftRadius: 20,
-    backgroundColor: 'rgba(74, 144, 226, 0.03)',
+    backgroundColor: 'rgba(212, 175, 55, 0.03)',
   },
   statsGrid: {
     flexDirection: "row",
@@ -1440,27 +1362,27 @@ const styles = StyleSheet.create({
   },
   statItem: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: DARK_TEAL,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderColor: "rgba(212, 175, 55, 0.1)",
   },
   statIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderColor: "rgba(212, 175, 55, 0.1)",
   },
   statLabel: {
     fontSize: 12,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     marginBottom: 4,
     fontWeight: "500",
     textAlign: "center",
@@ -1468,30 +1390,30 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#212529",
+    color: LIGHT_ACCENT,
     textAlign: "center",
   },
   additionalInfo: {
     marginTop: 8,
   },
   optionsCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 12,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   optionItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(74, 144, 226, 0.1)",
+    borderBottomColor: "rgba(212, 175, 55, 0.1)",
   },
   optionIcon: {
     width: 48,
@@ -1507,12 +1429,12 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
     marginBottom: 2,
   },
   optionDescription: {
     fontSize: 12,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     opacity: 0.7,
   },
   logoutButton: {
@@ -1543,7 +1465,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoutText: {
-    color: "#FFFFFF",
+    color: WHITE,
     fontWeight: "700",
     fontSize: 16,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
@@ -1555,7 +1477,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.85)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -1563,16 +1485,16 @@ const styles = StyleSheet.create({
   modalContent: {
     width: "100%",
     maxWidth: 400,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     borderRadius: 20,
     padding: 24,
     position: 'relative',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
-    shadowColor: '#4A90E2',
+    borderWidth: 2,
+    borderColor: ACCENT_COLOR,
+    shadowColor: ACCENT_COLOR,
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 10,
   },
@@ -1588,7 +1510,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+    backgroundColor: 'rgba(212, 175, 55, 0.05)',
   },
   modalHeader: {
     flexDirection: "row",
@@ -1599,12 +1521,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#4682B4",
+    color: ACCENT_COLOR,
     marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 14,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     textAlign: "center",
     marginBottom: 24,
     opacity: 0.7,
@@ -1612,23 +1534,23 @@ const styles = StyleSheet.create({
   modalOption: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: DARK_TEAL,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderColor: "rgba(212, 175, 55, 0.1)",
   },
   modalOptionIcon: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SECONDARY_COLOR,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderColor: "rgba(212, 175, 55, 0.1)",
   },
   modalOptionContent: {
     flex: 1,
@@ -1636,12 +1558,12 @@ const styles = StyleSheet.create({
   modalOptionTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
     marginBottom: 2,
   },
   modalOptionDescription: {
     fontSize: 12,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     opacity: 0.7,
   },
   modalCancelButton: {
@@ -1650,11 +1572,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(74, 144, 226, 0.1)",
+    borderColor: "rgba(212, 175, 55, 0.1)",
     marginTop: 8,
   },
   modalCancelText: {
-    color: "#4682B4",
+    color: MUTED_GOLD,
     fontWeight: "600",
     fontSize: 15,
   },
@@ -1663,7 +1585,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(74, 144, 226, 0.1)",
+    borderBottomColor: "rgba(212, 175, 55, 0.1)",
   },
   notificationIcon: {
     marginRight: 12,
@@ -1674,17 +1596,17 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
     marginBottom: 2,
   },
   notificationMessage: {
     fontSize: 13,
-    color: "#4A90E2",
+    color: ACCENT_COLOR,
     marginBottom: 4,
   },
   notificationDate: {
     fontSize: 11,
-    color: "#4682B4",
+    color: MUTED_GOLD,
     opacity: 0.7,
   },
   emptyNotifications: {
@@ -1694,7 +1616,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
     opacity: 0.7,
     marginTop: 10,
   },
@@ -1706,10 +1628,10 @@ const styles = StyleSheet.create({
   loadingTextModal: {
     marginTop: 10,
     fontSize: 14,
-    color: "#4682B4",
+    color: LIGHT_ACCENT,
   },
   closeBtn: {
-    backgroundColor: "#4A90E2",
+    backgroundColor: ACCENT_COLOR,
     padding: 12,
     borderRadius: 12,
     alignItems: "center",
@@ -1725,7 +1647,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   closeBtnText: {
-    color: "#FFF",
+    color: SECONDARY_COLOR,
     fontSize: 14,
     fontWeight: "700",
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
